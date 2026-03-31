@@ -1,6 +1,7 @@
 import os
 import time
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from typing import Any, Dict, List
 from collections import defaultdict
 
@@ -269,7 +270,6 @@ DEFAULTS = {
     "lazy_reason": "",
     "lazy_warning": "",
     "command_ready": False,
-    "analysis_loaded": False,
 }
 
 for k, v in DEFAULTS.items():
@@ -287,12 +287,16 @@ def reset_error() -> None:
     st.session_state.last_error = ""
 
 
+def korea_now() -> datetime:
+    return datetime.now(ZoneInfo("Asia/Seoul"))
+
+
 def now_time() -> str:
-    return datetime.now().strftime("%H:%M")
+    return korea_now().strftime("%H:%M")
 
 
 def today_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
+    return korea_now().strftime("%Y-%m-%d")
 
 
 def parse_done(value: Any) -> bool:
@@ -383,7 +387,7 @@ def get_weekly_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
             "top_fail_reason": "",
         }
 
-    today = datetime.now().date()
+    today = korea_now().date()
     week_start = today - timedelta(days=6)
 
     weekly_rows = []
@@ -619,7 +623,7 @@ def load_records() -> tuple[List[Dict[str, Any]], bool]:
 
 def save_record(task: str, done: bool, fail_reason: str = "", source: str = "control") -> bool:
     row = {
-        "time": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "time": korea_now().strftime("%Y-%m-%d %H:%M"),
         "date": today_str(),
         "task": task,
         "done": str(done),
@@ -647,11 +651,11 @@ def save_record(task: str, done: bool, fail_reason: str = "", source: str = "con
         return False
 
 # =========================================================
-# 데이터 로드 (가벼운 것만 먼저)
+# 가벼운 데이터만 먼저 로드
 # =========================================================
 reset_error()
-records, using_sheet = load_records()
-st.session_state.using_sheet = using_sheet
+records = st.session_state.records
+using_sheet = False
 
 streak = calculate_streak(records)
 today_status = get_today_status(records)
@@ -659,13 +663,11 @@ success_count, fail_count = get_success_fail_counts(records)
 success_rate = get_success_rate(records)
 recent_records = get_recent_records(records, 10)
 
-# 첫 화면은 빠른 기본 명령
 fast_cmd, fast_reason, fast_warning = fast_command(st.session_state.goal)
 command = fast_cmd
 reason = fast_reason
 warning = fast_warning
 
-# AI 명령은 요청했을 때만 생성
 if st.session_state.command_ready:
     with st.spinner("AI 명령 생성 중..."):
         command, reason, warning = generate_command(
@@ -676,6 +678,7 @@ if st.session_state.command_ready:
         st.session_state.lazy_command = command
         st.session_state.lazy_reason = reason
         st.session_state.lazy_warning = warning
+        st.session_state.command_ready = False
 else:
     if st.session_state.lazy_command:
         command = st.session_state.lazy_command
@@ -710,8 +713,7 @@ if st.session_state.show_onboarding:
 if GENAI_IMPORT_ERROR:
     st.info(TXT["fallback_ai_notice"])
 
-if not using_sheet:
-    st.info(TXT["fallback_sheet_notice"])
+# 시트는 탭에서 실제로 로드한 뒤 상태 표시
 
 if st.session_state.last_error:
     with st.expander("System message", expanded=False):
@@ -740,6 +742,20 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
+
+# =========================================================
+# Premium CTA는 항상 보이게
+# =========================================================
+st.markdown(
+    """
+<div class="card">
+    <div class="section-title">🔒 Premium</div>
+    <div class="body-small">무료는 시작하게 만들고, Premium은 반복 실패를 끊게 만든다.</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+st.link_button("👉 Premium 시작", PREMIUM_URL, use_container_width=True)
 
 # =========================================================
 # 상태 카드
@@ -842,8 +858,17 @@ else:
 # 상세 분석은 펼쳤을 때만 계산
 # =========================================================
 with st.expander("📊 상세 분석", expanded=False):
-    weekly_stats = get_weekly_stats(records)
     with st.spinner("상세 분석 로딩 중..."):
+        sheet_records, using_sheet = load_records()
+        st.session_state.using_sheet = using_sheet
+
+        if using_sheet:
+            records_for_analysis = sheet_records
+        else:
+            records_for_analysis = st.session_state.records
+            st.info(TXT["fallback_sheet_notice"])
+
+        weekly_stats = get_weekly_stats(records_for_analysis)
         weekly_focus, weekly_action = generate_weekly_report(
             goal=st.session_state.goal,
             success_rate=weekly_stats["success_rate"],
@@ -854,7 +879,7 @@ with st.expander("📊 상세 분석", expanded=False):
 
         premium_weakness, premium_fix = generate_premium_insight(
             goal=st.session_state.goal,
-            recent_records_repr=str(records[-5:]),
+            recent_records_repr=str(records_for_analysis[-5:]),
         )
 
     st.markdown(
@@ -879,7 +904,7 @@ with st.expander("📊 상세 분석", expanded=False):
     st.markdown(
         f"""
 <div class="card">
-    <div class="section-title">🔒 Premium Analysis</div>
+    <div class="section-title">Premium 상세 분석</div>
     <div class="body-small">무료는 시작하게 만들고, Premium은 반복 실패를 끊게 만든다.</div>
     <div style="margin-top:10px;">{premium_pills}</div>
 </div>
@@ -887,8 +912,9 @@ with st.expander("📊 상세 분석", expanded=False):
         unsafe_allow_html=True,
     )
 
-    if len(records) >= 3:
-        if fail_count >= 2:
+    if len(records_for_analysis) >= 3:
+        fail_count_analysis = get_success_fail_counts(records_for_analysis)[1]
+        if fail_count_analysis >= 2:
             st.markdown(
                 f"""
 <div class="warning-card">
@@ -900,7 +926,6 @@ with st.expander("📊 상세 분석", expanded=False):
 """,
                 unsafe_allow_html=True,
             )
-            st.link_button("👉 패턴 끊기 (Premium)", PREMIUM_URL, use_container_width=True)
         else:
             st.markdown(
                 """
@@ -912,7 +937,6 @@ with st.expander("📊 상세 분석", expanded=False):
 """,
                 unsafe_allow_html=True,
             )
-            st.link_button("👉 이 흐름 유지하기 (Premium)", PREMIUM_URL, use_container_width=True)
     else:
         st.info("데이터 수집 중 (최소 3개 기록 필요)")
 
@@ -922,10 +946,20 @@ with st.expander("📊 상세 분석", expanded=False):
 tab1, tab2 = st.tabs([TXT["history_title"], TXT["policy_title"]])
 
 with tab1:
-    if not recent_records:
+    with st.spinner("기록 불러오는 중..."):
+        sheet_records, using_sheet = load_records()
+        if using_sheet:
+            records_to_show = sheet_records
+        else:
+            records_to_show = st.session_state.records
+            st.info(TXT["fallback_sheet_notice"])
+
+    recent_records_tab = get_recent_records(records_to_show, 10)
+
+    if not recent_records_tab:
         st.info("아직 기록이 없습니다. 첫 실행부터 시작하세요.")
     else:
-        for row in reversed(recent_records):
+        for row in reversed(recent_records_tab):
             is_done = record_to_bool_done(row)
             emoji = "✅" if is_done else "❌"
             status = "성공" if is_done else "실패"

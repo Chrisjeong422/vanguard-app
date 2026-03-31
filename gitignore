@@ -1,0 +1,4 @@
+google_service_account.json
+token.json
+.venv/
+__pycache__/
