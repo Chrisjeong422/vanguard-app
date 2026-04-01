@@ -70,6 +70,10 @@ GEMINI_API_KEY = get_secret("GEMINI_API_KEY", "")
 st.markdown(
     """
 <style>
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+
 html, body, [class*="css"] {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
 }
@@ -81,35 +85,38 @@ html, body, [class*="css"] {
 
 .block-container {
     max-width: 620px;
-    padding-top: 0.55rem;
-    padding-bottom: 1.3rem;
+    padding-top: 0.18rem !important;
+    padding-bottom: 1.1rem;
 }
 
 .topbar {
-    padding: 16px 18px;
-    border-radius: 22px;
-    background: rgba(255,255,255,0.05);
+    padding: 14px 16px;
+    border-radius: 20px;
+    background: rgba(8,12,24,0.58);
     border: 1px solid rgba(255,255,255,0.08);
     box-shadow: 0 8px 30px rgba(0,0,0,0.20);
-    margin-bottom: 12px;
+    backdrop-filter: blur(12px);
+    margin-bottom: 10px;
 }
 
 .topbar-title {
-    font-size: 1.45rem;
+    font-size: 1.3rem;
     font-weight: 900;
     letter-spacing: -0.03em;
     color: #F8FAFC;
+    line-height: 1.15;
+    word-break: keep-all;
 }
 
 .topbar-sub {
-    font-size: 0.88rem;
+    font-size: 0.82rem;
     font-weight: 700;
     color: #38BDF8;
-    margin-top: 4px;
+    margin-top: 5px;
 }
 
 .topbar-meta {
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     color: #94A3B8;
     margin-top: 8px;
 }
@@ -222,6 +229,13 @@ html, body, [class*="css"] {
     border: 1px solid rgba(255,255,255,0.10);
 }
 
+a[data-testid="stLinkButton"] {
+    display: block;
+    border-radius: 18px;
+    text-align: center;
+    font-weight: 900;
+}
+
 div[data-baseweb="tab-list"] {
     gap: 6px;
     flex-wrap: wrap;
@@ -236,7 +250,19 @@ button[data-baseweb="tab"] {
 @media (max-width: 640px) {
     .block-container {
         max-width: 100%;
-        padding-top: 0.35rem;
+        padding-top: 0.1rem !important;
+    }
+
+    .topbar-title {
+        font-size: 1.18rem;
+    }
+
+    .topbar-sub {
+        font-size: 0.78rem;
+    }
+
+    .card, .command-card, .warning-card, .success-card {
+        padding: 16px;
     }
 }
 </style>
@@ -688,11 +714,13 @@ if st.session_state.show_onboarding:
         st.write(
             "iPhone/Safari: 공유 → 홈 화면에 추가\n\n"
             "Android/Chrome: 메뉴 → 홈 화면에 추가\n\n"
-            "이 앱은 계획을 세우게 하는 앱이 아니라, 지금 실행하게 만드는 앱이다."
+            "홈 화면에 추가하면 주소창 없이 더 앱처럼 사용할 수 있습니다."
         )
         if st.button("온보딩 닫기", use_container_width=True):
             st.session_state.show_onboarding = False
             st.rerun()
+
+st.info("📱 Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다")
 
 if GENAI_IMPORT_ERROR:
     st.info(TXT["fallback_ai_notice"])
