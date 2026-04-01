@@ -2,7 +2,7 @@ import os
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from collections import defaultdict
 
 import streamlit as st
@@ -30,7 +30,7 @@ except Exception as e:
     GSPREAD_IMPORT_ERROR = e
 
 # =========================================================
-# 기본 설정
+# PAGE CONFIG
 # =========================================================
 st.set_page_config(
     page_title="Vanguard",
@@ -39,21 +39,33 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-
-# 반드시 실제 링크로 교체
+# =========================================================
+# SETTINGS
+# =========================================================
 PREMIUM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdcmuSW_54mjUdVxG9xyuiq2KnoCe5OK9hu38y2e4LGMsBnsg/viewform?usp=dialog"
 NEXUS_SHEET_URL = "https://docs.google.com/spreadsheets/d/1MPJ94HeiRs_xjZfkBCWKQNhKHf45H9YhZgoZ2M_tNSI/edit?usp=sharing"
-
-GOOGLE_SERVICE_ACCOUNT_FILE = "google_service_account.json"
 SHEET_NAME = "NexusMemory"
+GOOGLE_SERVICE_ACCOUNT_FILE = "google_service_account.json"
 SHEETS_SCOPES = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive",
 ]
 
 # =========================================================
-# 스타일
+# SAFE SECRETS LOAD
+# =========================================================
+def get_secret(key: str, default: str = "") -> str:
+    try:
+        if key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
+GEMINI_API_KEY = get_secret("GEMINI_API_KEY", "")
+
+# =========================================================
+# THEME / STYLE
 # =========================================================
 st.markdown(
     """
@@ -68,9 +80,9 @@ html, body, [class*="css"] {
 }
 
 .block-container {
-    max-width: 560px;
+    max-width: 620px;
     padding-top: 0.55rem;
-    padding-bottom: 1.2rem;
+    padding-bottom: 1.3rem;
 }
 
 .topbar {
@@ -142,7 +154,7 @@ html, body, [class*="css"] {
 }
 
 .strong-title {
-    font-size: 1.22rem;
+    font-size: 1.2rem;
     font-weight: 900;
     line-height: 1.32;
     margin-top: 10px;
@@ -232,6 +244,9 @@ button[data-baseweb="tab"] {
     unsafe_allow_html=True,
 )
 
+# =========================================================
+# TEXT
+# =========================================================
 TXT = {
     "title": "⚡ Vanguard",
     "tagline": "Break the Loop",
@@ -255,7 +270,7 @@ TXT = {
 }
 
 # =========================================================
-# 세션 상태
+# SESSION STATE
 # =========================================================
 DEFAULTS = {
     "running": False,
@@ -265,28 +280,18 @@ DEFAULTS = {
     "show_onboarding": True,
     "goal": "",
     "last_error": "",
-    "using_sheet": False,
     "lazy_command": "",
     "lazy_reason": "",
     "lazy_warning": "",
     "command_ready": False,
 }
-
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
 # =========================================================
-# 유틸
+# TIME UTILS
 # =========================================================
-def set_error(msg: str) -> None:
-    st.session_state.last_error = msg
-
-
-def reset_error() -> None:
-    st.session_state.last_error = ""
-
-
 def korea_now() -> datetime:
     return datetime.now(ZoneInfo("Asia/Seoul"))
 
@@ -297,6 +302,16 @@ def now_time() -> str:
 
 def today_str() -> str:
     return korea_now().strftime("%Y-%m-%d")
+
+# =========================================================
+# RECORD UTILS
+# =========================================================
+def set_error(msg: str) -> None:
+    st.session_state.last_error = msg
+
+
+def reset_error() -> None:
+    st.session_state.last_error = ""
 
 
 def parse_done(value: Any) -> bool:
@@ -326,11 +341,9 @@ def calculate_streak(records: List[Dict[str, Any]]) -> int:
     daily = get_daily_map(records)
     if not daily:
         return 0
-
     dates = sorted(daily.keys())
     current = datetime.strptime(dates[-1], "%Y-%m-%d").date()
     streak = 0
-
     while True:
         key = current.strftime("%Y-%m-%d")
         if key not in daily:
@@ -340,7 +353,6 @@ def calculate_streak(records: List[Dict[str, Any]]) -> int:
             current = current - timedelta(days=1)
         else:
             break
-
     return streak
 
 
@@ -354,7 +366,7 @@ def get_today_status(records: List[Dict[str, Any]]) -> str:
     return "fail"
 
 
-def get_success_fail_counts(records: List[Dict[str, Any]]) -> tuple[int, int]:
+def get_success_fail_counts(records: List[Dict[str, Any]]) -> Tuple[int, int]:
     success = sum(1 for r in records if record_to_bool_done(r))
     fail = sum(1 for r in records if not record_to_bool_done(r))
     return success, fail
@@ -373,24 +385,15 @@ def get_top_fail_reason(records: List[Dict[str, Any]]) -> str:
             reason = str(r.get("fail_reason", "")).strip()
             if reason:
                 counts[reason] = counts.get(reason, 0) + 1
-    if not counts:
-        return ""
-    return max(counts, key=counts.get)
+    return max(counts, key=counts.get) if counts else ""
 
 
 def get_weekly_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not records:
-        return {
-            "success_rate": 0,
-            "success_count": 0,
-            "fail_count": 0,
-            "top_fail_reason": "",
-        }
-
+        return {"success_rate": 0, "success_count": 0, "fail_count": 0, "top_fail_reason": ""}
     today = korea_now().date()
     week_start = today - timedelta(days=6)
-
-    weekly_rows = []
+    weekly_rows: List[Dict[str, Any]] = []
     for r in records:
         try:
             d = datetime.strptime(str(r.get("date")), "%Y-%m-%d").date()
@@ -398,11 +401,9 @@ def get_weekly_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
                 weekly_rows.append(r)
         except Exception:
             continue
-
     success, fail = get_success_fail_counts(weekly_rows)
     total = success + fail
     success_rate = int(success / total * 100) if total > 0 else 0
-
     return {
         "success_rate": success_rate,
         "success_count": success,
@@ -411,14 +412,14 @@ def get_weekly_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
-def fast_command(goal: str) -> tuple[str, str, str]:
+def fast_command(goal: str) -> Tuple[str, str, str]:
     command = f"지금 '{goal or '핵심 작업'}'을 2분만 시작해."
     reason = "처음 2분만 넘기면 시작 장벽이 크게 줄어든다."
     warning = "지금 미루면 오늘도 바쁜 척만 하다가 끝난다."
     return command, reason, warning
 
 # =========================================================
-# Gemini
+# GEMINI
 # =========================================================
 def get_genai_client():
     if genai is None or not GEMINI_API_KEY:
@@ -430,18 +431,16 @@ def get_genai_client():
 
 
 @st.cache_data(ttl=120)
-def generate_command(goal: str, streak: int, success_rate: int) -> tuple[str, str, str]:
+def generate_command(goal: str, streak: int, success_rate: int) -> Tuple[str, str, str]:
     fallback_command, fallback_reason, fallback_warning = fast_command(goal)
-
     client = get_genai_client()
     if client is None:
         return fallback_command, fallback_reason, fallback_warning
-
     prompt = f"""
 너는 행동 통제 AI 'Vanguard'다.
 위로가 아니라 실행 강제가 목적이다.
 
-목표: {goal or "핵심 목표 미입력"}
+목표: {goal or '핵심 목표 미입력'}
 현재 streak: {streak}
 최근 성공률: {success_rate}%
 
@@ -450,22 +449,16 @@ COMMAND: 지금 해야 할 행동 1개
 REASON: 왜 지금 해야 하는지
 WARNING: 지금 안 하면 어떻게 되는지
 """
-
     try:
-        res = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
+        res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         text = (res.text or "").strip()
         parsed = {"COMMAND": "", "REASON": "", "WARNING": ""}
-
         for line in text.splitlines():
             if ":" in line:
                 k, v = line.split(":", 1)
                 key = k.strip().upper()
                 if key in parsed:
                     parsed[key] = v.strip()
-
         return (
             parsed["COMMAND"] or fallback_command,
             parsed["REASON"] or fallback_reason,
@@ -476,38 +469,30 @@ WARNING: 지금 안 하면 어떻게 되는지
 
 
 @st.cache_data(ttl=180)
-def generate_weekly_report(goal: str, success_rate: int, success_count: int, fail_count: int, top_fail_reason: str) -> tuple[str, str]:
+def generate_weekly_report(goal: str, success_rate: int, success_count: int, fail_count: int, top_fail_reason: str) -> Tuple[str, str]:
     fallback_focus = "최근 7일 동안 성공과 실패가 섞여 있으며, 반복 실패 이유가 존재한다."
     fallback_action = "내일은 가장 중요한 작업을 2분짜리 시작 블록으로 먼저 시작해라."
-
     client = get_genai_client()
     if client is None:
         return fallback_focus, fallback_action
-
     prompt = f"""
 너는 실행 리포트 분석가다.
 
-목표: {goal or "목표 미입력"}
+목표: {goal or '목표 미입력'}
 최근 7일 성공률: {success_rate}%
 최근 7일 성공 수: {success_count}
 최근 7일 실패 수: {fail_count}
-가장 흔한 실패 이유: {top_fail_reason or "없음"}
+가장 흔한 실패 이유: {top_fail_reason or '없음'}
 
 다음 형식만 출력:
 FOCUS: 최근 7일 핵심 패턴 1개
 ACTION: 다음 7일 추천 행동 1개
 """
-
     try:
-        res = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
+        res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         text = (res.text or "").strip()
-
         focus = ""
         action = ""
-
         for line in text.splitlines():
             if ":" in line:
                 k, v = line.split(":", 1)
@@ -516,42 +501,33 @@ ACTION: 다음 7일 추천 행동 1개
                     focus = v.strip()
                 elif key == "ACTION":
                     action = v.strip()
-
         return focus or fallback_focus, action or fallback_action
     except Exception:
         return fallback_focus, fallback_action
 
 
 @st.cache_data(ttl=180)
-def generate_premium_insight(goal: str, recent_records_repr: str) -> tuple[str, str]:
+def generate_premium_insight(goal: str, recent_records_repr: str) -> Tuple[str, str]:
     fallback_weakness = "반복 실패 이유가 쌓이고 있다."
     fallback_fix = "실패가 많은 이유를 줄이고 시작 단위를 더 작게 만들어라."
-
     client = get_genai_client()
     if client is None:
         return fallback_weakness, fallback_fix
-
     prompt = f"""
 너는 Premium 행동 분석가다.
 
-목표: {goal or "목표 미입력"}
+목표: {goal or '목표 미입력'}
 최근 기록: {recent_records_repr}
 
 다음 형식만 출력:
 WEAKNESS: 반복 약점 1개
 FIX: 지금 적용할 교정 전략 1개
 """
-
     try:
-        res = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
+        res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         text = (res.text or "").strip()
-
         weakness = ""
         fix = ""
-
         for line in text.splitlines():
             if ":" in line:
                 k, v = line.split(":", 1)
@@ -560,27 +536,41 @@ FIX: 지금 적용할 교정 전략 1개
                     weakness = v.strip()
                 elif key == "FIX":
                     fix = v.strip()
-
         return weakness or fallback_weakness, fix or fallback_fix
     except Exception:
         return fallback_weakness, fallback_fix
 
 # =========================================================
-# Google Sheets
+# GOOGLE SHEETS
 # =========================================================
+def _normalize_service_account_dict(raw: Dict[str, Any]) -> Dict[str, Any]:
+    creds_dict = dict(raw)
+    private_key = creds_dict.get("private_key", "")
+    if isinstance(private_key, str):
+        creds_dict["private_key"] = private_key.replace("\\n", "\n")
+    return creds_dict
+
+
 @st.cache_resource
 def get_gspread_client():
     if gspread is None or ServiceAccountCredentials is None:
         raise RuntimeError("gspread unavailable")
 
-    if not os.path.exists(GOOGLE_SERVICE_ACCOUNT_FILE):
-        raise FileNotFoundError(GOOGLE_SERVICE_ACCOUNT_FILE)
+    # Streamlit Cloud secrets 우선
+    try:
+        if "gcp_service_account" in st.secrets:
+            creds_dict = _normalize_service_account_dict(st.secrets["gcp_service_account"])
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SHEETS_SCOPES)
+            return gspread.authorize(creds)
+    except Exception:
+        pass
 
-    creds = ServiceAccountCredentials.from_json_keyfile_name(
-        GOOGLE_SERVICE_ACCOUNT_FILE,
-        SHEETS_SCOPES,
-    )
-    return gspread.authorize(creds)
+    # 로컬 파일 fallback
+    if os.path.exists(GOOGLE_SERVICE_ACCOUNT_FILE):
+        creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SERVICE_ACCOUNT_FILE, SHEETS_SCOPES)
+        return gspread.authorize(creds)
+
+    raise FileNotFoundError(GOOGLE_SERVICE_ACCOUNT_FILE)
 
 
 @st.cache_resource
@@ -590,7 +580,6 @@ def get_sheet():
         spreadsheet = client.open_by_url(NEXUS_SHEET_URL)
     else:
         spreadsheet = client.open(SHEET_NAME)
-
     worksheet = spreadsheet.get_worksheet(0)
     if worksheet is None:
         raise RuntimeError("worksheet not found")
@@ -605,14 +594,14 @@ def ensure_sheet_header():
 
 
 @st.cache_data(ttl=20)
-def load_sheet_records():
+def load_sheet_records() -> List[Dict[str, Any]]:
     ensure_sheet_header()
     sheet = get_sheet()
     rows = sheet.get_all_records()
     return rows if rows else []
 
 
-def load_records() -> tuple[List[Dict[str, Any]], bool]:
+def load_records() -> Tuple[List[Dict[str, Any]], bool]:
     try:
         rows = load_sheet_records()
         return rows, True
@@ -630,9 +619,7 @@ def save_record(task: str, done: bool, fail_reason: str = "", source: str = "con
         "fail_reason": fail_reason,
         "source": source,
     }
-
     st.session_state.records.append(row)
-
     try:
         ensure_sheet_header()
         sheet = get_sheet()
@@ -651,12 +638,10 @@ def save_record(task: str, done: bool, fail_reason: str = "", source: str = "con
         return False
 
 # =========================================================
-# 가벼운 데이터만 먼저 로드
+# LIGHT FIRST LOAD
 # =========================================================
 reset_error()
 records = st.session_state.records
-using_sheet = False
-
 streak = calculate_streak(records)
 today_status = get_today_status(records)
 success_count, fail_count = get_success_fail_counts(records)
@@ -679,14 +664,13 @@ if st.session_state.command_ready:
         st.session_state.lazy_reason = reason
         st.session_state.lazy_warning = warning
         st.session_state.command_ready = False
-else:
-    if st.session_state.lazy_command:
-        command = st.session_state.lazy_command
-        reason = st.session_state.lazy_reason
-        warning = st.session_state.lazy_warning
+elif st.session_state.lazy_command:
+    command = st.session_state.lazy_command
+    reason = st.session_state.lazy_reason
+    warning = st.session_state.lazy_warning
 
 # =========================================================
-# 헤더
+# HEADER
 # =========================================================
 st.markdown(
     f"""
@@ -713,14 +697,14 @@ if st.session_state.show_onboarding:
 if GENAI_IMPORT_ERROR:
     st.info(TXT["fallback_ai_notice"])
 
-# 시트는 탭에서 실제로 로드한 뒤 상태 표시
+st.info("데이터는 현재 임시 저장됩니다 (베타 버전)")
 
 if st.session_state.last_error:
     with st.expander("System message", expanded=False):
         st.code(st.session_state.last_error)
 
 # =========================================================
-# 목표
+# GOAL INPUT
 # =========================================================
 st.session_state.goal = st.text_input(
     TXT["goal_label"],
@@ -729,7 +713,7 @@ st.session_state.goal = st.text_input(
 )
 
 # =========================================================
-# 메인 명령 카드
+# MAIN COMMAND CARD
 # =========================================================
 st.markdown(
     f"""
@@ -744,7 +728,7 @@ st.markdown(
 )
 
 # =========================================================
-# Premium CTA는 항상 보이게
+# PREMIUM CTA ALWAYS VISIBLE
 # =========================================================
 st.markdown(
     """
@@ -755,10 +739,10 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-st.link_button("👉 Premium 시작", PREMIUM_URL, use_container_width=True)
+st.link_button("👉 Premium (실패 반복 끊기)", PREMIUM_URL, use_container_width=True)
 
 # =========================================================
-# 상태 카드
+# STATUS CARD
 # =========================================================
 today_label = (
     TXT["today_success"] if today_status == "success"
@@ -801,7 +785,7 @@ if today_status == "none" and streak > 0:
     )
 
 # =========================================================
-# 실행 영역
+# ACTIONS
 # =========================================================
 col_start, col_refresh = st.columns([2, 1])
 with col_start:
@@ -820,7 +804,6 @@ if not st.session_state.running:
     st.caption(TXT["analysis_closed"])
 else:
     elapsed = int(time.time() - st.session_state.start_time)
-
     st.markdown(
         f"""
 <div class="success-card">
@@ -832,11 +815,7 @@ else:
         unsafe_allow_html=True,
     )
 
-    fail_reason = st.selectbox(
-        "왜 실패했냐",
-        ["집중 안됨", "피곤함", "딴짓", "시간 부족", "기타"],
-    )
-
+    fail_reason = st.selectbox("왜 실패했냐", ["집중 안됨", "피곤함", "딴짓", "시간 부족", "기타"])
     col1, col2 = st.columns(2)
     with col1:
         if st.button(TXT["complete"], use_container_width=True):
@@ -845,7 +824,6 @@ else:
             st.session_state.current_task = ""
             st.success("오늘은 이겼다")
             st.rerun()
-
     with col2:
         if st.button(TXT["fail"], use_container_width=True):
             save_record(st.session_state.current_task, False, fail_reason)
@@ -855,13 +833,11 @@ else:
             st.rerun()
 
 # =========================================================
-# 상세 분석은 펼쳤을 때만 계산
+# LAZY ANALYSIS
 # =========================================================
 with st.expander("📊 상세 분석", expanded=False):
     with st.spinner("상세 분석 로딩 중..."):
         sheet_records, using_sheet = load_records()
-        st.session_state.using_sheet = using_sheet
-
         if using_sheet:
             records_for_analysis = sheet_records
         else:
@@ -876,7 +852,6 @@ with st.expander("📊 상세 분석", expanded=False):
             fail_count=weekly_stats["fail_count"],
             top_fail_reason=weekly_stats["top_fail_reason"],
         )
-
         premium_weakness, premium_fix = generate_premium_insight(
             goal=st.session_state.goal,
             recent_records_repr=str(records_for_analysis[-5:]),
@@ -900,7 +875,6 @@ with st.expander("📊 상세 분석", expanded=False):
 <span class="premium-pill">맞춤 교정 전략</span>
 <span class="premium-pill">심화 리포트</span>
 """
-
     st.markdown(
         f"""
 <div class="card">
@@ -941,7 +915,7 @@ with st.expander("📊 상세 분석", expanded=False):
         st.info("데이터 수집 중 (최소 3개 기록 필요)")
 
 # =========================================================
-# 하단 탭
+# TABS
 # =========================================================
 tab1, tab2 = st.tabs([TXT["history_title"], TXT["policy_title"]])
 
@@ -953,9 +927,7 @@ with tab1:
         else:
             records_to_show = st.session_state.records
             st.info(TXT["fallback_sheet_notice"])
-
     recent_records_tab = get_recent_records(records_to_show, 10)
-
     if not recent_records_tab:
         st.info("아직 기록이 없습니다. 첫 실행부터 시작하세요.")
     else:
@@ -963,8 +935,7 @@ with tab1:
             is_done = record_to_bool_done(row)
             emoji = "✅" if is_done else "❌"
             status = "성공" if is_done else "실패"
-            fail_text = f" | 이유: {row.get('fail_reason')}" if (not is_done and row.get("fail_reason")) else ""
-
+            fail_text = f" | 이유: {row.get('fail_reason')}" if (not is_done and row.get('fail_reason')) else ""
             st.markdown(
                 f"""
 <div class="card">
@@ -986,3 +957,5 @@ with tab2:
 """,
         unsafe_allow_html=True,
     )
+
+st.caption("Deploy Ready")
