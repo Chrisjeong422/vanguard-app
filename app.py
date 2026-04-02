@@ -1,5 +1,7 @@
+import html
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import Any, Dict, List, Tuple
@@ -296,8 +298,21 @@ TXT = {
     "pain_line": "너는 지금 중요한 걸 미루고 있다.",
     "pain_sub": "이 상태로 하루가 끝나면 오늘도 또 같은 패턴이 반복된다.",
     "premium_title": "🔒 Premium",
-    "premium_body": "무료는 시작하게 만들고, Premium은 반복 실패 패턴을 끊게 만든다.",
-    "premium_button": "👉 Premium (실패 반복 끊기)",
+    "premium_body": "무료는 시작만 시킨다. Premium은 반복 실패 원인을 분석하고, 다시 무너지는 패턴을 끊는 데 집중한다.",
+    "premium_button": "👉 Premium 신청하기",
+    "premium_urgency": "초기 사용자 가격과 혜택은 이후 조정될 수 있습니다.",
+    "premium_benefit_1": "반복 실패 패턴 분석",
+    "premium_benefit_2": "맞춤 실행 전략 제공",
+    "premium_benefit_3": "무너지는 시간대 교정",
+    "premium_benefit_4": "베타 우선 적용",
+    "premium_fail_title": "반복 실패를 끊고 싶다면",
+    "premium_fail_body": "의지가 약한 게 아니라, 같은 패턴이 반복되는 중일 수 있습니다. Premium은 그 패턴을 찾아 끊는 데 초점을 둡니다.",
+    "premium_flow_title": "이 흐름을 잃기 싫다면",
+    "premium_flow_body": "좋은 흐름은 만들기보다 유지가 어렵습니다. Premium은 흐름이 꺾이는 지점을 미리 잡는 데 초점을 둡니다.",
+    # 인라인 하드코딩 문자열을 TXT로 이동 (품질 개선)
+    "action_motivate": "생각하지 말고 2분만 시작해라",
+    "complete_message": "이건 의지가 아니라 실행이다. 오늘은 끊었다.",
+    "fail_message": "같은 패턴 반복 중",
 }
 
 # =========================================================
@@ -315,6 +330,11 @@ DEFAULTS = {
     "lazy_reason": "",
     "lazy_warning": "",
     "command_ready": False,
+    # [FIX] 완료/실패 후 메시지를 rerun 이후에도 표시하기 위한 플래그
+    "_show_complete_msg": False,
+    "_show_fail_msg": False,
+    # [FIX] ensure_sheet_header 중복 API 호출 방지 플래그
+    "_header_ensured": False,
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -346,9 +366,13 @@ def reset_error() -> None:
 
 
 def parse_done(value: Any) -> bool:
+    """[FIX] 'False' 문자열을 명시적으로 처리하여 조용한 True 반환 방지"""
     if isinstance(value, bool):
         return value
-    return str(value).strip().lower() in {"true", "1", "yes", "y"}
+    s = str(value).strip().lower()
+    if s in {"false", "0", "no", "n"}:
+        return False
+    return s in {"true", "1", "yes", "y"}
 
 
 def record_to_bool_done(row: Dict[str, Any]) -> bool:
@@ -369,21 +393,19 @@ def get_daily_map(records: List[Dict[str, Any]]) -> Dict[str, List[bool]]:
 
 
 def calculate_streak(records: List[Dict[str, Any]]) -> int:
+    """[FIX] 오늘 날짜 기준으로 streak 계산 (이전: 마지막 기록 날짜 기준)"""
     daily = get_daily_map(records)
     if not daily:
         return 0
-    dates = sorted(daily.keys())
-    current = datetime.strptime(dates[-1], "%Y-%m-%d").date()
+    today = korea_now().date()
     streak = 0
+    current = today
     while True:
         key = current.strftime("%Y-%m-%d")
-        if key not in daily:
+        if key not in daily or not any(daily[key]):
             break
-        if any(daily[key]):
-            streak += 1
-            current = current - timedelta(days=1)
-        else:
-            break
+        streak += 1
+        current -= timedelta(days=1)
     return streak
 
 
@@ -461,8 +483,24 @@ def get_genai_client():
         return None
 
 
-@st.cache_data(ttl=120)
+def _parse_gemini_response(text: str, keys: List[str]) -> Dict[str, str]:
+    """Gemini 응답 파싱 공통 유틸. 파싱 실패 시 set_error로 경고."""
+    parsed = {k: "" for k in keys}
+    for line in text.splitlines():
+        if ":" in line:
+            k, v = line.split(":", 1)
+            key = k.strip().upper()
+            if key in parsed:
+                parsed[key] = v.strip()
+    # [FIX] 파싱 결과가 모두 비어있으면 경고 기록
+    if not any(parsed.values()):
+        set_error(f"Gemini 응답 파싱 실패 (처음 100자): {text[:100]}")
+    return parsed
+
+
+@st.cache_data(ttl=60)
 def generate_command(goal: str, streak: int, success_rate: int) -> Tuple[str, str, str]:
+    """[FIX] TTL을 120→60초로 단축하여 목표 변경 시 캐시 오염 최소화"""
     fallback_command, fallback_reason, fallback_warning = fast_command(goal)
     client = get_genai_client()
     if client is None:
@@ -483,13 +521,7 @@ WARNING: 지금 안 하면 어떻게 되는지
     try:
         res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         text = (res.text or "").strip()
-        parsed = {"COMMAND": "", "REASON": "", "WARNING": ""}
-        for line in text.splitlines():
-            if ":" in line:
-                k, v = line.split(":", 1)
-                key = k.strip().upper()
-                if key in parsed:
-                    parsed[key] = v.strip()
+        parsed = _parse_gemini_response(text, ["COMMAND", "REASON", "WARNING"])
         return (
             parsed["COMMAND"] or fallback_command,
             parsed["REASON"] or fallback_reason,
@@ -522,17 +554,8 @@ ACTION: 다음 7일 추천 행동 1개
     try:
         res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         text = (res.text or "").strip()
-        focus = ""
-        action = ""
-        for line in text.splitlines():
-            if ":" in line:
-                k, v = line.split(":", 1)
-                key = k.strip().upper()
-                if key == "FOCUS":
-                    focus = v.strip()
-                elif key == "ACTION":
-                    action = v.strip()
-        return focus or fallback_focus, action or fallback_action
+        parsed = _parse_gemini_response(text, ["FOCUS", "ACTION"])
+        return parsed["FOCUS"] or fallback_focus, parsed["ACTION"] or fallback_action
     except Exception:
         return fallback_focus, fallback_action
 
@@ -557,17 +580,8 @@ FIX: 지금 적용할 교정 전략 1개
     try:
         res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
         text = (res.text or "").strip()
-        weakness = ""
-        fix = ""
-        for line in text.splitlines():
-            if ":" in line:
-                k, v = line.split(":", 1)
-                key = k.strip().upper()
-                if key == "WEAKNESS":
-                    weakness = v.strip()
-                elif key == "FIX":
-                    fix = v.strip()
-        return weakness or fallback_weakness, fix or fallback_fix
+        parsed = _parse_gemini_response(text, ["WEAKNESS", "FIX"])
+        return parsed["WEAKNESS"] or fallback_weakness, parsed["FIX"] or fallback_fix
     except Exception:
         return fallback_weakness, fallback_fix
 
@@ -618,10 +632,14 @@ def get_sheet():
 
 
 def ensure_sheet_header():
+    """[FIX] 세션당 1회만 헤더 체크 — 매 save_record 호출마다 API 요청하던 문제 개선"""
+    if st.session_state.get("_header_ensured"):
+        return
     sheet = get_sheet()
     values = sheet.get_all_values()
     if not values:
         sheet.append_row(["time", "date", "task", "done", "fail_reason", "source"])
+    st.session_state["_header_ensured"] = True
 
 
 @st.cache_data(ttl=20)
@@ -670,9 +688,11 @@ def save_record(task: str, done: bool, fail_reason: str = "", source: str = "con
 
 # =========================================================
 # LIGHT FIRST LOAD
+# [FIX] load_records()를 상단에서 1회만 호출 — expander/tab 중복 호출 제거
 # =========================================================
 reset_error()
-records = st.session_state.records
+records, using_sheet = load_records()
+
 streak = calculate_streak(records)
 today_status = get_today_status(records)
 success_count, fail_count = get_success_fail_counts(records)
@@ -717,12 +737,8 @@ st.markdown(
 if st.session_state.show_onboarding:
     with st.expander("앱처럼 쓰기 / Quick start", expanded=False):
         st.write(
-            "iPhone/Safari: 공유 → 홈 화면에 추가
-
-"
-            "Android/Chrome: 메뉴 → 홈 화면에 추가
-
-"
+            "iPhone/Safari: 공유 → 홈 화면에 추가\n\n"
+            "Android/Chrome: 메뉴 → 홈 화면에 추가\n\n"
             "홈 화면에 추가하면 주소창 없이 더 앱처럼 사용할 수 있습니다."
         )
         if st.button("온보딩 닫기", use_container_width=True):
@@ -751,7 +767,12 @@ st.session_state.goal = st.text_input(
 
 # =========================================================
 # MAIN COMMAND CARD
+# [FIX] 사용자 입력(command 등)을 html.escape()로 이스케이프하여 XSS 방지
 # =========================================================
+safe_command = html.escape(command)
+safe_reason = html.escape(reason)
+safe_warning = html.escape(warning)
+
 st.markdown(
     f"""
 <div class="warning-card">
@@ -767,9 +788,9 @@ st.markdown(
     f"""
 <div class="command-card">
     <div class="muted">지금 해야 할 것</div>
-    <div class="strong-title">{command}</div>
-    <div class="body-small">{reason}</div>
-    <div class="body-small" style="color:#FCA5A5;">{warning}</div>
+    <div class="strong-title">{safe_command}</div>
+    <div class="body-small">{safe_reason}</div>
+    <div class="body-small" style="color:#FCA5A5;">{safe_warning}</div>
 </div>
 """,
     unsafe_allow_html=True,
@@ -778,12 +799,20 @@ st.markdown(
 # =========================================================
 # PREMIUM CTA ALWAYS VISIBLE
 # =========================================================
+premium_pills_top = f"""
+<span class=\"premium-pill\">{TXT['premium_benefit_1']}</span>
+<span class=\"premium-pill\">{TXT['premium_benefit_2']}</span>
+<span class=\"premium-pill\">{TXT['premium_benefit_3']}</span>
+<span class=\"premium-pill\">{TXT['premium_benefit_4']}</span>
+"""
+
 st.markdown(
     f"""
 <div class="card">
     <div class="section-title">{TXT['premium_title']}</div>
     <div class="body-small">{TXT['premium_body']}</div>
-    <div class="body-small" style="color:#FDE68A;">초기 사용자 가격은 이후 올라갈 수 있습니다.</div>
+    <div style="margin-top:10px;">{premium_pills_top}</div>
+    <div class="body-small" style="color:#FDE68A;">{TXT['premium_urgency']}</div>
 </div>
 """,
     unsafe_allow_html=True,
@@ -835,8 +864,25 @@ if today_status == "none" and streak > 0:
 
 # =========================================================
 # ACTIONS
+# [FIX] rerun 이후에도 완료/실패 메시지가 표시되도록 세션 플래그 방식으로 변경
+# [FIX] fail_reason selectbox를 버튼보다 먼저 렌더링 + 완료 시 fail_reason 미포함
 # =========================================================
+
+# rerun 이후 메시지 표시
+if st.session_state.pop("_show_complete_msg", False):
+    st.success(TXT["complete_message"])
+if st.session_state.pop("_show_fail_msg", False):
+    st.error(TXT["fail_message"])
+
 col_start, col_refresh = st.columns([2, 1])
+st.markdown(f"""
+<div style="text-align:center; margin-bottom:10px;">
+    <div style="font-size:0.9rem; color:#FCA5A5; font-weight:700;">
+    {TXT['action_motivate']}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 with col_start:
     if not st.session_state.running:
         if st.button(TXT["start_now"], use_container_width=True):
@@ -853,66 +899,76 @@ if not st.session_state.running:
     st.caption(TXT["analysis_closed"])
 else:
     elapsed = int(time.time() - st.session_state.start_time)
+    safe_current_task = html.escape(st.session_state.current_task)
     st.markdown(
         f"""
 <div class="success-card">
     <div class="muted">{TXT['running']}</div>
     <div class="strong-title" style="font-size:1.05rem;">{elapsed}초 진행 중</div>
-    <div class="body-small">{st.session_state.current_task}</div>
+    <div class="body-small">{safe_current_task}</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
+    # [FIX] fail_reason selectbox를 버튼보다 먼저 렌더링
     fail_reason = st.selectbox("왜 실패했냐", ["집중 안됨", "피곤함", "딴짓", "시간 부족", "기타"])
+
     col1, col2 = st.columns(2)
     with col1:
         if st.button(TXT["complete"], use_container_width=True):
+            # [FIX] 완료 시 fail_reason 미포함
             save_record(st.session_state.current_task, True, "")
             st.session_state.running = False
             st.session_state.current_task = ""
-            st.success("오늘은 이겼다")
+            st.session_state["_show_complete_msg"] = True
             st.rerun()
     with col2:
         if st.button(TXT["fail"], use_container_width=True):
             save_record(st.session_state.current_task, False, fail_reason)
             st.session_state.running = False
             st.session_state.current_task = ""
-            st.error("같은 패턴 반복 중")
+            st.session_state["_show_fail_msg"] = True
             st.rerun()
 
 # =========================================================
 # LAZY ANALYSIS
+# [FIX] load_records() 재호출 제거 — 상단에서 로드한 records/using_sheet 재사용
+# [FIX] generate_weekly_report + generate_premium_insight 병렬 호출로 대기 시간 단축
 # =========================================================
 with st.expander("📊 상세 분석", expanded=False):
     with st.spinner("상세 분석 로딩 중..."):
-        sheet_records, using_sheet = load_records()
-        if using_sheet:
-            records_for_analysis = sheet_records
-        else:
-            records_for_analysis = st.session_state.records
+        records_for_analysis = records
+        if not using_sheet:
             st.info(TXT["fallback_sheet_notice"])
 
         weekly_stats = get_weekly_stats(records_for_analysis)
-        weekly_focus, weekly_action = generate_weekly_report(
-            goal=st.session_state.goal,
-            success_rate=weekly_stats["success_rate"],
-            success_count=weekly_stats["success_count"],
-            fail_count=weekly_stats["fail_count"],
-            top_fail_reason=weekly_stats["top_fail_reason"],
-        )
-        premium_weakness, premium_fix = generate_premium_insight(
-            goal=st.session_state.goal,
-            recent_records_repr=str(records_for_analysis[-5:]),
-        )
+
+        # [FIX] 두 Gemini 호출을 ThreadPoolExecutor로 병렬 실행
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            f_weekly = ex.submit(
+                generate_weekly_report,
+                st.session_state.goal,
+                weekly_stats["success_rate"],
+                weekly_stats["success_count"],
+                weekly_stats["fail_count"],
+                weekly_stats["top_fail_reason"],
+            )
+            f_premium = ex.submit(
+                generate_premium_insight,
+                st.session_state.goal,
+                str(records_for_analysis[-5:]),
+            )
+        weekly_focus, weekly_action = f_weekly.result()
+        premium_weakness, premium_fix = f_premium.result()
 
     st.markdown(
         f"""
 <div class="card">
     <div class="section-title">최근 7일 리포트</div>
     <div class="body-small"><b>주간 성공률:</b> {weekly_stats['success_rate']}%</div>
-    <div class="body-small"><b>핵심 패턴:</b> {weekly_focus}</div>
-    <div class="body-small"><b>추천 행동:</b> {weekly_action}</div>
+    <div class="body-small"><b>핵심 패턴:</b> {html.escape(weekly_focus)}</div>
+    <div class="body-small"><b>추천 행동:</b> {html.escape(weekly_action)}</div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -942,41 +998,40 @@ with st.expander("📊 상세 분석", expanded=False):
                 f"""
 <div class="warning-card">
     <div class="muted">PREMIUM</div>
-    <div class="strong-title" style="font-size:1.02rem;">반복 실패 감지됨</div>
-    <div class="body-small"><b>약점:</b> {premium_weakness}</div>
-    <div class="body-small"><b>교정:</b> {premium_fix}</div>
+    <div class="strong-title" style="font-size:1.02rem;">{TXT['premium_fail_title']}</div>
+    <div class="body-small">{TXT['premium_fail_body']}</div>
+    <div class="body-small"><b>약점:</b> {html.escape(premium_weakness)}</div>
+    <div class="body-small"><b>교정:</b> {html.escape(premium_fix)}</div>
 </div>
 """,
                 unsafe_allow_html=True,
             )
+            st.link_button(TXT["premium_button"], PREMIUM_URL, use_container_width=True)
         else:
             st.markdown(
-                """
+                f"""
 <div class="success-card">
     <div class="muted">PREMIUM</div>
-    <div class="strong-title" style="font-size:1.02rem;">흐름 유지 중</div>
-    <div class="body-small">문제는 내일도 이 흐름을 유지할 수 있느냐는 거다.</div>
+    <div class="strong-title" style="font-size:1.02rem;">{TXT['premium_flow_title']}</div>
+    <div class="body-small">{TXT['premium_flow_body']}</div>
 </div>
 """,
                 unsafe_allow_html=True,
             )
+            st.link_button(TXT["premium_button"], PREMIUM_URL, use_container_width=True)
     else:
         st.info("데이터 수집 중 (최소 3개 기록 필요)")
 
 # =========================================================
 # TABS
+# [FIX] load_records() 재호출 제거 — 상단에서 로드한 records/using_sheet 재사용
 # =========================================================
 tab1, tab2 = st.tabs([TXT["history_title"], TXT["policy_title"]])
 
 with tab1:
-    with st.spinner("기록 불러오는 중..."):
-        sheet_records, using_sheet = load_records()
-        if using_sheet:
-            records_to_show = sheet_records
-        else:
-            records_to_show = st.session_state.records
-            st.info(TXT["fallback_sheet_notice"])
-    recent_records_tab = get_recent_records(records_to_show, 10)
+    if not using_sheet:
+        st.info(TXT["fallback_sheet_notice"])
+    recent_records_tab = get_recent_records(records, 10)
     if not recent_records_tab:
         st.info("아직 기록이 없습니다. 첫 실행부터 시작하세요.")
     else:
@@ -984,12 +1039,14 @@ with tab1:
             is_done = record_to_bool_done(row)
             emoji = "✅" if is_done else "❌"
             status = "성공" if is_done else "실패"
-            fail_text = f" | 이유: {row.get('fail_reason')}" if (not is_done and row.get('fail_reason')) else ""
+            fail_text = f" | 이유: {html.escape(str(row.get('fail_reason', '')))}" if (not is_done and row.get('fail_reason')) else ""
+            safe_task = html.escape(str(row.get('task', '-')))
+            safe_time = html.escape(str(row.get('time', '-')))
             st.markdown(
                 f"""
 <div class="card">
-    <div class="muted">{row.get('time', '-')}</div>
-    <div class="strong-title" style="font-size:1rem;">{emoji} {row.get('task', '-')}</div>
+    <div class="muted">{safe_time}</div>
+    <div class="strong-title" style="font-size:1rem;">{emoji} {safe_task}</div>
     <div class="body-small">상태: {status}{fail_text}</div>
 </div>
 """,
