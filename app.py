@@ -293,6 +293,11 @@ TXT = {
     "fallback_sheet_notice": "Google Sheets 연결이 없어도 앱은 계속 동작합니다. 현재는 로컬 세션 기록으로 저장 중입니다.",
     "fallback_ai_notice": "Gemini 기능 일부가 비활성화되어 기본 응답으로 동작합니다.",
     "analysis_closed": "상세 분석은 아래에서 필요할 때만 열립니다.",
+    "pain_line": "너는 지금 중요한 걸 미루고 있다.",
+    "pain_sub": "이 상태로 하루가 끝나면 오늘도 또 같은 패턴이 반복된다.",
+    "premium_title": "🔒 Premium",
+    "premium_body": "무료는 시작하게 만들고, Premium은 반복 실패 패턴을 끊게 만든다.",
+    "premium_button": "👉 Premium (실패 반복 끊기)",
 }
 
 # =========================================================
@@ -712,8 +717,12 @@ st.markdown(
 if st.session_state.show_onboarding:
     with st.expander("앱처럼 쓰기 / Quick start", expanded=False):
         st.write(
-            "iPhone/Safari: 공유 → 홈 화면에 추가\n\n"
-            "Android/Chrome: 메뉴 → 홈 화면에 추가\n\n"
+            "iPhone/Safari: 공유 → 홈 화면에 추가
+
+"
+            "Android/Chrome: 메뉴 → 홈 화면에 추가
+
+"
             "홈 화면에 추가하면 주소창 없이 더 앱처럼 사용할 수 있습니다."
         )
         if st.button("온보딩 닫기", use_container_width=True):
@@ -745,6 +754,17 @@ st.session_state.goal = st.text_input(
 # =========================================================
 st.markdown(
     f"""
+<div class="warning-card">
+    <div class="muted">현실 점검</div>
+    <div class="strong-title">{TXT['pain_line']}</div>
+    <div class="body-small">{TXT['pain_sub']}</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    f"""
 <div class="command-card">
     <div class="muted">지금 해야 할 것</div>
     <div class="strong-title">{command}</div>
@@ -759,15 +779,16 @@ st.markdown(
 # PREMIUM CTA ALWAYS VISIBLE
 # =========================================================
 st.markdown(
-    """
+    f"""
 <div class="card">
-    <div class="section-title">🔒 Premium</div>
-    <div class="body-small">무료는 시작하게 만들고, Premium은 반복 실패를 끊게 만든다.</div>
+    <div class="section-title">{TXT['premium_title']}</div>
+    <div class="body-small">{TXT['premium_body']}</div>
+    <div class="body-small" style="color:#FDE68A;">초기 사용자 가격은 이후 올라갈 수 있습니다.</div>
 </div>
 """,
     unsafe_allow_html=True,
 )
-st.link_button("👉 Premium (실패 반복 끊기)", PREMIUM_URL, use_container_width=True)
+st.link_button(TXT["premium_button"], PREMIUM_URL, use_container_width=True)
 
 # =========================================================
 # STATUS CARD
