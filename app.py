@@ -1,3 +1,10 @@
+"""
+Vanguard MVP — Stable Edition
+- JS 완전 없음
+- 타이머: time.sleep/rerun 없음, 진입 시 경과 시간 텍스트만 표시
+- 탭: st.columns + st.button 단일 레이어, HTML 이중 표시 없음
+- 깨지지 않는 구조 우선
+"""
 import html
 import os
 import time
@@ -52,6 +59,15 @@ SHEETS_SCOPES = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive",
 ]
+ADMIN_PARAM = "admin"
+TIMER_SECONDS = 120
+SOCIAL_PROOF_MIN = 10
+
+# ── Premium 결제 ──
+PREMIUM_PRICE       = 9900
+PREMIUM_PAYMENT_URL = "https://링크입력"   # Stripe / 토스 결제 링크로 교체
+# 결제 완료 후 관리자가 수동 승인 (1~3시간 내)
+# 나중에 웹훅 자동화 시 이 상수만 변경하면 됨
 
 # =========================================================
 # SAFE SECRETS LOAD
@@ -65,212 +81,222 @@ def get_secret(key: str, default: str = "") -> str:
     return os.getenv(key, default)
 
 GEMINI_API_KEY = get_secret("GEMINI_API_KEY", "")
+ADMIN_PASSWORD = get_secret("ADMIN_PASSWORD", "")
 
 # =========================================================
-# THEME / STYLE
+# THEME — CSS only, no JS
 # =========================================================
-st.markdown(
-    """
+st.markdown("""
 <style>
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
 footer {visibility: hidden;}
 
 html, body, [class*="css"] {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+                 "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
 }
 
-.stApp {
-    background: linear-gradient(180deg, #0B1020 0%, #111827 100%);
-    color: #F8FAFC;
-}
+.stApp { background: #080E1C; color: #F8FAFC; }
 
 .block-container {
-    max-width: 620px;
-    padding-top: 0.18rem !important;
-    padding-bottom: 1.1rem;
+    max-width: 480px !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 1rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
 }
 
-.topbar {
-    padding: 14px 16px;
-    border-radius: 20px;
-    background: rgba(8,12,24,0.58);
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.20);
-    backdrop-filter: blur(12px);
+/* ── 카드 ── */
+.card {
+    padding: 16px; border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.07);
+    margin-bottom: 10px;
+}
+.command-card {
+    padding: 20px; border-radius: 22px;
+    background: linear-gradient(145deg,rgba(14,165,233,0.18),rgba(59,130,246,0.08));
+    border: 1px solid rgba(56,189,248,0.28);
+    margin-bottom: 10px;
+}
+.warning-card {
+    padding: 16px; border-radius: 18px;
+    background: rgba(239,68,68,0.09);
+    border: 1px solid rgba(239,68,68,0.28);
+    margin-bottom: 10px;
+}
+.success-card {
+    padding: 16px; border-radius: 18px;
+    background: rgba(34,197,94,0.09);
+    border: 1px solid rgba(34,197,94,0.26);
     margin-bottom: 10px;
 }
 
-.topbar-title {
-    font-size: 1.3rem;
-    font-weight: 900;
-    letter-spacing: -0.03em;
-    color: #F8FAFC;
-    line-height: 1.15;
-    word-break: keep-all;
-}
-
-.topbar-sub {
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #38BDF8;
-    margin-top: 5px;
-}
-
-.topbar-meta {
-    font-size: 0.76rem;
-    color: #94A3B8;
-    margin-top: 8px;
-}
-
-.card {
-    padding: 18px;
-    border-radius: 22px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.08);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+/* ── streak 위기 ── */
+.streak-crisis {
+    padding: 20px 16px; border-radius: 20px; text-align: center;
+    background: linear-gradient(145deg,rgba(239,68,68,0.14),rgba(220,38,38,0.07));
+    border: 1.5px solid rgba(239,68,68,0.42);
     margin-bottom: 12px;
 }
+.streak-crisis-num  { font-size:2.4rem; font-weight:900; color:#FCA5A5; line-height:1; }
+.streak-crisis-title{ font-size:0.95rem; font-weight:900; color:#FCA5A5; margin-top:4px; }
+.streak-crisis-sub  { font-size:0.78rem; color:#94A3B8; margin-top:4px; line-height:1.5; }
 
-.command-card {
-    padding: 22px;
-    border-radius: 24px;
-    background: linear-gradient(135deg, rgba(14,165,233,0.20), rgba(59,130,246,0.10));
-    border: 1px solid rgba(56,189,248,0.35);
-    box-shadow: 0 12px 40px rgba(2,132,199,0.14);
-    margin-bottom: 12px;
+/* ── 어제 vs 오늘 ── */
+.compare-card {
+    padding: 13px 15px; border-radius: 17px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 10px;
+}
+.compare-row {
+    display:flex; align-items:center; gap:9px;
+    padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04);
+}
+.compare-row:last-of-type { border-bottom:none; }
+.compare-day  { font-size:0.7rem; color:#475569; width:26px; flex-shrink:0; }
+.compare-emoji{ font-size:0.9rem; flex-shrink:0; width:18px; }
+.compare-text { font-size:0.8rem; color:#94A3B8; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.compare-time { font-size:0.68rem; color:#334155; flex-shrink:0; }
+.compare-msg  { font-size:0.8rem; margin-top:9px; font-weight:700; }
+
+/* ── 공유 배너 ── */
+.share-banner {
+    padding: 16px; border-radius: 18px; text-align: center;
+    background: linear-gradient(145deg,rgba(99,102,241,0.16),rgba(59,130,246,0.09));
+    border: 1.5px solid rgba(99,102,241,0.35);
+    margin-bottom: 10px;
+}
+.share-milestone{ font-size:1.4rem; font-weight:900; color:#FFFFFF; }
+.share-sub      { font-size:0.78rem; color:#A5B4FC; margin-top:3px; }
+
+/* ── 사회적 증거 ── */
+.social-proof {
+    padding: 8px 13px; border-radius: 11px;
+    background: rgba(56,189,248,0.07);
+    border: 1px solid rgba(56,189,248,0.13);
+    margin-bottom: 10px;
+    font-size:0.77rem; color:#7DD3FC; text-align:center;
 }
 
-.warning-card {
-    padding: 18px;
-    border-radius: 20px;
-    background: rgba(239,68,68,0.10);
-    border: 1px solid rgba(239,68,68,0.35);
-    margin-bottom: 12px;
+/* ── 집중 중 카드 ── */
+.focus-card {
+    padding: 20px 16px; border-radius: 20px;
+    background: linear-gradient(145deg,rgba(34,197,94,0.12),rgba(16,185,129,0.07));
+    border: 1.5px solid rgba(34,197,94,0.30);
+    margin-bottom: 10px; text-align: center;
 }
-
-.success-card {
-    padding: 18px;
-    border-radius: 20px;
-    background: rgba(34,197,94,0.10);
-    border: 1px solid rgba(34,197,94,0.30);
-    margin-bottom: 12px;
+.focus-elapsed {
+    font-size: 2.4rem; font-weight: 900; color: #86EFAC;
+    font-variant-numeric: tabular-nums; line-height: 1;
 }
+.focus-label { font-size: 0.78rem; color: #6EE7B7; margin-top: 4px; }
+.focus-task  { font-size: 0.86rem; color: #94A3B8; margin-top: 10px; line-height: 1.5; }
+.focus-phase { font-size: 0.78rem; color: #6EE7B7; font-weight: 700; margin-top: 6px; }
 
-.muted {
-    color: #94A3B8;
-    font-size: 0.84rem;
+/* ── 타이포 ── */
+.muted { color:#475569; font-size:0.76rem; }
+.section-label {
+    font-size:0.7rem; font-weight:700; color:#475569;
+    letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px;
 }
+.strong-title { font-size:1.08rem; font-weight:900; line-height:1.35; color:#FFFFFF; margin-top:7px; }
+.body-small   { color:#94A3B8; font-size:0.82rem; line-height:1.55; margin-top:5px; }
 
-.strong-title {
-    font-size: 1.2rem;
-    font-weight: 900;
-    line-height: 1.32;
-    margin-top: 10px;
-    color: #FFFFFF;
-}
-
-.body-small {
-    color: #CBD5E1;
-    font-size: 0.88rem;
-    line-height: 1.5;
-    margin-top: 8px;
-}
-
-.metric-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-}
-
+/* ── 상태 메트릭 ── */
+.metric-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
 .metric {
-    padding: 14px 10px;
-    border-radius: 16px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.07);
-    text-align: center;
+    padding:11px 7px; border-radius:13px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid rgba(255,255,255,0.06);
+    text-align:center;
 }
+.metric-label { color:#475569; font-size:0.68rem; }
+.metric-value { color:#FFFFFF; font-size:1.02rem; font-weight:900; margin-top:3px; }
 
-.metric-label {
-    color: #94A3B8;
-    font-size: 0.75rem;
-}
+/* ── 월간 캘린더 ── */
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-top:7px; }
+.cal-day { aspect-ratio:1; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:0.63rem; font-weight:700; }
+.cal-success { background:rgba(34,197,94,0.26); color:#86EFAC; }
+.cal-fail    { background:rgba(239,68,68,0.17); color:#FCA5A5; }
+.cal-empty   { background:rgba(255,255,255,0.04); color:#334155; }
+.cal-future  { background:transparent; }
+.cal-header  { color:#334155; font-size:0.62rem; text-align:center; padding-bottom:2px; }
 
-.metric-value {
-    color: #FFFFFF;
-    font-size: 1.08rem;
-    font-weight: 900;
-    margin-top: 6px;
-}
-
+/* ── 프리미엄 pill ── */
 .premium-pill {
-    display: inline-block;
-    padding: 7px 10px;
-    border-radius: 999px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
-    font-size: 0.76rem;
-    color: #E2E8F0;
-    margin-right: 6px;
-    margin-bottom: 6px;
+    display:inline-block; padding:4px 8px; border-radius:999px;
+    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.07);
+    font-size:0.71rem; color:#CBD5E1; margin-right:4px; margin-bottom:4px;
 }
 
-.section-title {
-    color: #E2E8F0;
-    font-size: 1rem;
-    font-weight: 800;
-    margin-bottom: 6px;
+/* ── Premium 잠금 카드 ── */
+.lock-card {
+    padding: 20px 16px; border-radius: 20px; text-align: center;
+    background: linear-gradient(145deg,rgba(99,102,241,0.14),rgba(59,130,246,0.08));
+    border: 1.5px solid rgba(99,102,241,0.32);
+    margin-bottom: 10px;
 }
+.lock-icon  { font-size:2rem; margin-bottom:8px; }
+.lock-title { font-size:1rem; font-weight:900; color:#C7D2FE; }
+.lock-sub   { font-size:0.8rem; color:#6B7280; margin-top:5px; line-height:1.55; }
 
+/* 계좌 안내 카드 제거됨 — 결제 링크 방식으로 전환 */
+
+/* ── Premium 혜택 비교표 ── */
+.compare-table { width:100%; margin-top:8px; border-collapse:collapse; }
+.compare-table td { padding:7px 4px; font-size:0.8rem; vertical-align:middle; }
+.compare-table tr { border-bottom:1px solid rgba(255,255,255,0.04); }
+.compare-table tr:last-child { border-bottom:none; }
+.ct-label { color:#94A3B8; width:55%; }
+.ct-free  { text-align:center; color:#475569; width:22%; font-size:0.75rem; }
+.ct-prem  { text-align:center; color:#86EFAC; width:23%; font-size:0.75rem; font-weight:700; }
+
+/* ── 버튼 ── */
 .stButton > button {
-    width: 100%;
-    min-height: 58px;
-    border-radius: 18px;
-    font-size: 1rem;
-    font-weight: 900;
-    border: 1px solid rgba(255,255,255,0.10);
+    width:100%; min-height:50px; border-radius:15px;
+    font-size:0.93rem; font-weight:800;
+    border: 1px solid rgba(255,255,255,0.09);
 }
 
-a[data-testid="stLinkButton"] {
-    display: block;
-    border-radius: 18px;
-    text-align: center;
-    font-weight: 900;
+/* ── 탭 구분선 — Streamlit 내부 속성 불사용 ── */
+/* 탭 버튼은 st.button의 type="primary"/"secondary" 기본 스타일만 사용
+   활성: Streamlit primary 버튼 (파란 계열)
+   비활성: Streamlit secondary 버튼 (기본)
+   추가 CSS 불필요 — Streamlit 버전 변경에 완전히 안전 */
+
+/* ── 입력 필드 ── */
+.stTextInput input {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.10) !important;
+    border-radius: 13px !important;
+    color: #F8FAFC !important;
+    font-size: 0.93rem !important;
+    padding: 11px 15px !important;
+}
+.stTextInput input:focus {
+    border-color: rgba(56,189,248,0.45) !important;
+    box-shadow: 0 0 0 3px rgba(56,189,248,0.10) !important;
+}
+div[data-baseweb="select"] > div {
+    background: rgba(255,255,255,0.06) !important;
+    border: 1px solid rgba(255,255,255,0.10) !important;
+    border-radius: 13px !important;
 }
 
-div[data-baseweb="tab-list"] {
-    gap: 6px;
-    flex-wrap: wrap;
-}
+/* streak 불꽃 */
+@keyframes flicker { 0%,100%{opacity:1;} 50%{opacity:0.72;} }
+.flame { display:inline-block; animation:flicker 1.5s ease-in-out infinite; }
 
-button[data-baseweb="tab"] {
-    border-radius: 14px !important;
-    background: rgba(255,255,255,0.04) !important;
-    padding: 10px 14px !important;
-}
-
-@media (max-width: 640px) {
-    .block-container {
-        max-width: 100%;
-        padding-top: 0.1rem !important;
-    }
-
-    .topbar-title {
-        font-size: 1.18rem;
-    }
-
-    .topbar-sub {
-        font-size: 0.78rem;
-    }
-
-    .card, .command-card, .warning-card, .success-card {
-        padding: 16px;
-    }
+@media (max-width:480px) {
+    .block-container { padding-left:0.7rem !important; padding-right:0.7rem !important; }
+    .focus-elapsed { font-size:2rem; }
 }
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
 # =========================================================
 # TEXT
@@ -278,63 +304,97 @@ button[data-baseweb="tab"] {
 TXT = {
     "title": "⚡ Vanguard",
     "tagline": "Break the Loop",
-    "goal_label": "이번 달 가장 중요한 목표 1개",
+    "goal_label": "이번 달 목표",
     "goal_placeholder": "예: 4월 안에 앱 출시",
     "start_now": "🚀 지금 시작",
     "refresh": "↻ 새 명령",
     "complete": "✅ 완료",
     "fail": "❌ 실패",
-    "running": "실행 중",
-    "today_none": "오늘 아직 기록 없음",
-    "today_success": "오늘 성공 기록 있음",
-    "today_fail": "오늘 실패 기록 있음",
-    "streak_warning": "오늘 실행하지 않으면 연속 기록이 끊긴다.",
-    "history_title": "📜 최근 기록",
-    "policy_title": "ℹ 운영 안내",
+    "today_none": "아직 기록 없음",
+    "today_success": "오늘 성공 ✓",
+    "today_fail": "오늘 실패",
+    "streak_warning": "여기서 끊기면 다시 3일 걸린다. 오늘 안 하면 내일도 안 한다.",
     "policy_text": "베타 버전입니다. 기록과 Premium 신청 정보는 기능 개선과 응답 확인 용도로 사용됩니다.",
-    "fallback_sheet_notice": "Google Sheets 연결이 없어도 앱은 계속 동작합니다. 현재는 로컬 세션 기록으로 저장 중입니다.",
-    "fallback_ai_notice": "Gemini 기능 일부가 비활성화되어 기본 응답으로 동작합니다.",
-    "analysis_closed": "상세 분석은 아래에서 필요할 때만 열립니다.",
-    "pain_line": "너는 지금 중요한 걸 미루고 있다.",
-    "pain_sub": "이 상태로 하루가 끝나면 오늘도 또 같은 패턴이 반복된다.",
+    "fallback_ai": "AI 기능이 기본 응답으로 동작 중입니다.",
+    "pain_line": "지금 안 하면 오늘은 끝이다.",
+    "pain_sub": "이건 의지 문제가 아니다. 같은 패턴이 반복되고 있는 거다. 지금 이 순간이 그 패턴을 끊을 유일한 기회다.",
     "premium_title": "🔒 Premium",
-    "premium_body": "무료는 시작만 시킨다. Premium은 반복 실패 원인을 분석하고, 다시 무너지는 패턴을 끊는 데 집중한다.",
-    "premium_button": "👉 Premium 신청하기",
-    "premium_urgency": "초기 사용자 가격과 혜택은 이후 조정될 수 있습니다.",
-    "premium_benefit_1": "반복 실패 패턴 분석",
-    "premium_benefit_2": "맞춤 실행 전략 제공",
-    "premium_benefit_3": "무너지는 시간대 교정",
-    "premium_benefit_4": "베타 우선 적용",
+    "premium_body": "무료는 시작만 시킨다. Premium은 반복 실패 패턴을 끊는 데 집중한다.",
+    "premium_urgency": "초기 사용자 혜택 — 이후 가격 조정 예정",
+    "premium_b1": "패턴 분석", "premium_b2": "맞춤 전략",
+    "premium_b3": "시간대 교정", "premium_b4": "베타 우선",
     "premium_fail_title": "반복 실패를 끊고 싶다면",
-    "premium_fail_body": "의지가 약한 게 아니라, 같은 패턴이 반복되는 중일 수 있습니다. Premium은 그 패턴을 찾아 끊는 데 초점을 둡니다.",
-    "premium_flow_title": "이 흐름을 잃기 싫다면",
-    "premium_flow_body": "좋은 흐름은 만들기보다 유지가 어렵습니다. Premium은 흐름이 꺾이는 지점을 미리 잡는 데 초점을 둡니다.",
-    # 인라인 하드코딩 문자열을 TXT로 이동 (품질 개선)
-    "action_motivate": "생각하지 말고 2분만 시작해라",
-    "complete_message": "이건 의지가 아니라 실행이다. 오늘은 끊었다.",
-    "fail_message": "같은 패턴 반복 중",
+    "premium_fail_body": "의지가 약한 게 아니라 같은 패턴이 반복 중입니다. Premium은 그 패턴을 찾아 끊습니다.",
+    "premium_flow_title": "이 흐름을 유지하려면",
+    "premium_flow_body": "흐름이 꺾이는 지점을 미리 잡는 게 Premium의 역할입니다.",
+    "action_motivate": "2분만 해라. 생각은 나중에.",
+    "complete_msg": "해냈다. 오늘 패턴을 끊었다. 내일도 이 시간에 다시 와라. 🔥",
+    "fail_msg": "또 같은 이유로 무너졌다. 이 패턴, 혼자 끊기 어렵다.",
+    "progress_start": ("시작 구간", "생각을 줄이고 흐름을 유지해라."),
+    "progress_mid":   ("집중 유지 구간", "지금 필요한 건 속도가 아니라 유지다."),
+    "progress_deep":  ("흐름 고정 구간", "여기서 멈추면 아깝다. 끝까지 밀어붙여라."),
+    "nickname_label": "닉네임을 설정하세요",
+    "nickname_placeholder": "예: 철수, vanguard123",
+    "nickname_confirm": "시작하기 →",
+    "nickname_desc": "나만의 기록을 유지합니다. 다음에 와도 streak이 살아있어요.",
+    "email_cta_title": "Premium 대기자 등록",
+    "email_cta_body": "출시 즉시 알림 + 초기 가격 혜택",
+    "email_placeholder": "이메일 주소",
+    "email_confirm": "등록하기",
+    "email_done": "등록 완료 ✓ 출시 시 가장 먼저 연락드릴게요.",
+    # 게스트 온보딩
+    "guest_save_title": "기록을 저장하려면 닉네임이 필요합니다",
+    "guest_save_desc": "닉네임을 설정하면 streak과 기록이 유지됩니다. 다음에 와도 이어서 할 수 있어요.",
+    "guest_save_btn": "저장하고 계속하기 →",
+    "guest_skip": "나중에",
+    # 시간대별 긴급도
+    "time_morning": "오전",
+    "time_afternoon": "오후",
+    "time_evening": "저녁",
+    # Premium
+    "premium_page_title": "🔒 Vanguard Premium",
+    "premium_tagline": "시작이 아니라 결과까지 밀어붙이는 시스템",
+    "premium_applied_title": "결제 진행 중 ✓",
+    "premium_applied_body": "결제 완료 후 1~3시간 내에 Premium이 활성화됩니다.\n확인 이메일이 오지 않으면 아래 운영 안내를 참고하세요.",
+    "premium_active_title": "⚡ Premium 활성화됨",
+    "premium_active_body": "개인화 분석과 실패 예측이 모두 열려있습니다.",
 }
 
 # =========================================================
 # SESSION STATE
 # =========================================================
-DEFAULTS = {
+DEFAULTS: Dict[str, Any] = {
     "running": False,
     "start_time": 0.0,
     "current_task": "",
     "records": [],
-    "show_onboarding": True,
     "goal": "",
     "last_error": "",
     "lazy_command": "",
     "lazy_reason": "",
     "lazy_warning": "",
     "command_ready": False,
-    # [FIX] 완료/실패 후 메시지를 rerun 이후에도 표시하기 위한 플래그
     "_show_complete_msg": False,
     "_show_fail_msg": False,
-    # [FIX] ensure_sheet_header 중복 API 호출 방지 플래그
+    "_show_fail_select": False,
     "_header_ensured": False,
+    "_users_header_ensured": False,
+    "_prev_goal": "",
+    "nickname": "",
+    "nickname_confirmed": False,
+    "email_submitted": False,
+    "_admin_authed": False,
+    "_crisis_dismissed": False,
+    "_active_tab": "home",
+    "_premium_applied": False,         # 입금 안내까지 완료한 상태
+    "_is_premium": False,              # 실제 Premium 활성화 여부 (시트에서 로드)
+    "_fail_reason_for_premium": None,  # 실패 직후 Premium 탭 이동 시 이유
+    "_fail_count_for_premium": None,   # 실패 직후 Premium 탭 이동 시 횟수
+    # 게스트 온보딩 — 1회 실행 후 닉네임 받기
+    "_guest_mode": True,               # 닉네임 없이 먼저 경험
+    "_guest_task_done": False,         # 게스트 완료/실패 후 닉네임 수집 트리거
+    "_guest_goal": "",                 # 게스트 목표 임시 저장
+    "_show_nickname_collect": False,   # 실행 후 닉네임 수집 화면 표시
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -346,27 +406,36 @@ for k, v in DEFAULTS.items():
 def korea_now() -> datetime:
     return datetime.now(ZoneInfo("Asia/Seoul"))
 
-
 def now_time() -> str:
     return korea_now().strftime("%H:%M")
-
 
 def today_str() -> str:
     return korea_now().strftime("%Y-%m-%d")
 
+def yesterday_str() -> str:
+    return (korea_now().date() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+def elapsed_to_text(elapsed: int) -> str:
+    """경과 시간을 사람이 읽기 쉬운 텍스트로"""
+    if elapsed < 60:
+        return f"{elapsed}초"
+    mins = elapsed // 60
+    secs = elapsed % 60
+    return f"{mins}분 {secs}초" if secs else f"{mins}분"
+
 # =========================================================
-# RECORD UTILS
+# ERROR UTILS
 # =========================================================
 def set_error(msg: str) -> None:
     st.session_state.last_error = msg
 
-
 def reset_error() -> None:
     st.session_state.last_error = ""
 
-
+# =========================================================
+# RECORD UTILS
+# =========================================================
 def parse_done(value: Any) -> bool:
-    """[FIX] 'False' 문자열을 명시적으로 처리하여 조용한 True 반환 방지"""
     if isinstance(value, bool):
         return value
     s = str(value).strip().lower()
@@ -374,14 +443,11 @@ def parse_done(value: Any) -> bool:
         return False
     return s in {"true", "1", "yes", "y"}
 
-
 def record_to_bool_done(row: Dict[str, Any]) -> bool:
     return parse_done(row.get("done", False))
 
-
-def get_recent_records(records: List[Dict[str, Any]], limit: int = 10) -> List[Dict[str, Any]]:
+def get_recent_records(records: List[Dict[str, Any]], limit: int = 15) -> List[Dict[str, Any]]:
     return records[-limit:] if records else []
-
 
 def get_daily_map(records: List[Dict[str, Any]]) -> Dict[str, List[bool]]:
     daily: Dict[str, List[bool]] = defaultdict(list)
@@ -391,9 +457,7 @@ def get_daily_map(records: List[Dict[str, Any]]) -> Dict[str, List[bool]]:
             daily[date_str].append(record_to_bool_done(row))
     return daily
 
-
 def calculate_streak(records: List[Dict[str, Any]]) -> int:
-    """[FIX] 오늘 날짜 기준으로 streak 계산 (이전: 마지막 기록 날짜 기준)"""
     daily = get_daily_map(records)
     if not daily:
         return 0
@@ -408,28 +472,27 @@ def calculate_streak(records: List[Dict[str, Any]]) -> int:
         current -= timedelta(days=1)
     return streak
 
-
 def get_today_status(records: List[Dict[str, Any]]) -> str:
     today = today_str()
     rows = [r for r in records if r.get("date") == today]
     if not rows:
         return "none"
-    if any(record_to_bool_done(r) for r in rows):
-        return "success"
-    return "fail"
+    return "success" if any(record_to_bool_done(r) for r in rows) else "fail"
 
+def get_yesterday_record(records: List[Dict[str, Any]]) -> Dict[str, Any]:
+    yesterday = yesterday_str()
+    rows = [r for r in records if r.get("date") == yesterday]
+    return rows[-1] if rows else {}
 
 def get_success_fail_counts(records: List[Dict[str, Any]]) -> Tuple[int, int]:
     success = sum(1 for r in records if record_to_bool_done(r))
-    fail = sum(1 for r in records if not record_to_bool_done(r))
+    fail    = sum(1 for r in records if not record_to_bool_done(r))
     return success, fail
-
 
 def get_success_rate(records: List[Dict[str, Any]]) -> int:
     success, fail = get_success_fail_counts(records)
     total = success + fail
     return int(success / total * 100) if total > 0 else 0
-
 
 def get_top_fail_reason(records: List[Dict[str, Any]]) -> str:
     counts: Dict[str, int] = {}
@@ -438,15 +501,14 @@ def get_top_fail_reason(records: List[Dict[str, Any]]) -> str:
             reason = str(r.get("fail_reason", "")).strip()
             if reason:
                 counts[reason] = counts.get(reason, 0) + 1
-    return max(counts, key=counts.get) if counts else ""
-
+    return max(counts, key=lambda k: counts[k]) if counts else ""
 
 def get_weekly_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     if not records:
         return {"success_rate": 0, "success_count": 0, "fail_count": 0, "top_fail_reason": ""}
     today = korea_now().date()
     week_start = today - timedelta(days=6)
-    weekly_rows: List[Dict[str, Any]] = []
+    weekly_rows = []
     for r in records:
         try:
             d = datetime.strptime(str(r.get("date")), "%Y-%m-%d").date()
@@ -456,20 +518,33 @@ def get_weekly_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
             continue
     success, fail = get_success_fail_counts(weekly_rows)
     total = success + fail
-    success_rate = int(success / total * 100) if total > 0 else 0
     return {
-        "success_rate": success_rate,
+        "success_rate": int(success / total * 100) if total > 0 else 0,
         "success_count": success,
         "fail_count": fail,
         "top_fail_reason": get_top_fail_reason(weekly_rows),
     }
 
+def get_monthly_calendar(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    today = korea_now().date()
+    first_day = today.replace(day=1)
+    daily = get_daily_map(records)
+    result = []
+    current = first_day
+    while current <= today:
+        key = current.strftime("%Y-%m-%d")
+        status = ("success" if key in daily and any(daily[key])
+                  else "fail" if key in daily else "empty")
+        result.append({"date": current, "status": status})
+        current += timedelta(days=1)
+    return result
 
 def fast_command(goal: str) -> Tuple[str, str, str]:
-    command = f"지금 '{goal or '핵심 작업'}'을 2분만 시작해."
-    reason = "처음 2분만 넘기면 시작 장벽이 크게 줄어든다."
-    warning = "지금 미루면 오늘도 바쁜 척만 하다가 끝난다."
-    return command, reason, warning
+    return (
+        f"지금 '{goal or '핵심 작업'}' 2분만 해라. 지금 당장.",
+        "2분만 넘기면 흐름이 붙는다. 시작이 전부다.",
+        "지금 안 하면 오늘은 끝이다. 내일도 똑같이 미룬다.",
+    )
 
 # =========================================================
 # GEMINI
@@ -482,9 +557,7 @@ def get_genai_client():
     except Exception:
         return None
 
-
 def _parse_gemini_response(text: str, keys: List[str]) -> Dict[str, str]:
-    """Gemini 응답 파싱 공통 유틸. 파싱 실패 시 set_error로 경고."""
     parsed = {k: "" for k in keys}
     for line in text.splitlines():
         if ":" in line:
@@ -492,177 +565,262 @@ def _parse_gemini_response(text: str, keys: List[str]) -> Dict[str, str]:
             key = k.strip().upper()
             if key in parsed:
                 parsed[key] = v.strip()
-    # [FIX] 파싱 결과가 모두 비어있으면 경고 기록
-    if not any(parsed.values()):
-        set_error(f"Gemini 응답 파싱 실패 (처음 100자): {text[:100]}")
     return parsed
 
+@st.cache_data(ttl=60)
+def generate_premium_command(
+    goal: str, streak: int, success_rate: int, top_fail: str, fail_count: int
+) -> Tuple[str, str, str]:
+    """
+    Premium 전용 명령 — 실패 패턴 기반 개인화
+    무료 명령과 체감 차이를 홈 화면에서 바로 느끼게
+    """
+    fallback = (
+        f"'{top_fail or '집중 저하'}' 패턴이 반복되고 있다. 지금 30초만 시작해.",
+        f"실패 {fail_count}회가 쌓였다. 지금이 패턴을 끊을 마지막 기회다.",
+        "지금 또 미루면 이 패턴은 다음 주도 반복된다.",
+    )
+    client = get_genai_client()
+    if client is None:
+        return fallback
+    prompt = f"""
+너는 개인화 행동 교정 AI 'Vanguard Premium'이다.
+이 사람의 실패 데이터를 기반으로 지금 이 순간 해야 할 명령을 만들어라.
+
+목표: {goal or "미입력"}
+streak: {streak}일 / 성공률: {success_rate}%
+반복 실패 이유: {top_fail or "없음"}
+누적 실패 횟수: {fail_count}회
+
+규칙:
+- 반복 실패 이유를 명시적으로 언급해라
+- "또 {top_fail}로 실패할 것 같다면" 같은 패턴 교정 관점으로
+- 위로 금지. 실행 강제만.
+
+다음 형식만 출력:
+COMMAND: 지금 당장 할 행동 1개 (패턴 교정 관점, 구체적으로)
+REASON: 왜 지금 이 방식으로 해야 하는지
+WARNING: 지금 또 같은 패턴으로 실패하면 어떻게 되는지
+"""
+    try:
+        res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
+        parsed = _parse_gemini_response((res.text or "").strip(),
+                                        ["COMMAND", "REASON", "WARNING"])
+        return (
+            parsed["COMMAND"] or fallback[0],
+            parsed["REASON"]  or fallback[1],
+            parsed["WARNING"] or fallback[2],
+        )
+    except Exception:
+        return fallback
 
 @st.cache_data(ttl=60)
 def generate_command(goal: str, streak: int, success_rate: int) -> Tuple[str, str, str]:
-    """[FIX] TTL을 120→60초로 단축하여 목표 변경 시 캐시 오염 최소화"""
-    fallback_command, fallback_reason, fallback_warning = fast_command(goal)
+    fallback = fast_command(goal)
     client = get_genai_client()
     if client is None:
-        return fallback_command, fallback_reason, fallback_warning
+        return fallback
     prompt = f"""
 너는 행동 통제 AI 'Vanguard'다.
-위로가 아니라 실행 강제가 목적이다.
+위로 금지. 공감 금지. 오직 실행 강제.
+사용자가 지금 이 순간 행동하게 만드는 것이 유일한 목표다.
 
 목표: {goal or '핵심 목표 미입력'}
-현재 streak: {streak}
-최근 성공률: {success_rate}%
+streak: {streak}일 / 성공률: {success_rate}%
 
-다음 형식만 출력:
-COMMAND: 지금 해야 할 행동 1개
-REASON: 왜 지금 해야 하는지
-WARNING: 지금 안 하면 어떻게 되는지
+다음 형식만 출력 (각 1문장, 직접적이고 강하게):
+COMMAND: 지금 당장 할 수 있는 행동 1개 (동사로 시작, 구체적으로)
+REASON: 지금 안 하면 안 되는 이유 (손실 관점으로)
+WARNING: 오늘 이걸 안 하면 어떻게 되는지 (팩트, 강하게)
 """
     try:
         res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        text = (res.text or "").strip()
-        parsed = _parse_gemini_response(text, ["COMMAND", "REASON", "WARNING"])
+        parsed = _parse_gemini_response((res.text or "").strip(), ["COMMAND", "REASON", "WARNING"])
         return (
-            parsed["COMMAND"] or fallback_command,
-            parsed["REASON"] or fallback_reason,
-            parsed["WARNING"] or fallback_warning,
+            parsed["COMMAND"] or fallback[0],
+            parsed["REASON"] or fallback[1],
+            parsed["WARNING"] or fallback[2],
         )
     except Exception:
-        return fallback_command, fallback_reason, fallback_warning
-
+        return fallback
 
 @st.cache_data(ttl=180)
-def generate_weekly_report(goal: str, success_rate: int, success_count: int, fail_count: int, top_fail_reason: str) -> Tuple[str, str]:
-    fallback_focus = "최근 7일 동안 성공과 실패가 섞여 있으며, 반복 실패 이유가 존재한다."
-    fallback_action = "내일은 가장 중요한 작업을 2분짜리 시작 블록으로 먼저 시작해라."
+def generate_weekly_report(
+    goal: str, success_rate: int, success_count: int,
+    fail_count: int, top_fail_reason: str,
+) -> Tuple[str, str]:
+    fb_f = "최근 7일 동안 반복 실패 이유가 존재한다."
+    fb_a = "가장 중요한 작업을 2분짜리 시작 블록으로 먼저 시작해라."
     client = get_genai_client()
     if client is None:
-        return fallback_focus, fallback_action
+        return fb_f, fb_a
     prompt = f"""
-너는 실행 리포트 분석가다.
-
-목표: {goal or '목표 미입력'}
-최근 7일 성공률: {success_rate}%
-최근 7일 성공 수: {success_count}
-최근 7일 실패 수: {fail_count}
-가장 흔한 실패 이유: {top_fail_reason or '없음'}
-
+목표: {goal or '미입력'}
+7일 성공률: {success_rate}% (성공 {success_count} / 실패 {fail_count})
+주요 실패 이유: {top_fail_reason or '없음'}
 다음 형식만 출력:
-FOCUS: 최근 7일 핵심 패턴 1개
-ACTION: 다음 7일 추천 행동 1개
+FOCUS: 핵심 패턴 1개
+ACTION: 추천 행동 1개
 """
     try:
         res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        text = (res.text or "").strip()
-        parsed = _parse_gemini_response(text, ["FOCUS", "ACTION"])
-        return parsed["FOCUS"] or fallback_focus, parsed["ACTION"] or fallback_action
+        parsed = _parse_gemini_response((res.text or "").strip(), ["FOCUS", "ACTION"])
+        return parsed["FOCUS"] or fb_f, parsed["ACTION"] or fb_a
     except Exception:
-        return fallback_focus, fallback_action
-
+        return fb_f, fb_a
 
 @st.cache_data(ttl=180)
-def generate_premium_insight(goal: str, recent_records_repr: str) -> Tuple[str, str]:
-    fallback_weakness = "반복 실패 이유가 쌓이고 있다."
-    fallback_fix = "실패가 많은 이유를 줄이고 시작 단위를 더 작게 만들어라."
+def generate_premium_insight(goal: str, recent_repr: str) -> Dict[str, str]:
+    """
+    Premium 전용 심층 분석
+    무료와의 차별점: 5개 항목으로 결과 강도를 높임
+    """
+    fallback = {
+        "root_cause":  "반복 실패의 핵심 원인이 누적되고 있다.",
+        "danger_zone": "가장 자주 무너지는 시간대가 있다.",
+        "predict":     "지금 패턴이 유지되면 이번 주 실패 가능성이 높다.",
+        "protocol":    "오늘은 목표를 30초짜리 단위로 쪼개서 시작하라.",
+        "warning":     "지금 멈추면 이 흐름을 되찾는 데 3일 이상 걸린다.",
+    }
     client = get_genai_client()
     if client is None:
-        return fallback_weakness, fallback_fix
+        return fallback
     prompt = f"""
-너는 Premium 행동 분석가다.
+너는 행동 분석 AI다. 아래 데이터를 기반으로 이 사람의 실패 패턴을 해부하라.
+위로 금지. 분석과 교정만.
 
-목표: {goal or '목표 미입력'}
-최근 기록: {recent_records_repr}
+목표: {goal or "미입력"}
+최근 기록: {recent_repr}
 
-다음 형식만 출력:
-WEAKNESS: 반복 약점 1개
-FIX: 지금 적용할 교정 전략 1개
+다음 형식만 출력 (각 1~2문장, 구체적으로):
+ROOT_CAUSE: 반복 실패의 핵심 원인 1개 (왜 계속 같은 패턴인지)
+DANGER_ZONE: 가장 자주 무너지는 상황/시간대 1개
+PREDICT: 지금 이 패턴이 지속되면 어떻게 되는지 (구체적 예측)
+PROTOCOL: 지금 당장 적용할 3단계 복귀 행동 (번호 없이 한 줄로)
+WARNING: 지금 안 바꾸면 어떻게 되는지 (강하게 1문장)
 """
     try:
         res = client.models.generate_content(model="gemini-2.5-flash", contents=prompt)
-        text = (res.text or "").strip()
-        parsed = _parse_gemini_response(text, ["WEAKNESS", "FIX"])
-        return parsed["WEAKNESS"] or fallback_weakness, parsed["FIX"] or fallback_fix
+        keys = ["ROOT_CAUSE", "DANGER_ZONE", "PREDICT", "PROTOCOL", "WARNING"]
+        parsed = _parse_gemini_response((res.text or "").strip(), keys)
+        return {
+            "root_cause":  parsed["ROOT_CAUSE"]  or fallback["root_cause"],
+            "danger_zone": parsed["DANGER_ZONE"] or fallback["danger_zone"],
+            "predict":     parsed["PREDICT"]     or fallback["predict"],
+            "protocol":    parsed["PROTOCOL"]    or fallback["protocol"],
+            "warning":     parsed["WARNING"]     or fallback["warning"],
+        }
     except Exception:
-        return fallback_weakness, fallback_fix
+        return fallback
 
 # =========================================================
 # GOOGLE SHEETS
 # =========================================================
-def _normalize_service_account_dict(raw: Dict[str, Any]) -> Dict[str, Any]:
-    creds_dict = dict(raw)
-    private_key = creds_dict.get("private_key", "")
-    if isinstance(private_key, str):
-        creds_dict["private_key"] = private_key.replace("\\n", "\n")
-    return creds_dict
-
+def _normalize_sa_dict(raw: Dict[str, Any]) -> Dict[str, Any]:
+    d = dict(raw)
+    pk = d.get("private_key", "")
+    if isinstance(pk, str):
+        d["private_key"] = pk.replace("\\n", "\n")
+    return d
 
 @st.cache_resource
 def get_gspread_client():
     if gspread is None or ServiceAccountCredentials is None:
         raise RuntimeError("gspread unavailable")
-
-    # Streamlit Cloud secrets 우선
     try:
         if "gcp_service_account" in st.secrets:
-            creds_dict = _normalize_service_account_dict(st.secrets["gcp_service_account"])
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SHEETS_SCOPES)
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(
+                _normalize_sa_dict(st.secrets["gcp_service_account"]), SHEETS_SCOPES
+            )
             return gspread.authorize(creds)
     except Exception:
         pass
-
-    # 로컬 파일 fallback
     if os.path.exists(GOOGLE_SERVICE_ACCOUNT_FILE):
-        creds = ServiceAccountCredentials.from_json_keyfile_name(GOOGLE_SERVICE_ACCOUNT_FILE, SHEETS_SCOPES)
+        creds = ServiceAccountCredentials.from_json_keyfile_name(
+            GOOGLE_SERVICE_ACCOUNT_FILE, SHEETS_SCOPES
+        )
         return gspread.authorize(creds)
-
     raise FileNotFoundError(GOOGLE_SERVICE_ACCOUNT_FILE)
-
 
 @st.cache_resource
 def get_sheet():
     client = get_gspread_client()
-    if NEXUS_SHEET_URL and "docs.google.com/spreadsheets" in NEXUS_SHEET_URL:
-        spreadsheet = client.open_by_url(NEXUS_SHEET_URL)
-    else:
-        spreadsheet = client.open(SHEET_NAME)
-    worksheet = spreadsheet.get_worksheet(0)
-    if worksheet is None:
+    spreadsheet = (
+        client.open_by_url(NEXUS_SHEET_URL)
+        if NEXUS_SHEET_URL and "docs.google.com/spreadsheets" in NEXUS_SHEET_URL
+        else client.open(SHEET_NAME)
+    )
+    ws = spreadsheet.get_worksheet(0)
+    if ws is None:
         raise RuntimeError("worksheet not found")
-    return worksheet
+    return ws
 
+@st.cache_resource
+def get_spreadsheet():
+    client = get_gspread_client()
+    return (
+        client.open_by_url(NEXUS_SHEET_URL)
+        if NEXUS_SHEET_URL and "docs.google.com/spreadsheets" in NEXUS_SHEET_URL
+        else client.open(SHEET_NAME)
+    )
 
-def ensure_sheet_header():
-    """[FIX] 세션당 1회만 헤더 체크 — 매 save_record 호출마다 API 요청하던 문제 개선"""
+def ensure_sheet_header() -> None:
     if st.session_state.get("_header_ensured"):
         return
     sheet = get_sheet()
-    values = sheet.get_all_values()
-    if not values:
-        sheet.append_row(["time", "date", "task", "done", "fail_reason", "source"])
+    if not sheet.get_all_values():
+        sheet.append_row(["time", "date", "nickname", "task", "done", "fail_reason", "source"])
     st.session_state["_header_ensured"] = True
 
+USERS_HEADER = ["time", "nickname", "email", "goal", "type", "is_premium"]
+
+def ensure_users_header() -> None:
+    if st.session_state.get("_users_header_ensured"):
+        return
+    spreadsheet = get_spreadsheet()
+    ws = spreadsheet.get_worksheet(1)
+    if ws is None:
+        ws = spreadsheet.add_worksheet(title="Users", rows=1000, cols=len(USERS_HEADER))
+    values = ws.get_all_values()
+    if not values:
+        # 빈 시트 — 헤더 추가
+        ws.append_row(USERS_HEADER)
+    else:
+        header = values[0]
+        if len(header) < len(USERS_HEADER):
+            # 이전 5컬럼 시트 → 6컬럼으로 헤더 보정
+            ws.update("A1:F1", [USERS_HEADER])
+    st.session_state["_users_header_ensured"] = True
+
+def _get_users_ws():
+    spreadsheet = get_spreadsheet()
+    ws = spreadsheet.get_worksheet(1)
+    if ws is None:
+        ws = spreadsheet.add_worksheet(title="Users", rows=1000, cols=6)
+    return ws
 
 @st.cache_data(ttl=20)
 def load_sheet_records() -> List[Dict[str, Any]]:
-    ensure_sheet_header()
     sheet = get_sheet()
-    rows = sheet.get_all_records()
-    return rows if rows else []
+    return sheet.get_all_records() or []
 
-
-def load_records() -> Tuple[List[Dict[str, Any]], bool]:
+def load_records(nickname: str = "") -> Tuple[List[Dict[str, Any]], bool]:
     try:
+        ensure_sheet_header()
         rows = load_sheet_records()
+        if nickname:
+            rows = [r for r in rows if str(r.get("nickname", "")).strip() == nickname.strip()]
         return rows, True
     except Exception as e:
         set_error(f"Sheet load failed: {e}")
         return st.session_state.records, False
 
-
 def save_record(task: str, done: bool, fail_reason: str = "", source: str = "control") -> bool:
+    nickname = st.session_state.get("nickname", "anonymous")
     row = {
         "time": korea_now().strftime("%Y-%m-%d %H:%M"),
         "date": today_str(),
+        "nickname": nickname,
         "task": task,
         "done": str(done),
         "fail_reason": fail_reason,
@@ -673,165 +831,894 @@ def save_record(task: str, done: bool, fail_reason: str = "", source: str = "con
         ensure_sheet_header()
         sheet = get_sheet()
         sheet.append_row([
-            row["time"],
-            row["date"],
-            row["task"],
-            row["done"],
-            row["fail_reason"],
-            row["source"],
+            row["time"], row["date"], row["nickname"],
+            row["task"], row["done"], row["fail_reason"], row["source"],
         ])
         load_sheet_records.clear()
+        get_today_complete_count.clear()
         return True
     except Exception as e:
         set_error(f"Sheet save failed: {e}")
         return False
 
+def save_email(email: str, nickname: str, goal: str) -> bool:
+    try:
+        ensure_users_header()
+        ws = _get_users_ws()
+        ws.append_row([
+            korea_now().strftime("%Y-%m-%d %H:%M"),
+            nickname, email, goal, "premium_waitlist", "False",
+        ])
+        return True
+    except Exception as e:
+        set_error(f"Email save failed: {e}")
+        return False
+
+def save_nickname_signup(nickname: str) -> bool:
+    try:
+        ensure_users_header()
+        ws = _get_users_ws()
+        ws.append_row([
+            korea_now().strftime("%Y-%m-%d %H:%M"),
+            nickname, "", "", "signup", "False",
+        ])
+        return True
+    except Exception:
+        return False
+
+@st.cache_data(ttl=30)
+def get_taken_nicknames() -> set:
+    try:
+        ensure_users_header()
+        ws = _get_users_ws()
+        rows = ws.get_all_records()
+        return {str(r.get("nickname", "")).strip() for r in rows if r.get("type") == "signup"}
+    except Exception:
+        return set()
+
+def is_nickname_taken(nickname: str) -> bool:
+    return nickname.strip() in get_taken_nicknames()
+
+@st.cache_data(ttl=60)
+def get_premium_nicknames() -> set:
+    """is_premium=True인 닉네임 목록 반환"""
+    try:
+        ensure_users_header()
+        ws = _get_users_ws()
+        rows = ws.get_all_records()
+        return {
+            str(r.get("nickname", "")).strip()
+            for r in rows
+            if str(r.get("is_premium", "")).strip().lower() in {"true", "1", "yes"}
+        }
+    except Exception:
+        return set()
+
+def check_is_premium(nickname: str) -> bool:
+    """해당 닉네임이 Premium인지 확인"""
+    return nickname.strip() in get_premium_nicknames()
+
+@st.cache_data(ttl=60)
+def get_user_premium_status(nickname: str) -> str:
+    """
+    시트 기반 Premium 상태 반환 (세션 무관)
+    반환값:
+      "active"  — is_premium=True
+      "applied" — premium_apply 신청 있음
+      "none"    — 해당 없음
+    """
+    try:
+        ws = _get_users_ws()
+        rows = ws.get_all_records() or []
+        nick = nickname.strip()
+        is_active = any(
+            str(r.get("nickname","")).strip() == nick
+            and str(r.get("is_premium","")).strip().lower() in {"true","1","yes"}
+            for r in rows
+        )
+        if is_active:
+            return "active"
+        is_applied = any(
+            str(r.get("nickname","")).strip() == nick
+            and r.get("type") == "premium_apply"
+            for r in rows
+        )
+        return "applied" if is_applied else "none"
+    except Exception:
+        return "none"
+
+def has_premium_apply(nickname: str) -> bool:
+    """해당 닉네임의 premium_apply 신청이 이미 있는지 확인 (중복 방지)"""
+    try:
+        ws = _get_users_ws()
+        rows = ws.get_all_records() or []
+        return any(
+            str(r.get("nickname","")).strip() == nickname.strip()
+            and r.get("type") == "premium_apply"
+            for r in rows
+        )
+    except Exception:
+        return False
+
+def activate_premium(nickname: str) -> bool:
+    """
+    관리자용: 닉네임의 모든 premium_apply 행을 is_premium=True로 업데이트
+    중복 신청이 있어도 전부 처리해서 상태 꼬임 방지
+    """
+    try:
+        ws = _get_users_ws()
+        rows = ws.get_all_records()
+        updated = False
+        for idx, row in enumerate(rows, start=2):
+            if (str(row.get("nickname","")).strip() == nickname.strip()
+                    and row.get("type") == "premium_apply"):
+                ws.update_cell(idx, 6, "True")
+                updated = True
+        if updated:
+            get_user_premium_status.clear()
+            get_premium_nicknames.clear()
+        return updated
+    except Exception as e:
+        set_error(f"Premium activate failed: {e}")
+        return False
+
+def save_premium_apply(nickname: str, email: str, goal: str) -> bool:
+    """Premium 신청 정보 저장 (입금 전 신청 단계)"""
+    try:
+        ensure_users_header()
+        ws = _get_users_ws()
+        ws.append_row([
+            korea_now().strftime("%Y-%m-%d %H:%M"),
+            nickname, email, goal, "premium_apply", "False",
+        ])
+        return True
+    except Exception as e:
+        set_error(f"Premium apply save failed: {e}")
+        return False
+
+@st.cache_data(ttl=60)
+def get_today_complete_count() -> int:
+    try:
+        rows = load_sheet_records()
+        today = today_str()
+        return sum(
+            1 for r in rows
+            if str(r.get("date", "")) == today and parse_done(r.get("done", False))
+        )
+    except Exception:
+        return 0
+
+@st.cache_data(ttl=30)
+def load_admin_stats() -> Dict[str, Any]:
+    try:
+        rows = load_sheet_records()
+        if not rows:
+            return {"total": 0, "today": 0, "users": 0, "complete_rate": 0, "top_fail": "", "emails": 0}
+        today = today_str()
+        today_rows = [r for r in rows if str(r.get("date", "")) == today]
+        nicknames = {str(r.get("nickname", "")) for r in rows if r.get("nickname")}
+        success = sum(1 for r in rows if parse_done(r.get("done", False)))
+        total = len(rows)
+        try:
+            ws = _get_users_ws()
+            user_rows = ws.get_all_records() or []
+            signups  = sum(1 for r in user_rows if r.get("type") == "signup")
+            applies  = sum(1 for r in user_rows if r.get("type") == "premium_apply")
+            actives  = sum(
+                1 for r in user_rows
+                if str(r.get("is_premium","")).strip().lower() in {"true","1","yes"}
+            )
+            # premium_apply 신청자 상세 목록 (관리자 승인용)
+            apply_list = [
+                {
+                    "nickname": str(r.get("nickname","")),
+                    "email":    str(r.get("email","")),
+                    "time":     str(r.get("time","")),
+                    "active":   str(r.get("is_premium","False")),
+                }
+                for r in user_rows if r.get("type") == "premium_apply"
+            ]
+        except Exception:
+            signups = applies = actives = 0
+            apply_list = []
+        return {
+            "total":        total,
+            "today":        len(today_rows),
+            "users":        len(nicknames),
+            "complete_rate": int(success / total * 100) if total > 0 else 0,
+            "top_fail":     get_top_fail_reason(rows),
+            "signups":      signups,
+            "applies":      applies,
+            "actives":      actives,
+            "apply_list":   apply_list,
+        }
+    except Exception:
+        return {
+            "total":0,"today":0,"users":0,"complete_rate":0,
+            "top_fail":"","signups":0,"applies":0,"actives":0,"apply_list":[],
+        }
+
 # =========================================================
-# LIGHT FIRST LOAD
-# [FIX] load_records()를 상단에서 1회만 호출 — expander/tab 중복 호출 제거
+# 관리자 페이지
+# =========================================================
+def render_admin_page() -> None:
+    st.markdown("## ⚙️ Vanguard 관리자")
+    if ADMIN_PASSWORD and not st.session_state._admin_authed:
+        pw = st.text_input("비밀번호", type="password")
+        if st.button("확인"):
+            if pw == ADMIN_PASSWORD:
+                st.session_state._admin_authed = True
+                st.rerun()
+            else:
+                st.error("틀렸습니다.")
+        st.stop()
+    stats = load_admin_stats()
+
+    # ── 핵심 지표 ──
+    c1, c2, c3 = st.columns(3)
+    c1.metric("전체 실행", stats["total"])
+    c2.metric("오늘 실행", stats["today"])
+    c3.metric("유저 수",   stats["users"])
+
+    st.markdown("---")
+    st.markdown("**Premium 퍼널**")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("가입자",      stats["signups"],  help="signup")
+    c2.metric("결제 신청",   stats["applies"],  help="premium_apply")
+    c3.metric("Premium 활성", stats["actives"], help="is_premium=True")
+
+    apply_rate = int(stats["applies"] / stats["signups"] * 100) if stats["signups"] else 0
+    active_rate = int(stats["actives"] / stats["applies"] * 100) if stats["applies"] else 0
+    st.caption(f"신청 전환율 {apply_rate}% · 결제 완료율 {active_rate}%")
+
+    st.markdown("---")
+    st.markdown(f"완료율: **{stats['complete_rate']}%**")
+    if stats["top_fail"]:
+        st.info(f"주요 실패 이유: **{stats['top_fail']}**")
+
+    # ── Premium 신청자 목록 + 1클릭 승인 ──
+    st.markdown("---")
+    st.markdown("**Premium 신청자 목록**")
+    apply_list = stats.get("apply_list", [])
+    if not apply_list:
+        st.caption("신청자 없음")
+    else:
+        for item in apply_list:
+            nick    = item["nickname"]
+            email   = item["email"]
+            t       = item["time"]
+            active  = item["active"].strip().lower() in {"true","1","yes"}
+            status  = "✅ 활성" if active else "⏳ 대기 중"
+            with st.container():
+                col_info, col_btn = st.columns([3, 1])
+                with col_info:
+                    st.markdown(f"**{nick}** `{email}`  \n{t} · {status}")
+                with col_btn:
+                    if not active:
+                        if st.button("승인", key=f"approve_{nick}",
+                                     type="primary", use_container_width=True):
+                            if activate_premium(nick):
+                                load_admin_stats.clear()
+                                st.success(f"{nick} Premium 활성화 완료")
+                                st.rerun()
+                            else:
+                                st.error("활성화 실패. 시트를 확인하세요.")
+                st.divider()
+
+    st.caption("30초 캐시 · 새로고침하면 최신 데이터")
+
+# =========================================================
+# 닉네임 온보딩
+# =========================================================
+def render_nickname_setup() -> None:
+    st.markdown("""
+<div style="text-align:center; padding:44px 0 20px;">
+    <div style="font-size:2.8rem;">⚡</div>
+    <div style="font-size:1.65rem; font-weight:900; color:#F8FAFC;
+                letter-spacing:-0.04em; margin-top:10px;">Vanguard</div>
+    <div style="font-size:0.82rem; color:#38BDF8; font-weight:700;
+                margin-top:4px; letter-spacing:0.08em;">BREAK THE LOOP</div>
+    <div style="font-size:0.82rem; color:#475569; margin-top:16px; line-height:1.75;">
+        생각하는 시간을 제거한다<br>
+        고민 없음 · 선택 없음 · 그냥 실행
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.markdown(f"""
+<div class="card" style="margin-top:4px;">
+    <div class="section-label">{TXT['nickname_label']}</div>
+    <div class="body-small" style="margin-top:3px;">{TXT['nickname_desc']}</div>
+</div>
+""", unsafe_allow_html=True)
+
+    nickname_input = st.text_input(
+        "닉네임",
+        placeholder=TXT["nickname_placeholder"],
+        label_visibility="collapsed",
+    )
+    if st.button(TXT["nickname_confirm"], use_container_width=True):
+        name = nickname_input.strip()
+        if not name:
+            st.warning("닉네임을 입력해주세요.")
+        elif len(name) < 2:
+            st.warning("닉네임은 2자 이상이어야 합니다.")
+        elif is_nickname_taken(name):
+            st.error("이미 사용 중인 닉네임입니다.")
+        else:
+            st.session_state.nickname = name
+            st.session_state.nickname_confirmed = True
+            save_nickname_signup(name)
+            get_taken_nicknames.clear()
+            st.rerun()
+
+# =========================================================
+# 시간대별 긴급도 — 하루 3회 트리거 구조
+# =========================================================
+def get_time_context() -> Dict[str, str]:
+    """
+    오전/점심/오후/저녁 시간대별 다른 압박 메시지 반환
+    앱을 열 때마다 시간대에 맞는 긴장감을 줌
+    """
+    hour = korea_now().hour
+    if 6 <= hour < 10:
+        return {
+            "zone": "morning",
+            "label": "🌅 오전 집중 구간",
+            "pressure": "지금이 오늘 가장 중요한 시간이다. 오전을 날리면 하루가 간다.",
+            "cta": "오전 미션 시작",
+        }
+    elif 10 <= hour < 14:
+        return {
+            "zone": "midday",
+            "label": "⚡ 정오 실행 구간",
+            "pressure": "오전에 못 했다면 지금이 마지막 기회다.",
+            "cta": "지금 바로 시작",
+        }
+    elif 14 <= hour < 18:
+        return {
+            "zone": "afternoon",
+            "label": "📉 오후 위험 구간",
+            "pressure": "오후는 집중력이 떨어지는 시간이다. 지금 안 하면 저녁까지 미룬다.",
+            "cta": "오후 미션 시작",
+        }
+    elif 18 <= hour < 22:
+        return {
+            "zone": "evening",
+            "label": "🚨 저녁 마감 구간",
+            "pressure": f"오늘 {24-hour}시간도 안 남았다. 지금이 마지막이다.",
+            "cta": "오늘 마감 시작",
+        }
+    else:
+        return {
+            "zone": "night",
+            "label": "🌙 야간 구간",
+            "pressure": "오늘은 거의 끝났다. 내일을 위해 1개만 끝내라.",
+            "cta": "마지막 1개 시작",
+        }
+
+# =========================================================
+# 닉네임 수집 컴포넌트 — 1회 실행 후 표시
+# =========================================================
+def render_nickname_collect() -> None:
+    """
+    게스트 1회 실행 후 표시되는 닉네임 수집 화면
+    "기록을 저장하시겠습니까?" 형태 — 이미 경험한 후라 동기가 생김
+    """
+    st.markdown(f"""
+<div class="success-card" style="text-align:center; padding:22px 16px;">
+    <div style="font-size:1.6rem; margin-bottom:8px;">✅</div>
+    <div class="strong-title" style="margin-top:0; font-size:1rem;">
+        방금 실행했다. 이 기록을 저장하려면?
+    </div>
+    <div class="body-small" style="margin-top:6px;">
+        닉네임을 설정하면 오늘 기록과 streak이 유지됩니다.<br>
+        다음에 다시 열면 이어서 할 수 있어요.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    nickname_input = st.text_input(
+        "닉네임",
+        placeholder=TXT["nickname_placeholder"],
+        label_visibility="collapsed",
+    )
+
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        if st.button(TXT["guest_save_btn"], use_container_width=True,
+                     type="primary", key="guest_nickname_save"):
+            name = nickname_input.strip()
+            if not name:
+                st.warning("닉네임을 입력해주세요.")
+            elif len(name) < 2:
+                st.warning("닉네임은 2자 이상이어야 합니다.")
+            elif is_nickname_taken(name):
+                st.error("이미 사용 중인 닉네임입니다.")
+            else:
+                # 게스트 기록을 실제 닉네임으로 이전
+                for row in st.session_state.records:
+                    if row.get("nickname") == "guest":
+                        row["nickname"] = name
+                st.session_state.nickname = name
+                st.session_state.nickname_confirmed = True
+                st.session_state["_guest_mode"] = False
+                st.session_state["_show_nickname_collect"] = False
+                save_nickname_signup(name)
+                get_taken_nicknames.clear()
+                # 게스트 기록을 시트에 저장
+                try:
+                    sheet = get_sheet()
+                    for row in st.session_state.records:
+                        if row.get("nickname") == name:
+                            sheet.append_row([
+                                row["time"], row["date"], row["nickname"],
+                                row["task"], row["done"], row["fail_reason"],
+                                row.get("source", "control"),
+                            ])
+                    load_sheet_records.clear()
+                except Exception:
+                    pass
+                st.rerun()
+    with col2:
+        if st.button(TXT["guest_skip"], use_container_width=True,
+                     key="guest_nickname_skip"):
+            # 건너뛰어도 일단 진행 — 다음 방문에 다시 요청
+            st.session_state["_show_nickname_collect"] = False
+            st.rerun()
+
+# =========================================================
+# 탭 네비게이션
+# - st.columns + st.button 단일 레이어
+# - HTML/CSS 꾸미기 없음 → Streamlit 버전 변경에 안전
+# - 활성 탭: label 앞에 "· " 표시 + type="primary" (Streamlit 기본 스타일)
+# - 비활성 탭: type="secondary" (Streamlit 기본 스타일)
+# =========================================================
+def render_tab_nav(active: str) -> None:
+    tabs = [
+        ("home",     "🏠", "홈"),
+        ("record",   "📜", "기록"),
+        ("analysis", "📊", "분석"),
+        ("premium",  "🔒", "Premium"),
+    ]
+    cols = st.columns(4)
+    for col, (tab_id, icon, label) in zip(cols, tabs):
+        with col:
+            is_active = active == tab_id
+            # 활성 탭: 이름 앞에 점(·) 추가로 추가 CSS 없이 구분
+            display = f"· {label}" if is_active else label
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(display, key=f"tab_{tab_id}",
+                         use_container_width=True,
+                         type=btn_type):
+                st.session_state["_active_tab"] = tab_id
+                st.rerun()
+
+# =========================================================
+# 컴포넌트: 집중 상태 카드
+# - 타이머가 아니라 "집중 상태 카드"
+# - 자동 갱신 없음 (rerun/sleep 없음) → 서버 부담 0
+# - 페이지에 진입할 때만 경과 시간 업데이트
+# - 사용자에게 "집중 중" 상태를 보여주는 것이 목적
+# =========================================================
+def render_focus_card(elapsed: int, task: str) -> None:
+    elapsed_text = elapsed_to_text(elapsed)
+
+    if elapsed < 60:
+        phase_label, phase_body = TXT["progress_start"]
+        phase_color = "#6EE7B7"
+    elif elapsed < 300:
+        phase_label, phase_body = TXT["progress_mid"]
+        phase_color = "#38BDF8"
+    else:
+        phase_label, phase_body = TXT["progress_deep"]
+        phase_color = "#A5B4FC"
+
+    st.markdown(f"""
+<div class="focus-card">
+    <div class="focus-elapsed">{elapsed_text}</div>
+    <div class="focus-label">집중 시작 후 경과 시간</div>
+    <div class="focus-task">{html.escape(task)}</div>
+    <div class="focus-phase" style="color:{phase_color};">
+        {html.escape(phase_label)} · {html.escape(phase_body)}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    st.caption("다 됐으면 완료 — 안 됐으면 실패를 기록하세요.")
+
+# =========================================================
+# 컴포넌트: Streak 위기 배너
+# =========================================================
+def render_streak_crisis(streak: int) -> None:
+    if st.session_state.get("_crisis_dismissed"):
+        return
+    hour = korea_now().hour
+    if hour >= 20:
+        urgency = f"자정까지 {24-hour}시간 미만 남았습니다"
+    elif hour >= 15:
+        urgency = "오늘 오후가 지나가고 있습니다"
+    else:
+        urgency = "오늘 안 하면 내일 0으로 돌아갑니다"
+
+    st.markdown(f"""
+<div class="streak-crisis">
+    <div class="streak-crisis-num">🔥 {streak}일</div>
+    <div class="streak-crisis-title">여기서 끊기면 다시 3일 걸린다</div>
+    <div class="streak-crisis-sub">
+        {urgency}<br>
+        <span style="color:#FCA5A5; font-weight:700;">
+            지금 안 하면 오늘 쌓은 게 전부 날아간다.
+        </span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        if st.button("🚀 지금 시작해서 streak 지키기",
+                     use_container_width=True, key="crisis_start"):
+            cmd = (st.session_state.get("lazy_command")
+                   or fast_command(st.session_state.goal)[0])
+            st.session_state.running = True
+            st.session_state.start_time = time.time()
+            st.session_state.current_task = cmd
+            st.session_state["_show_fail_select"] = False
+            st.session_state["_crisis_dismissed"] = True
+            st.rerun()
+    with col2:
+        if st.button("✕", use_container_width=True, key="crisis_dismiss"):
+            st.session_state["_crisis_dismissed"] = True
+            st.rerun()
+
+# =========================================================
+# 컴포넌트: 어제 vs 오늘
+# =========================================================
+def render_yesterday_vs_today(records: List[Dict[str, Any]], today_status: str) -> None:
+    yesterday_rec = get_yesterday_record(records)
+    if not yesterday_rec:
+        return
+
+    y_done  = record_to_bool_done(yesterday_rec)
+    y_emoji = "✅" if y_done else "❌"
+    y_task  = str(yesterday_rec.get("task", ""))[:30]
+    y_time  = str(yesterday_rec.get("time", ""))[-5:]
+    y_fail  = str(yesterday_rec.get("fail_reason", ""))
+
+    if today_status == "none":
+        t_emoji, t_text = "⬜", "아직 기록 없음"
+        if not y_done:
+            msg = f"어제도 '{y_fail or '실패'}'였다. 오늘 또 같은 이유로 끝낼 거냐."
+            msg_color = "#FCA5A5"
+        else:
+            msg = "어제 성공했다. 오늘 안 하면 그게 다 날아간다."
+            msg_color = "#FCD34D"
+    elif today_status == "success":
+        t_emoji, t_text = "✅", "오늘 성공 완료"
+        msg, msg_color = "오늘도 해냈다. 내일도 이 시간에 다시 오자.", "#86EFAC"
+    else:
+        t_emoji, t_text = "❌", "오늘 실패 기록"
+        msg, msg_color = "아직 오늘이 끝나지 않았다. 다시 시작할 수 있다.", "#FCD34D"
+
+    st.markdown(f"""
+<div class="compare-card">
+    <div class="section-label">어제 vs 오늘</div>
+    <div class="compare-row">
+        <div class="compare-day">어제</div>
+        <div class="compare-emoji">{y_emoji}</div>
+        <div class="compare-text">{html.escape(y_task)}</div>
+        <div class="compare-time">{y_time}</div>
+    </div>
+    <div class="compare-row">
+        <div class="compare-day">오늘</div>
+        <div class="compare-emoji">{t_emoji}</div>
+        <div class="compare-text">{t_text}</div>
+        <div class="compare-time"></div>
+    </div>
+    <div class="compare-msg" style="color:{msg_color};">{msg}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# 컴포넌트: Streak 공유 (JS 없음)
+# =========================================================
+def render_streak_share(streak: int, goal: str, success_rate: int) -> None:
+    milestones = [3, 7, 14, 21, 30, 60, 100]
+    if streak not in milestones:
+        return
+
+    share_text = (
+        f"⚡ Vanguard — Break the Loop\n"
+        f"{'━'*22}\n"
+        f"🔥 {streak}일 연속 실행 달성\n\n"
+        f"목표: {goal or '핵심 목표'}\n"
+        f"성공률: {success_rate}%\n"
+        f"{'━'*22}\n"
+        f"미루는 습관을 끊고 싶다면\n"
+        f"→ vanguard.streamlit.app"
+    )
+
+    st.markdown(f"""
+<div class="share-banner">
+    <div class="share-milestone">🔥 {streak}일 연속!</div>
+    <div class="share-sub">이 순간을 공유하세요</div>
+</div>
+""", unsafe_allow_html=True)
+
+    with st.expander("📋 공유 텍스트 (복사 후 SNS 붙여넣기)", expanded=False):
+        st.code(share_text, language=None)
+        st.caption("위 텍스트를 복사해서 인스타, 카톡, 트위터에 공유하세요.")
+
+# =========================================================
+# 컴포넌트: 월간 캘린더
+# =========================================================
+def render_monthly_calendar(records: List[Dict[str, Any]]) -> None:
+    cal = get_monthly_calendar(records)
+    if not cal:
+        return
+
+    today = korea_now().date()
+    first_weekday = cal[0]["date"].weekday()
+    success_c = sum(1 for c in cal if c["status"] == "success")
+    total_d = len(cal)
+    rate = int(success_c / total_d * 100) if total_d > 0 else 0
+
+    headers   = ["월", "화", "수", "목", "금", "토", "일"]
+    h_html    = "".join(f'<div class="cal-header">{h}</div>' for h in headers)
+    empty_html = "".join('<div class="cal-day cal-future"></div>' for _ in range(first_weekday))
+
+    day_html = ""
+    for c in cal:
+        if   c["status"] == "success": day_html += '<div class="cal-day cal-success">✓</div>'
+        elif c["status"] == "fail":    day_html += '<div class="cal-day cal-fail">✗</div>'
+        else:                          day_html += f'<div class="cal-day cal-empty">{c["date"].day}</div>'
+
+    month_str = f"{today.month}월"
+    st.markdown(f"""
+<div class="card">
+    <div class="section-label">{month_str} 실행 기록 · {success_c}/{total_d}일 · {rate}%</div>
+    <div class="cal-grid">{h_html}{empty_html}{day_html}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# =========================================================
+# ENTRY POINT
 # =========================================================
 reset_error()
-records, using_sheet = load_records()
 
-streak = calculate_streak(records)
-today_status = get_today_status(records)
+if st.query_params.get(ADMIN_PARAM) == "1":
+    render_admin_page()
+    st.stop()
+
+# ── 닉네임 수집 화면 (게스트 1회 실행 후) ──
+if st.session_state.get("_show_nickname_collect"):
+    render_nickname_collect()
+    st.stop()
+
+# ── 닉네임 미확정 + 게스트 모드 아닌 경우에만 온보딩 표시 ──
+# 게스트 모드: nickname_confirmed=False지만 앱 진입 허용
+if not st.session_state.nickname_confirmed and not st.session_state.get("_guest_mode"):
+    render_nickname_setup()
+    st.stop()
+
+# ── 데이터 로드 ──
+# 게스트면 시트 조회 없이 세션 records만 사용
+is_guest = st.session_state.get("_guest_mode", False) and not st.session_state.nickname_confirmed
+if is_guest:
+    nickname = "guest"
+    records, using_sheet = st.session_state.records, False
+else:
+    nickname = st.session_state.nickname
+    records, using_sheet = load_records(nickname=nickname)
+
+streak            = calculate_streak(records)
+today_status      = get_today_status(records)
+
+# Premium 상태 — 세션 캐시 없이 매 진입마다 시트 기반으로 확인
+# (get_user_premium_status는 ttl=60 캐시라 1분 내 반영)
+premium_status = get_user_premium_status(nickname)
+is_premium     = premium_status == "active"
+is_applied     = premium_status == "applied"
+st.session_state["_is_premium"]      = is_premium
+st.session_state["_premium_applied"] = is_applied
 success_count, fail_count = get_success_fail_counts(records)
-success_rate = get_success_rate(records)
-recent_records = get_recent_records(records, 10)
+success_rate      = get_success_rate(records)
+today_complete    = get_today_complete_count()
 
-fast_cmd, fast_reason, fast_warning = fast_command(st.session_state.goal)
-command = fast_cmd
-reason = fast_reason
-warning = fast_warning
-
+# ── AI 명령 ──
+command, reason, warning = fast_command(st.session_state.goal)
 if st.session_state.command_ready:
     with st.spinner("AI 명령 생성 중..."):
-        command, reason, warning = generate_command(
-            goal=st.session_state.goal,
-            streak=streak,
-            success_rate=success_rate,
-        )
+        if is_premium:
+            # Premium: 실패 패턴 기반 개인화 명령
+            command, reason, warning = generate_premium_command(
+                goal=st.session_state.goal,
+                streak=streak,
+                success_rate=success_rate,
+                top_fail=get_top_fail_reason(records),
+                fail_count=fail_count,
+            )
+        else:
+            command, reason, warning = generate_command(
+                goal=st.session_state.goal,
+                streak=streak,
+                success_rate=success_rate,
+            )
         st.session_state.lazy_command = command
-        st.session_state.lazy_reason = reason
+        st.session_state.lazy_reason  = reason
         st.session_state.lazy_warning = warning
         st.session_state.command_ready = False
 elif st.session_state.lazy_command:
     command = st.session_state.lazy_command
-    reason = st.session_state.lazy_reason
+    reason  = st.session_state.lazy_reason
     warning = st.session_state.lazy_warning
 
+active_tab = st.session_state.get("_active_tab", "home")
+
 # =========================================================
-# HEADER
+# 헤더
 # =========================================================
-st.markdown(
-    f"""
-<div class="topbar">
-    <div class="topbar-title">{TXT['title']}</div>
-    <div class="topbar-sub">{TXT['tagline']}</div>
-    <div class="topbar-meta">🔥 {streak} · {now_time()}</div>
+flame = '<span class="flame">🔥</span>' if streak >= 3 else "🔥"
+nick_display = "게스트" if is_guest else html.escape(nickname)
+nick_color = "#FCD34D" if is_guest else "#334155"
+st.markdown(f"""
+<div style="display:flex; align-items:center; justify-content:space-between;
+            padding:10px 2px 12px;
+            border-bottom:1px solid rgba(255,255,255,0.05);
+            margin-bottom:12px;">
+    <div>
+        <div style="font-size:1.08rem; font-weight:900; color:#F8FAFC;
+                    letter-spacing:-0.03em;">⚡ Vanguard</div>
+        <div style="font-size:0.67rem; color:#38BDF8; font-weight:700;
+                    letter-spacing:0.08em; margin-top:1px;">BREAK THE LOOP</div>
+    </div>
+    <div style="text-align:right; font-size:0.73rem; color:#475569; line-height:1.5;">
+        {flame} {streak}일<br>
+        <span style="color:{nick_color};">{nick_display}</span>
+    </div>
 </div>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
-if st.session_state.show_onboarding:
-    with st.expander("앱처럼 쓰기 / Quick start", expanded=False):
-        st.write(
-            "iPhone/Safari: 공유 → 홈 화면에 추가\n\n"
-            "Android/Chrome: 메뉴 → 홈 화면에 추가\n\n"
-            "홈 화면에 추가하면 주소창 없이 더 앱처럼 사용할 수 있습니다."
-        )
-        if st.button("온보딩 닫기", use_container_width=True):
-            st.session_state.show_onboarding = False
-            st.rerun()
-
-st.info("📱 Safari에서 홈 화면에 추가하면 앱처럼 사용할 수 있습니다")
-
-if GENAI_IMPORT_ERROR:
-    st.info(TXT["fallback_ai_notice"])
-
-st.info("데이터는 현재 임시 저장됩니다 (베타 버전)")
-
-if st.session_state.last_error:
-    with st.expander("System message", expanded=False):
-        st.code(st.session_state.last_error)
+# ── 탭 네비게이션 (단일 레이어) ──
+render_tab_nav(active_tab)
 
 # =========================================================
-# GOAL INPUT
+# 탭 콘텐츠
 # =========================================================
-st.session_state.goal = st.text_input(
-    TXT["goal_label"],
-    value=st.session_state.goal,
-    placeholder=TXT["goal_placeholder"],
-)
 
-# =========================================================
-# MAIN COMMAND CARD
-# [FIX] 사용자 입력(command 등)을 html.escape()로 이스케이프하여 XSS 방지
-# =========================================================
-safe_command = html.escape(command)
-safe_reason = html.escape(reason)
-safe_warning = html.escape(warning)
+# ──────────────────────── 홈 ────────────────────────
+if active_tab == "home":
 
-st.markdown(
-    f"""
+    if GENAI_IMPORT_ERROR:
+        st.info(TXT["fallback_ai"])
+
+    # 시간대별 긴급도 배너 — 하루 3회 트리거 구조
+    time_ctx = get_time_context()
+    st.markdown(f"""
+<div style="padding:7px 14px; border-radius:11px; margin-bottom:10px;
+            background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);
+            display:flex; align-items:center; justify-content:space-between;">
+    <span style="font-size:0.74rem; color:#64748B; font-weight:600;">
+        {time_ctx["label"]}
+    </span>
+    <span style="font-size:0.72rem; color:#FCA5A5; font-weight:700;">
+        {time_ctx["pressure"][:30]}...
+    </span>
+</div>
+""", unsafe_allow_html=True)
+
+    # Premium 활성 배지
+    if is_premium:
+        st.markdown("""
+<div style="padding:6px 14px; border-radius:10px; margin-bottom:10px;
+            background:linear-gradient(90deg,rgba(99,102,241,0.20),rgba(56,189,248,0.12));
+            border:1px solid rgba(99,102,241,0.35);
+            font-size:0.75rem; color:#C7D2FE; font-weight:700; text-align:center;">
+    ⚡ Premium 활성 · 패턴 교정 모드
+</div>
+""", unsafe_allow_html=True)
+
+    # 사회적 증거 — 10명 이상일 때만
+    if today_complete >= SOCIAL_PROOF_MIN:
+        st.markdown(f"""
+<div class="social-proof">
+    오늘 <b>{today_complete}명</b>이 목표를 실행했습니다
+</div>
+""", unsafe_allow_html=True)
+
+    # Streak 위기
+    if today_status == "none" and streak >= 3 and not st.session_state.running:
+        render_streak_crisis(streak)
+
+    # Streak 공유
+    if today_status == "success" and streak > 0:
+        render_streak_share(streak, st.session_state.goal, success_rate)
+
+    # 목표 입력
+    st.session_state.goal = st.text_input(
+        TXT["goal_label"],
+        value=st.session_state.goal,
+        placeholder=TXT["goal_placeholder"],
+    )
+    if st.session_state.goal != st.session_state["_prev_goal"]:
+        st.session_state.lazy_command = ""
+        st.session_state.lazy_reason  = ""
+        st.session_state.lazy_warning = ""
+        st.session_state["_prev_goal"] = st.session_state.goal
+
+    # 어제 vs 오늘
+    render_yesterday_vs_today(records, today_status)
+
+    # 현실 점검 — fail_count에 따라 강도 달라짐
+    if fail_count >= 3:
+        pain_extra = f'<div class="body-small" style="color:#FCA5A5; margin-top:6px; font-weight:700;">이번 달 실패 {fail_count}회. 패턴이 굳어지고 있다.</div>'
+    elif fail_count >= 1:
+        pain_extra = f'<div class="body-small" style="color:#FCD34D; margin-top:6px;">이번 달 실패 {fail_count}회. 두 번째부터가 패턴이다.</div>'
+    else:
+        pain_extra = ""
+
+    st.markdown(f"""
 <div class="warning-card">
-    <div class="muted">현실 점검</div>
-    <div class="strong-title">{TXT['pain_line']}</div>
-    <div class="body-small">{TXT['pain_sub']}</div>
+    <div style="font-size:1rem; font-weight:900; color:#FCA5A5;">{TXT['pain_line']}</div>
+    <div class="body-small" style="margin-top:6px;">{TXT['pain_sub']}</div>
+    {pain_extra}
 </div>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
-st.markdown(
-    f"""
+    # Premium 전용 — 오늘 위험도 배지
+    if is_premium and records:
+        hour = korea_now().hour
+        # 가장 자주 실패하는 시간대를 간단히 추정 (오전/오후/저녁)
+        fail_times = [
+            str(r.get("time","")) for r in records
+            if not record_to_bool_done(r) and r.get("time")
+        ]
+        if fail_times:
+            # 시간대별 실패 분포
+            morning = sum(1 for t in fail_times if t[11:13].isdigit() and int(t[11:13]) < 12)
+            afternoon = sum(1 for t in fail_times if t[11:13].isdigit() and 12 <= int(t[11:13]) < 18)
+            evening = sum(1 for t in fail_times if t[11:13].isdigit() and int(t[11:13]) >= 18)
+            peak_zone = max(
+                [("오전", morning), ("오후", afternoon), ("저녁", evening)],
+                key=lambda x: x[1]
+            )
+            in_danger = (
+                (peak_zone[0] == "오전"   and hour < 12) or
+                (peak_zone[0] == "오후"   and 12 <= hour < 18) or
+                (peak_zone[0] == "저녁"   and hour >= 18)
+            )
+            danger_color = "#FCA5A5" if in_danger else "#86EFAC"
+            danger_text  = f"⚠️ 지금이 네가 가장 자주 무너지는 시간대다" if in_danger else f"✓ 지금은 상대적으로 안전한 시간대"
+            st.markdown(f"""
+<div style="padding:8px 14px; border-radius:10px; margin-bottom:8px;
+            background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07);
+            display:flex; align-items:center; gap:8px;">
+    <span style="font-size:0.75rem; color:{danger_color}; font-weight:700;">
+        ⚡ PREMIUM · {danger_text}
+    </span>
+</div>
+""", unsafe_allow_html=True)
+
+    # 명령 카드 — Premium이면 라벨 다르게
+    cmd_label = "⚡ 패턴 교정 명령" if is_premium else "지금 해야 할 것"
+    st.markdown(f"""
 <div class="command-card">
-    <div class="muted">지금 해야 할 것</div>
-    <div class="strong-title">{safe_command}</div>
-    <div class="body-small">{safe_reason}</div>
-    <div class="body-small" style="color:#FCA5A5;">{safe_warning}</div>
+    <div class="section-label">{cmd_label}</div>
+    <div class="strong-title">{html.escape(command)}</div>
+    <div class="body-small">{html.escape(reason)}</div>
+    <div class="body-small" style="color:#FCA5A5;">{html.escape(warning)}</div>
 </div>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 
-# =========================================================
-# PREMIUM CTA ALWAYS VISIBLE
-# =========================================================
-premium_pills_top = f"""
-<span class=\"premium-pill\">{TXT['premium_benefit_1']}</span>
-<span class=\"premium-pill\">{TXT['premium_benefit_2']}</span>
-<span class=\"premium-pill\">{TXT['premium_benefit_3']}</span>
-<span class=\"premium-pill\">{TXT['premium_benefit_4']}</span>
-"""
+    # 상태 카드
+    today_label = {
+        "success": TXT["today_success"],
+        "fail":    TXT["today_fail"],
+        "none":    TXT["today_none"],
+    }[today_status]
 
-st.markdown(
-    f"""
+    st.markdown(f"""
 <div class="card">
-    <div class="section-title">{TXT['premium_title']}</div>
-    <div class="body-small">{TXT['premium_body']}</div>
-    <div style="margin-top:10px;">{premium_pills_top}</div>
-    <div class="body-small" style="color:#FDE68A;">{TXT['premium_urgency']}</div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-st.link_button(TXT["premium_button"], PREMIUM_URL, use_container_width=True)
-
-# =========================================================
-# STATUS CARD
-# =========================================================
-today_label = (
-    TXT["today_success"] if today_status == "success"
-    else TXT["today_fail"] if today_status == "fail"
-    else TXT["today_none"]
-)
-
-st.markdown(
-    f"""
-<div class="card">
-    <div class="section-title">현재 상태</div>
     <div class="metric-grid">
         <div class="metric">
             <div class="metric-label">Streak</div>
@@ -843,225 +1730,469 @@ st.markdown(
         </div>
         <div class="metric">
             <div class="metric-label">오늘</div>
-            <div class="metric-value" style="font-size:0.82rem;">{today_label}</div>
+            <div class="metric-value" style="font-size:0.76rem;">{today_label}</div>
         </div>
-    </div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-if today_status == "none" and streak > 0:
-    st.markdown(
-        f"""
-<div class="warning-card">
-    <div class="muted">경고</div>
-    <div class="strong-title" style="font-size:1.02rem;">{TXT['streak_warning']}</div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-# =========================================================
-# ACTIONS
-# [FIX] rerun 이후에도 완료/실패 메시지가 표시되도록 세션 플래그 방식으로 변경
-# [FIX] fail_reason selectbox를 버튼보다 먼저 렌더링 + 완료 시 fail_reason 미포함
-# =========================================================
-
-# rerun 이후 메시지 표시
-if st.session_state.pop("_show_complete_msg", False):
-    st.success(TXT["complete_message"])
-if st.session_state.pop("_show_fail_msg", False):
-    st.error(TXT["fail_message"])
-
-col_start, col_refresh = st.columns([2, 1])
-st.markdown(f"""
-<div style="text-align:center; margin-bottom:10px;">
-    <div style="font-size:0.9rem; color:#FCA5A5; font-weight:700;">
-    {TXT['action_motivate']}
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-with col_start:
-    if not st.session_state.running:
-        if st.button(TXT["start_now"], use_container_width=True):
-            st.session_state.running = True
-            st.session_state.start_time = time.time()
-            st.session_state.current_task = command
-            st.rerun()
-with col_refresh:
-    if st.button(TXT["refresh"], use_container_width=True):
-        st.session_state.command_ready = True
-        st.rerun()
-
-if not st.session_state.running:
-    st.caption(TXT["analysis_closed"])
-else:
-    elapsed = int(time.time() - st.session_state.start_time)
-    safe_current_task = html.escape(st.session_state.current_task)
-    st.markdown(
-        f"""
-<div class="success-card">
-    <div class="muted">{TXT['running']}</div>
-    <div class="strong-title" style="font-size:1.05rem;">{elapsed}초 진행 중</div>
-    <div class="body-small">{safe_current_task}</div>
+    if today_status == "none" and 0 < streak < 3:
+        st.markdown(f"""
+<div class="warning-card">
+    <div class="body-small" style="color:#FCA5A5;font-weight:700;">{TXT['streak_warning']}</div>
 </div>
-""",
-        unsafe_allow_html=True,
-    )
+""", unsafe_allow_html=True)
 
-    # [FIX] fail_reason selectbox를 버튼보다 먼저 렌더링
-    fail_reason = st.selectbox("왜 실패했냐", ["집중 안됨", "피곤함", "딴짓", "시간 부족", "기타"])
+    # 완료 메시지
+    if st.session_state.pop("_show_complete_msg", False):
+        st.success(TXT["complete_msg"])
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button(TXT["complete"], use_container_width=True):
-            # [FIX] 완료 시 fail_reason 미포함
-            save_record(st.session_state.current_task, True, "")
-            st.session_state.running = False
-            st.session_state.current_task = ""
-            st.session_state["_show_complete_msg"] = True
+    # 실패 메시지 — fail_count 1회만 실패했을 때 (2회 이상은 Premium 탭으로 이동)
+    if st.session_state.pop("_show_fail_msg", False):
+        current_fc = get_success_fail_counts(records)[1]
+        st.error(f"또 같은 이유로 무너졌다. 이번 달 실패 {current_fc}회째다.")
+        if current_fc == 1:
+            st.caption("한 번은 괜찮다. 두 번째부터가 패턴이다.")
+
+    # 액션
+    st.markdown(f"""
+<div style="text-align:center; margin:10px 0 8px;">
+    <div style="font-size:0.8rem; color:#FCA5A5; font-weight:700;">{TXT['action_motivate']}</div>
+</div>
+""", unsafe_allow_html=True)
+
+    if not st.session_state.running:
+        # 단일 CTA — 시작 버튼 하나만 전면에
+        start_label = time_ctx["cta"]
+        if st.button(f"🚀 {start_label}", use_container_width=True,
+                     key="btn_start", type="primary"):
+            st.session_state.running      = True
+            st.session_state.start_time   = time.time()
+            st.session_state.current_task = command
+            st.session_state["_show_fail_select"] = False
+            st.session_state["_crisis_dismissed"] = True
             st.rerun()
-    with col2:
-        if st.button(TXT["fail"], use_container_width=True):
-            save_record(st.session_state.current_task, False, fail_reason)
-            st.session_state.running = False
-            st.session_state.current_task = ""
-            st.session_state["_show_fail_msg"] = True
+
+        # refresh — secondary, 시각적으로 덜 강조
+        if st.button(TXT["refresh"], use_container_width=True,
+                     key="btn_refresh", type="secondary"):
+            st.session_state.command_ready = True
+            st.rerun()
+    else:
+        # 타이머: 페이지 진입 시 경과 시간 계산만. rerun/sleep 없음.
+        elapsed = int(time.time() - st.session_state.start_time)
+        render_focus_card(elapsed, st.session_state.current_task)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(TXT["complete"], use_container_width=True, key="btn_complete"):
+                # 게스트: 세션 records에만 저장 (시트 저장은 닉네임 설정 후)
+                if is_guest:
+                    st.session_state.records.append({
+                        "time": korea_now().strftime("%Y-%m-%d %H:%M"),
+                        "date": today_str(),
+                        "nickname": "guest",
+                        "task": st.session_state.current_task,
+                        "done": "True",
+                        "fail_reason": "",
+                        "source": "control",
+                    })
+                    st.session_state.running      = False
+                    st.session_state.current_task = ""
+                    st.session_state["_show_nickname_collect"] = True
+                    st.rerun()
+                else:
+                    save_record(st.session_state.current_task, True)
+                    st.session_state.running      = False
+                    st.session_state.current_task = ""
+                    st.session_state["_show_fail_select"]  = False
+                    st.session_state["_crisis_dismissed"]  = False
+                    st.session_state["_show_complete_msg"] = True
+                    st.rerun()
+        with col2:
+            if st.button(TXT["fail"], use_container_width=True, key="btn_fail"):
+                st.session_state["_show_fail_select"] = True
+
+        if st.session_state.get("_show_fail_select", False):
+            fail_reason = st.selectbox(
+                "실패 이유",
+                ["집중 안됨", "피곤함", "딴짓", "시간 부족", "기타"],
+                label_visibility="collapsed",
+            )
+            if st.button("실패 기록하기", use_container_width=True, key="btn_fail_confirm"):
+                if is_guest:
+                    # 게스트: 세션에만 저장 후 닉네임 수집
+                    st.session_state.records.append({
+                        "time": korea_now().strftime("%Y-%m-%d %H:%M"),
+                        "date": today_str(),
+                        "nickname": "guest",
+                        "task": st.session_state.current_task,
+                        "done": "False",
+                        "fail_reason": fail_reason,
+                        "source": "control",
+                    })
+                    st.session_state.running      = False
+                    st.session_state.current_task = ""
+                    st.session_state["_show_fail_select"]  = False
+                    st.session_state["_show_nickname_collect"] = True
+                    st.rerun()
+                else:
+                    save_record(st.session_state.current_task, False, fail_reason)
+                    st.session_state.running      = False
+                    st.session_state.current_task = ""
+                    st.session_state["_show_fail_select"]  = False
+                    st.session_state["_crisis_dismissed"]  = False
+
+                    # 실패 2회 이상 & 비 Premium → 즉시 Premium 탭으로 강제 이동
+                    updated_fail_count = get_success_fail_counts(st.session_state.records)[1]
+                    if updated_fail_count >= 2 and not is_premium:
+                        st.session_state["_fail_reason_for_premium"] = fail_reason
+                        st.session_state["_fail_count_for_premium"]  = updated_fail_count
+                        st.session_state["_active_tab"] = "premium"
+                    else:
+                        st.session_state["_show_fail_msg"] = True
+                    st.rerun()
+
+# ──────────────────────── 기록 ────────────────────────
+elif active_tab == "record":
+    st.markdown('<div class="section-label" style="margin-bottom:10px;">최근 기록</div>',
+                unsafe_allow_html=True)
+
+    # 게스트 안내
+    if is_guest:
+        st.markdown("""
+<div class="warning-card" style="text-align:center; padding:16px;">
+    <div class="body-small" style="color:#FCD34D; font-weight:700;">
+        지금은 게스트 모드입니다.<br>
+        닉네임을 설정하면 기록이 저장됩니다.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+        if st.button("닉네임 설정하기 →", use_container_width=True, type="primary"):
+            st.session_state["_guest_mode"] = False
+            st.session_state["_show_nickname_collect"] = False
             st.rerun()
 
-# =========================================================
-# LAZY ANALYSIS
-# [FIX] load_records() 재호출 제거 — 상단에서 로드한 records/using_sheet 재사용
-# [FIX] generate_weekly_report + generate_premium_insight 병렬 호출로 대기 시간 단축
-# =========================================================
-with st.expander("📊 상세 분석", expanded=False):
-    with st.spinner("상세 분석 로딩 중..."):
-        records_for_analysis = records
-        if not using_sheet:
-            st.info(TXT["fallback_sheet_notice"])
+    if not using_sheet and not is_guest:
+        st.caption("세션 내 임시 저장 중")
 
-        weekly_stats = get_weekly_stats(records_for_analysis)
+    render_monthly_calendar(records)
 
-        # [FIX] 두 Gemini 호출을 ThreadPoolExecutor로 병렬 실행
-        with ThreadPoolExecutor(max_workers=2) as ex:
-            f_weekly = ex.submit(
-                generate_weekly_report,
+    recent = get_recent_records(records, 15)
+    if not recent:
+        st.markdown("""
+<div class="card" style="text-align:center; padding:28px 14px;">
+    <div style="font-size:1.8rem; margin-bottom:8px;">📭</div>
+    <div class="body-small">아직 기록이 없습니다.<br>홈에서 첫 실행을 시작하세요.</div>
+</div>
+""", unsafe_allow_html=True)
+    else:
+        for row in reversed(recent):
+            is_done = record_to_bool_done(row)
+            emoji   = "✅" if is_done else "❌"
+            status  = "성공" if is_done else "실패"
+            fail_text = (
+                f" · {html.escape(str(row.get('fail_reason', '')))}"
+                if not is_done and row.get("fail_reason") else ""
+            )
+            st.markdown(f"""
+<div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+        <span>{emoji}</span>
+        <span class="muted">{html.escape(str(row.get('time', '-')))}</span>
+    </div>
+    <div class="strong-title" style="font-size:0.9rem; margin-top:5px;">
+        {html.escape(str(row.get('task', '-')))}
+    </div>
+    <div class="body-small">{status}{fail_text}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# ──────────────────────── 분석 ────────────────────────
+elif active_tab == "analysis":
+    st.markdown('<div class="section-label" style="margin-bottom:10px;">상세 분석</div>',
+                unsafe_allow_html=True)
+
+    with st.spinner("분석 중..."):
+        weekly_stats = get_weekly_stats(records)
+        # 주간 리포트 — 무료/Premium 공통
+        if records:
+            wf, wa = generate_weekly_report(
                 st.session_state.goal,
                 weekly_stats["success_rate"],
                 weekly_stats["success_count"],
                 weekly_stats["fail_count"],
                 weekly_stats["top_fail_reason"],
             )
-            f_premium = ex.submit(
-                generate_premium_insight,
-                st.session_state.goal,
-                str(records_for_analysis[-5:]),
-            )
-        weekly_focus, weekly_action = f_weekly.result()
-        premium_weakness, premium_fix = f_premium.result()
-
-    st.markdown(
-        f"""
-<div class="card">
-    <div class="section-title">최근 7일 리포트</div>
-    <div class="body-small"><b>주간 성공률:</b> {weekly_stats['success_rate']}%</div>
-    <div class="body-small"><b>핵심 패턴:</b> {html.escape(weekly_focus)}</div>
-    <div class="body-small"><b>추천 행동:</b> {html.escape(weekly_action)}</div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-    premium_pills = """
-<span class="premium-pill">반복 실패 분석</span>
-<span class="premium-pill">실패 원인 해부</span>
-<span class="premium-pill">맞춤 교정 전략</span>
-<span class="premium-pill">심화 리포트</span>
-"""
-    st.markdown(
-        f"""
-<div class="card">
-    <div class="section-title">Premium 상세 분석</div>
-    <div class="body-small">무료는 시작하게 만들고, Premium은 반복 실패를 끊게 만든다.</div>
-    <div style="margin-top:10px;">{premium_pills}</div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-    if len(records_for_analysis) >= 3:
-        fail_count_analysis = get_success_fail_counts(records_for_analysis)[1]
-        if fail_count_analysis >= 2:
-            st.markdown(
-                f"""
-<div class="warning-card">
-    <div class="muted">PREMIUM</div>
-    <div class="strong-title" style="font-size:1.02rem;">{TXT['premium_fail_title']}</div>
-    <div class="body-small">{TXT['premium_fail_body']}</div>
-    <div class="body-small"><b>약점:</b> {html.escape(premium_weakness)}</div>
-    <div class="body-small"><b>교정:</b> {html.escape(premium_fix)}</div>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-            st.link_button(TXT["premium_button"], PREMIUM_URL, use_container_width=True)
         else:
-            st.markdown(
-                f"""
-<div class="success-card">
-    <div class="muted">PREMIUM</div>
-    <div class="strong-title" style="font-size:1.02rem;">{TXT['premium_flow_title']}</div>
-    <div class="body-small">{TXT['premium_flow_body']}</div>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-            st.link_button(TXT["premium_button"], PREMIUM_URL, use_container_width=True)
-    else:
-        st.info("데이터 수집 중 (최소 3개 기록 필요)")
+            wf = "최근 7일 동안 반복 실패 이유가 존재한다."
+            wa = "가장 중요한 작업을 2분짜리 시작 블록으로 먼저 시작해라."
+        # Premium 인사이트는 is_premium 블록에서 별도 호출
 
-# =========================================================
-# TABS
-# [FIX] load_records() 재호출 제거 — 상단에서 로드한 records/using_sheet 재사용
-# =========================================================
-tab1, tab2 = st.tabs([TXT["history_title"], TXT["policy_title"]])
-
-with tab1:
-    if not using_sheet:
-        st.info(TXT["fallback_sheet_notice"])
-    recent_records_tab = get_recent_records(records, 10)
-    if not recent_records_tab:
-        st.info("아직 기록이 없습니다. 첫 실행부터 시작하세요.")
-    else:
-        for row in reversed(recent_records_tab):
-            is_done = record_to_bool_done(row)
-            emoji = "✅" if is_done else "❌"
-            status = "성공" if is_done else "실패"
-            fail_text = f" | 이유: {html.escape(str(row.get('fail_reason', '')))}" if (not is_done and row.get('fail_reason')) else ""
-            safe_task = html.escape(str(row.get('task', '-')))
-            safe_time = html.escape(str(row.get('time', '-')))
-            st.markdown(
-                f"""
+    st.markdown(f"""
 <div class="card">
-    <div class="muted">{safe_time}</div>
-    <div class="strong-title" style="font-size:1rem;">{emoji} {safe_task}</div>
-    <div class="body-small">상태: {status}{fail_text}</div>
+    <div class="section-label">최근 7일 리포트</div>
+    <div class="metric-grid" style="margin-top:8px;">
+        <div class="metric"><div class="metric-label">성공률</div>
+            <div class="metric-value">{weekly_stats['success_rate']}%</div></div>
+        <div class="metric"><div class="metric-label">성공</div>
+            <div class="metric-value">{weekly_stats['success_count']}</div></div>
+        <div class="metric"><div class="metric-label">실패</div>
+            <div class="metric-value">{weekly_stats['fail_count']}</div></div>
+    </div>
+    <div class="body-small" style="margin-top:10px;"><b>패턴:</b> {html.escape(wf)}</div>
+    <div class="body-small"><b>추천:</b> {html.escape(wa)}</div>
 </div>
-""",
-                unsafe_allow_html=True,
-            )
+""", unsafe_allow_html=True)
 
-with tab2:
-    st.markdown(
-        f"""
+    if len(records) >= 3:
+        if is_premium:
+            # Premium 사용자 — 5개 항목 심층 분석
+            insight = generate_premium_insight(
+                st.session_state.goal,
+                str(records[-10:]),
+            )
+            is_fail = get_success_fail_counts(records)[1] >= 2
+            card_cls = "warning-card" if is_fail else "success-card"
+            st.markdown(f"""
+<div class="{card_cls}">
+    <div class="section-label">⚡ Premium 심층 분석</div>
+    <div class="strong-title" style="font-size:0.94rem;">
+        {"반복 실패를 끊고 싶다면" if is_fail else "이 흐름을 유지하려면"}
+    </div>
+    <div class="body-small" style="margin-top:10px;">
+        <b>🔍 반복 실패 원인</b><br>{html.escape(insight["root_cause"])}
+    </div>
+    <div class="body-small" style="margin-top:8px;">
+        <b>⚠️ 위험 구간</b><br>{html.escape(insight["danger_zone"])}
+    </div>
+    <div class="body-small" style="margin-top:8px;">
+        <b>📉 실패 예측</b><br>{html.escape(insight["predict"])}
+    </div>
+    <div class="body-small" style="margin-top:8px;">
+        <b>🔄 복귀 프로토콜</b><br>{html.escape(insight["protocol"])}
+    </div>
+    <div class="body-small" style="margin-top:8px; color:#FCA5A5;">
+        <b>🚨 경고</b><br>{html.escape(insight["warning"])}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+        else:
+            # 비 Premium — 잠금 처리
+            st.markdown("""
+<div class="lock-card">
+    <div class="lock-icon">🔒</div>
+    <div class="lock-title">Premium 전용 기능</div>
+    <div class="lock-sub">
+        실패 패턴 분석 · 반복 약점 도출 · 개인화 교정 전략<br>
+        Premium 탭에서 신청하면 24시간 내 활성화됩니다.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+            if st.button("🔒 Premium 신청하러 가기", use_container_width=True, key="goto_premium"):
+                st.session_state["_active_tab"] = "premium"
+                st.rerun()
+    else:
+        st.info("최소 3개 기록 후 분석이 시작됩니다.")
+
+# ──────────────────────── Premium ────────────────────────
+elif active_tab == "premium":
+
+    # ── 이미 Premium 활성화된 사용자 ──
+    if is_premium:
+        st.markdown(f"""
+<div class="success-card" style="text-align:center; padding:24px 16px;">
+    <div style="font-size:1.8rem; margin-bottom:8px;">⚡</div>
+    <div class="strong-title" style="margin-top:0;">{TXT['premium_active_title']}</div>
+    <div class="body-small">{TXT['premium_active_body']}</div>
+</div>
+""", unsafe_allow_html=True)
+
+        st.markdown("""
 <div class="card">
-    <div class="section-title">{TXT['policy_title']}</div>
+    <div class="section-label">활성화된 기능</div>
+    <table class="compare-table">
+        <tr>
+            <td class="ct-label">실패 패턴 분석</td>
+            <td class="ct-prem">✓ 활성</td>
+        </tr>
+        <tr>
+            <td class="ct-label">개인화 행동 명령</td>
+            <td class="ct-prem">✓ 활성</td>
+        </tr>
+        <tr>
+            <td class="ct-label">실패 예측</td>
+            <td class="ct-prem">✓ 활성</td>
+        </tr>
+        <tr>
+            <td class="ct-label">흐름 유지 개입</td>
+            <td class="ct-prem">✓ 활성</td>
+        </tr>
+    </table>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 결제 진행 중 (신청 완료 후) ──
+    elif is_applied:
+        st.markdown(f"""
+<div class="card" style="text-align:center; padding:24px 16px;">
+    <div style="font-size:1.8rem; margin-bottom:8px;">⏳</div>
+    <div class="strong-title" style="margin-top:0;">{TXT['premium_applied_title']}</div>
+    <div class="body-small" style="margin-top:8px; white-space:pre-line;">
+        {TXT['premium_applied_body']}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+        # 결제 미완료 시 다시 결제 버튼 제공
+        st.markdown(f"""
+<div class="card" style="text-align:center; padding:16px;">
+    <div class="body-small" style="color:#475569; margin-bottom:10px;">
+        결제를 아직 완료하지 않으셨나요?
+    </div>
+</div>
+""", unsafe_allow_html=True)
+        st.link_button(
+            f"💳 결제하기 (₩{PREMIUM_PRICE:,}/월)",
+            url=PREMIUM_PAYMENT_URL,
+            use_container_width=True,
+        )
+        st.caption("결제 완료 후 1~3시간 내 활성화됩니다. 문의: 운영 안내 참고")
+
+    # ── 신규 신청 화면 ──
+    else:
+        # ── 실패 직후 진입 시 팩트폭행 카드 ──
+        fail_reason_trigger = st.session_state.pop("_fail_reason_for_premium", None)
+        fail_count_trigger  = st.session_state.pop("_fail_count_for_premium", None)
+
+        if fail_reason_trigger and fail_count_trigger:
+            st.markdown(f"""
+<div class="warning-card" style="text-align:center; padding:20px 16px;">
+    <div style="font-size:1.6rem; margin-bottom:8px;">📉</div>
+    <div class="strong-title" style="font-size:1rem; color:#FCA5A5;">
+        '{fail_reason_trigger}'으로 이번 달 {fail_count_trigger}번째 실패다
+    </div>
+    <div class="body-small" style="margin-top:8px; color:#94A3B8;">
+        이건 의지 문제가 아니다.<br>
+        같은 이유로 반복되는 패턴은 혼자 끊기 어렵다.<br>
+        <span style="color:#FCA5A5; font-weight:700;">
+            지금이 그 패턴을 끊을 수 있는 시점이다.
+        </span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+        # 헤더
+        st.markdown(f"""
+<div style="text-align:center; padding:16px 0 12px;">
+    <div style="font-size:0.68rem; color:#38BDF8; font-weight:700;
+                letter-spacing:0.08em;">VANGUARD PREMIUM</div>
+    <div class="strong-title" style="font-size:1.1rem;">{TXT['premium_page_title']}</div>
+    <div class="body-small">{TXT['premium_tagline']}</div>
+</div>
+""", unsafe_allow_html=True)
+
+        # 결과 차이표 — 기능이 아니라 결과로 비교
+        st.markdown("""
+<div class="card">
+    <div class="section-label">무료 vs Premium — 결과 차이</div>
+    <table class="compare-table">
+        <tr>
+            <td class="ct-label"></td>
+            <td class="ct-free">무료</td>
+            <td class="ct-prem">Premium</td>
+        </tr>
+        <tr>
+            <td class="ct-label">실패했을 때</td>
+            <td class="ct-free">또 무너짐</td>
+            <td class="ct-prem">원인 파악</td>
+        </tr>
+        <tr>
+            <td class="ct-label">행동 명령</td>
+            <td class="ct-free">모두에게 같음</td>
+            <td class="ct-prem">내 패턴 기반</td>
+        </tr>
+        <tr>
+            <td class="ct-label">버티는 방식</td>
+            <td class="ct-free">의지로 버팀</td>
+            <td class="ct-prem">패턴으로 교정</td>
+        </tr>
+        <tr>
+            <td class="ct-label">무너지기 전</td>
+            <td class="ct-free">모름</td>
+            <td class="ct-prem">미리 개입</td>
+        </tr>
+        <tr>
+            <td class="ct-label">다시 시작할 때</td>
+            <td class="ct-free">혼자 반복</td>
+            <td class="ct-prem">복귀 루트 제공</td>
+        </tr>
+    </table>
+</div>
+""", unsafe_allow_html=True)
+
+        # 가격 카드
+        st.markdown(f"""
+<div class="card" style="text-align:center; padding:20px 16px;">
+    <div class="body-small">월 구독</div>
+    <div style="font-size:2rem; font-weight:900; color:#86EFAC; margin:6px 0;">
+        ₩{PREMIUM_PRICE:,}
+    </div>
+    <div class="body-small" style="color:#475569;">초기 사용자 가격 · 이후 조정 예정</div>
+</div>
+""", unsafe_allow_html=True)
+
+        # 결제 버튼 + 이메일 (선택)
+        st.markdown("""
+<div class="card">
+    <div class="section-label">지금 시작하기</div>
+    <div class="body-small" style="margin-bottom:10px;">
+        결제 완료 후 <b style="color:#86EFAC;">1~3시간 내</b> 활성화됩니다.<br>
+        이메일을 남기면 활성화 알림을 보내드립니다.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+        # 이메일 (선택 입력 — 알림용)
+        email_input = st.text_input(
+            "이메일 (선택)",
+            placeholder="활성화 알림을 받을 이메일 (선택사항)",
+            label_visibility="collapsed",
+        )
+
+        # 결제 링크 버튼 — 클릭 시 Stripe/Toss로 이동
+        st.link_button(
+            f"💳 Premium 결제하기  ₩{PREMIUM_PRICE:,}/월",
+            url=PREMIUM_PAYMENT_URL,
+            use_container_width=True,
+        )
+
+        # 결제 후 "신청 완료" 버튼 — 결제 완료 후 눌러달라고 안내
+        st.caption("결제 완료 후 아래 버튼을 눌러주세요.")
+        if st.button("✅ 결제 완료했습니다", use_container_width=True,
+                     key="btn_premium_apply"):
+            if has_premium_apply(nickname):
+                get_user_premium_status.clear()
+                st.rerun()
+            else:
+                save_premium_apply(
+                    nickname=nickname,
+                    email=email_input.strip() if email_input.strip() and "@" in email_input else "",
+                    goal=st.session_state.goal,
+                )
+                get_user_premium_status.clear()
+                st.rerun()
+
+    # 운영 안내 (공통)
+    st.markdown(f"""
+<div class="card" style="margin-top:14px;">
+    <div class="section-label">운영 안내</div>
     <div class="body-small">{TXT['policy_text']}</div>
+    <div class="body-small" style="margin-top:8px; color:#475569;">
+        결제 후 1~3시간 내 활성화됩니다.<br>
+        활성화 지연 시 닉네임과 함께 문의해주세요.
+    </div>
 </div>
-""",
-        unsafe_allow_html=True,
-    )
+""", unsafe_allow_html=True)
 
-st.caption("Deploy Ready")
+st.caption("Vanguard MVP · Deploy Ready")
