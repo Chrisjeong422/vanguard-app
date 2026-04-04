@@ -1,0 +1,253 @@
+"""
+Vanguard 일일 미실행 사용자 이메일 알림 스크립트
+GitHub Actions에서 매일 저녁 9시(KST)에 실행
+
+개선 사항:
+1. 로그 시트(3번째 탭)로 중복 발송 방지 + 발송 기록 보존
+2. 유저 필터링 강화 (signup만 발송)
+3. streak 기반 제목 개인화
+4. timedelta 불필요 import 제거
+"""
+import os
+import json
+import smtplib
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from collections import defaultdict
+
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+
+# ── 설정 ──
+SCOPES = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive",
+]
+SHEET_URL  = os.environ["NEXUS_SHEET_URL"]
+GMAIL_USER = os.environ["GMAIL_USER"]
+GMAIL_PW   = os.environ["GMAIL_APP_PASSWORD"]
+APP_URL    = "https://vanguard.streamlit.app"  # 실제 앱 링크로 교체
+
+LOG_SHEET_TITLE  = "NotifyLog"
+LOG_SHEET_HEADER = ["time", "date", "nickname", "email", "type", "success"]
+
+def korea_now() -> datetime:
+    return datetime.now(ZoneInfo("Asia/Seoul"))
+
+def today_str() -> str:
+    return korea_now().strftime("%Y-%m-%d")
+
+# ─────────────────────────────────────────────
+# 시트 연결
+# ─────────────────────────────────────────────
+def get_sheets():
+    creds_dict = json.loads(os.environ["GCP_SERVICE_ACCOUNT"])
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, SCOPES)
+    gc = gspread.authorize(creds)
+    ss = gc.open_by_url(SHEET_URL)
+
+    records_ws = ss.get_worksheet(0)  # 실행 기록
+    users_ws   = ss.get_worksheet(1)  # 사용자
+
+    # 로그 시트 — 없으면 생성
+    try:
+        log_ws = ss.worksheet(LOG_SHEET_TITLE)
+    except gspread.exceptions.WorksheetNotFound:
+        log_ws = ss.add_worksheet(title=LOG_SHEET_TITLE, rows=5000, cols=6)
+        log_ws.append_row(LOG_SHEET_HEADER)
+        print(f"✓ {LOG_SHEET_TITLE} 시트 생성")
+
+    return records_ws, users_ws, log_ws
+
+# ─────────────────────────────────────────────
+# 1. 오늘 이미 발송한 닉네임 조회 (중복 방지)
+# ─────────────────────────────────────────────
+def get_already_sent_today(log_ws) -> set:
+    today = today_str()
+    rows  = log_ws.get_all_records() or []
+    return {
+        str(r.get("nickname","")).strip()
+        for r in rows
+        if str(r.get("date","")) == today
+        and str(r.get("success","")).strip().lower() == "true"
+    }
+
+# ─────────────────────────────────────────────
+# 2. 오늘 완료 기록이 있는 닉네임
+# ─────────────────────────────────────────────
+def get_today_done_nicknames(records_ws) -> set:
+    today = today_str()
+    rows  = records_ws.get_all_records() or []
+    done  = set()
+    for r in rows:
+        if str(r.get("date","")) == today:
+            v = str(r.get("done","")).strip().lower()
+            if v in {"true","1","yes"}:
+                done.add(str(r.get("nickname","")).strip())
+    return done
+
+# ─────────────────────────────────────────────
+# 3. streak 계산 (기록 시트 기반)
+# ─────────────────────────────────────────────
+def calc_streak(records_ws, nickname: str) -> int:
+    rows = records_ws.get_all_records() or []
+    # 해당 닉네임 기록만 필터
+    daily: dict = defaultdict(list)
+    for r in rows:
+        if str(r.get("nickname","")).strip() == nickname:
+            date = str(r.get("date","")).strip()
+            done = str(r.get("done","")).strip().lower() in {"true","1","yes"}
+            if date:
+                daily[date].append(done)
+
+    if not daily:
+        return 0
+
+    today = korea_now().date()
+    streak = 0
+    current = today
+    while True:
+        key = current.strftime("%Y-%m-%d")
+        if key not in daily or not any(daily[key]):
+            break
+        streak += 1
+        current = current.replace(day=current.day - 1) if current.day > 1 else (
+            current.replace(month=current.month - 1, day=28)
+            if current.month > 1 else current.replace(year=current.year - 1, month=12, day=28)
+        )
+    return streak
+
+# ─────────────────────────────────────────────
+# 4. 발송 대상 사용자 — signup만 필터링
+# ─────────────────────────────────────────────
+def get_email_users(users_ws) -> list:
+    rows   = users_ws.get_all_records() or []
+    result = []
+    seen   = set()
+    for r in rows:
+        nick      = str(r.get("nickname","")).strip()
+        email     = str(r.get("email","")).strip()
+        user_type = str(r.get("type","")).strip()
+        if (
+            nick
+            and email
+            and "@" in email
+            and nick not in seen
+            and user_type == "signup"   # signup만 발송
+        ):
+            seen.add(nick)
+            result.append({"nickname": nick, "email": email})
+    return result
+
+# ─────────────────────────────────────────────
+# 5. 이메일 발송 — streak 기반 개인화 제목
+# ─────────────────────────────────────────────
+def send_email(to_email: str, nickname: str, streak: int) -> bool:
+    # streak에 따라 제목 다르게
+    if streak >= 3:
+        subject = f"🔥 {nickname}님, {streak}일 streak이 오늘 사라집니다"
+        urgency = (
+            f"{streak}일 동안 쌓은 연속 기록이 오늘 자정에 초기화됩니다.\n"
+            f"지금 2분만 시작하면 streak을 지킬 수 있습니다."
+        )
+    elif streak >= 1:
+        subject = f"⚡ {nickname}님, 오늘 streak 끊기기 전입니다"
+        urgency = (
+            f"오늘 Vanguard에 아직 완료 기록이 없습니다.\n"
+            f"지금 안 하면 오늘도 그냥 지나갑니다."
+        )
+    else:
+        subject = f"⚡ {nickname}님, 오늘 시작하지 않으면 내일도 안 합니다"
+        urgency = (
+            f"오늘 Vanguard에 아직 기록이 없습니다.\n"
+            f"2분만 시작하면 됩니다. 생각하지 말고 그냥 시작하세요."
+        )
+
+    body = f"""{urgency}
+
+지금 시작: {APP_URL}
+
+— Vanguard · Break the Loop""".strip()
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"]    = GMAIL_USER
+    msg["To"]      = to_email
+    msg.attach(MIMEText(body, "plain", "utf-8"))
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_USER, GMAIL_PW)
+            server.sendmail(GMAIL_USER, to_email, msg.as_string())
+        print(f"✓ 발송: {nickname} <{to_email}> (streak {streak}일)")
+        return True
+    except Exception as e:
+        print(f"✗ 실패: {nickname} <{to_email}> — {e}")
+        return False
+
+# ─────────────────────────────────────────────
+# 6. 발송 결과 로그 시트에 기록
+# ─────────────────────────────────────────────
+def log_send(log_ws, nickname: str, email: str, success: bool) -> None:
+    try:
+        log_ws.append_row([
+            korea_now().strftime("%Y-%m-%d %H:%M"),
+            today_str(),
+            nickname,
+            email,
+            "daily_reminder",
+            str(success),
+        ])
+    except Exception as e:
+        print(f"로그 기록 실패: {e}")
+
+# ─────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────
+def main():
+    now = korea_now()
+    print(f"[{now.strftime('%Y-%m-%d %H:%M')} KST] 알림 발송 시작")
+
+    records_ws, users_ws, log_ws = get_sheets()
+
+    already_sent = get_already_sent_today(log_ws)
+    done_today   = get_today_done_nicknames(records_ws)
+    email_users  = get_email_users(users_ws)
+
+    print(f"대상: {len(email_users)}명 / 이미 발송: {len(already_sent)}명 / 오늘 완료: {len(done_today)}명")
+
+    sent = skipped_done = skipped_sent = 0
+
+    for user in email_users:
+        nick  = user["nickname"]
+        email = user["email"]
+
+        # 오늘 이미 완료한 사람 — 발송 불필요
+        if nick in done_today:
+            skipped_done += 1
+            continue
+
+        # 오늘 이미 발송한 사람 — 중복 방지
+        if nick in already_sent:
+            skipped_sent += 1
+            print(f"- 중복 스킵: {nick}")
+            continue
+
+        # streak 계산 후 발송
+        streak  = calc_streak(records_ws, nick)
+        success = send_email(email, nick, streak)
+        log_send(log_ws, nick, email, success)
+
+        if success:
+            sent += 1
+
+    print(
+        f"\n완료 — 발송: {sent}명 / "
+        f"완료자 스킵: {skipped_done}명 / "
+        f"중복 스킵: {skipped_sent}명"
+    )
+
+if __name__ == "__main__":
+    main()

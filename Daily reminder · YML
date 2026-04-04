@@ -1,0 +1,37 @@
+# =========================================================
+# Vanguard 일일 미실행 사용자 이메일 알림
+# 매일 저녁 9시 (KST) 실행
+# GitHub Secrets 필요:
+#   NEXUS_SHEET_URL       — 구글 시트 URL
+#   GCP_SERVICE_ACCOUNT   — 서비스 계정 JSON (문자열)
+#   GMAIL_USER            — 발송 이메일 (Gmail)
+#   GMAIL_APP_PASSWORD    — Gmail 앱 비밀번호
+# =========================================================
+name: Daily Reminder Email
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # UTC 12:00 = KST 21:00
+  workflow_dispatch:         # 수동 실행 가능
+
+jobs:
+  send_reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install gspread oauth2client
+
+      - name: Send reminder emails
+        env:
+          NEXUS_SHEET_URL:     ${{ secrets.NEXUS_SHEET_URL }}
+          GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          GMAIL_USER:          ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD:  ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python scripts/send_reminders.py
