@@ -2851,17 +2851,39 @@ elif active_tab == "premium":
         st.caption("신청서 제출 + 입금 완료 후 아래 버튼을 눌러주세요.")
         if st.button("✅ 신청 및 입금 완료했습니다", use_container_width=True,
                      key="btn_premium_apply"):
-            if has_premium_apply(nickname):
-                get_user_premium_status.clear()
-                st.rerun()
-            else:
-                save_premium_apply(
-                    nickname=nickname,
-                    email=email_input.strip() if email_input.strip() and "@" in email_input else "",
-                    goal=st.session_state.goal,
-                )
-                get_user_premium_status.clear()
-                st.rerun()
+            # 단계별 디버그 — 실패 지점 정확히 표시
+            try:
+                # 1단계: 시트 연결 확인
+                spreadsheet = get_spreadsheet()
+                st.caption(f"✓ 시트 연결 OK")
+
+                # 2단계: Users 탭 확인
+                ws = spreadsheet.get_worksheet(1)
+                if ws is None:
+                    ws = spreadsheet.add_worksheet(title="Users", rows=1000, cols=6)
+                    st.caption(f"✓ Users 탭 자동 생성")
+                else:
+                    st.caption(f"✓ Users 탭 OK: {ws.title}")
+
+                # 3단계: 저장
+                if has_premium_apply(nickname):
+                    get_user_premium_status.clear()
+                    st.rerun()
+                else:
+                    ok = save_premium_apply(
+                        nickname=nickname,
+                        email=email_input.strip() if email_input.strip() and "@" in email_input else "",
+                        goal=st.session_state.goal,
+                    )
+                    if ok:
+                        get_user_premium_status.clear()
+                        st.rerun()
+                    else:
+                        err = st.session_state.get("last_error", "알 수 없는 오류")
+                        st.error(f"저장 실패: {err}")
+            except Exception as e:
+                st.error(f"연결 실패: {type(e).__name__}: {str(e)}")
+                st.caption("위 에러 내용을 캡처해서 알려주세요.")
 
     # 운영 안내 (공통)
     st.markdown(f"""
