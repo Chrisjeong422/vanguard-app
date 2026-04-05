@@ -1004,9 +1004,16 @@ def ensure_users_header() -> None:
     st.session_state["_users_header_ensured"] = True
 
 def _get_users_ws():
+    """
+    Users 워크시트 반환
+    인덱스(1) 대신 이름("Users")으로 찾아서
+    탭 순서와 무관하게 안전하게 작동
+    """
     spreadsheet = get_spreadsheet()
-    ws = spreadsheet.get_worksheet(1)
-    if ws is None:
+    try:
+        ws = spreadsheet.worksheet("Users")
+    except Exception:
+        # Users 탭 없으면 자동 생성
         ws = spreadsheet.add_worksheet(title="Users", rows=1000, cols=6)
     return ws
 
