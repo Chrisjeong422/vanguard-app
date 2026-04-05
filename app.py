@@ -288,36 +288,68 @@ html, body, [class*="css"] {
 .ct-free  { text-align:center; color:#475569; width:22%; font-size:0.75rem; }
 .ct-prem  { text-align:center; color:#86EFAC; width:23%; font-size:0.75rem; font-weight:700; }
 
-/* ── 버튼 ── */
+/* ── 버튼 — Streamlit 기본 클래스만 사용 (버전 안전) ── */
 .stButton > button {
     width:100%; min-height:50px; border-radius:15px;
     font-size:0.93rem; font-weight:800;
-    border: 1px solid rgba(255,255,255,0.09);
+    border: 1px solid rgba(255,255,255,0.15) !important;
+    background: rgba(255,255,255,0.07) !important;
+    color: #F8FAFC !important;
+}
+.stButton > button:hover {
+    background: rgba(255,255,255,0.13) !important;
+    border-color: rgba(255,255,255,0.25) !important;
+}
+/* link_button — stLinkButton은 비교적 안정적인 클래스 */
+.stLinkButton > a {
+    width:100%; min-height:50px; border-radius:15px;
+    font-size:0.93rem; font-weight:800;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(59,130,246,0.85) !important;
+    color: #ffffff !important;
+    border: none !important;
+    text-decoration: none !important;
+}
+.stLinkButton > a:hover {
+    background: rgba(59,130,246,1) !important;
 }
 
-/* ── 탭 구분선 — Streamlit 내부 속성 불사용 ── */
-/* 탭 버튼은 st.button의 type="primary"/"secondary" 기본 스타일만 사용
-   활성: Streamlit primary 버튼 (파란 계열)
-   비활성: Streamlit secondary 버튼 (기본)
-   추가 CSS 불필요 — Streamlit 버전 변경에 완전히 안전 */
+/* ── 탭 버튼은 Streamlit 기본 스타일 사용 — 추가 CSS 없음 ── */
 
-/* ── 입력 필드 ── */
-.stTextInput input {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px solid rgba(255,255,255,0.10) !important;
+/* ── 입력 필드 — 안정적인 선택자만 사용 ── */
+.stTextInput input,
+input[type="text"],
+input[type="password"],
+input[type="email"] {
+    background: #1E293B !important;
+    border: 1px solid rgba(255,255,255,0.20) !important;
     border-radius: 13px !important;
     color: #F8FAFC !important;
+    -webkit-text-fill-color: #F8FAFC !important;
     font-size: 0.93rem !important;
     padding: 11px 15px !important;
+    caret-color: #38BDF8 !important;
 }
-.stTextInput input:focus {
-    border-color: rgba(56,189,248,0.45) !important;
-    box-shadow: 0 0 0 3px rgba(56,189,248,0.10) !important;
+.stTextInput input::placeholder,
+input[type="text"]::placeholder,
+input[type="password"]::placeholder {
+    color: rgba(248,250,252,0.40) !important;
+    -webkit-text-fill-color: rgba(248,250,252,0.40) !important;
 }
-div[data-baseweb="select"] > div {
-    background: rgba(255,255,255,0.06) !important;
-    border: 1px solid rgba(255,255,255,0.10) !important;
-    border-radius: 13px !important;
+.stTextInput input:focus,
+input[type="text"]:focus {
+    border-color: #38BDF8 !important;
+    box-shadow: 0 0 0 3px rgba(56,189,248,0.15) !important;
+    background: #1E293B !important;
+    -webkit-text-fill-color: #F8FAFC !important;
+}
+.stTextInput label, .stTextInput p {
+    color: #94A3B8 !important;
+}
+/* 셀렉트박스 — data-baseweb은 Streamlit 내부 구현에 의존하므로 제거
+   Streamlit 기본 스타일로 fallback */
+.stCaption, .stMarkdown small {
+    color: #475569 !important;
 }
 
 /* streak 불꽃 */
@@ -348,7 +380,7 @@ TXT = {
     "today_fail": "오늘 실패",
     "streak_warning": "여기서 끊기면 다시 3일 걸린다. 오늘 안 하면 내일도 안 한다.",
     "policy_text": "베타 버전입니다. 기록과 Premium 신청 정보는 기능 개선과 응답 확인 용도로 사용됩니다.",
-    "fallback_ai": "AI 기능이 기본 응답으로 동작 중입니다.",
+    "fallback_ai": "AI 연결 없음 — 기본 명령으로 동작 중입니다. (개인화 명령은 Gemini API 연결 후 활성화)",
     "pain_line": "지금 안 하면 오늘은 끝이다.",
     "pain_sub": "이건 의지 문제가 아니다. 같은 패턴이 반복되고 있는 거다. 지금 이 순간이 그 패턴을 끊을 유일한 기회다.",
     "premium_title": "🔒 Premium",
@@ -1433,37 +1465,37 @@ def get_time_context() -> Dict[str, str]:
     if 6 <= hour < 10:
         return {
             "zone": "morning",
-            "label": "🌅 오전 집중 구간",
-            "pressure": "지금이 오늘 가장 중요한 시간이다. 오전을 날리면 하루가 간다.",
-            "cta": "오전 미션 시작",
+            "label": "🌅 오전",
+            "pressure": "오전을 날리면 오늘 하루가 간다. 지금이 오늘 유일한 기회다.",
+            "cta": "지금 시작",
         }
     elif 10 <= hour < 14:
         return {
             "zone": "midday",
-            "label": "⚡ 정오 실행 구간",
-            "pressure": "오전에 못 했다면 지금이 마지막 기회다.",
-            "cta": "지금 바로 시작",
+            "label": "⚡ 정오",
+            "pressure": "오전에 못 했다. 지금이 마지막 기회다. 안 하면 오늘도 끝이다.",
+            "cta": "지금 시작",
         }
     elif 14 <= hour < 18:
         return {
             "zone": "afternoon",
-            "label": "📉 오후 위험 구간",
-            "pressure": "오후는 집중력이 떨어지는 시간이다. 지금 안 하면 저녁까지 미룬다.",
-            "cta": "오후 미션 시작",
+            "label": "📉 오후",
+            "pressure": "지금 안 하면 저녁까지 미룬다. 저녁까지 미루면 오늘은 끝이다.",
+            "cta": "지금 시작",
         }
     elif 18 <= hour < 22:
         return {
             "zone": "evening",
-            "label": "🚨 저녁 마감 구간",
-            "pressure": f"오늘 {24-hour}시간도 안 남았다. 지금이 마지막이다.",
-            "cta": "오늘 마감 시작",
+            "label": "🚨 저녁",
+            "pressure": f"자정까지 {24-hour}시간도 안 남았다. 지금 안 하면 오늘은 없다.",
+            "cta": "지금 시작",
         }
     else:
         return {
             "zone": "night",
-            "label": "🌙 야간 구간",
-            "pressure": "오늘은 거의 끝났다. 내일을 위해 1개만 끝내라.",
-            "cta": "마지막 1개 시작",
+            "label": "🌙 야간",
+            "pressure": "오늘은 거의 끝났다. 지금 1개 안 끝내면 오늘은 0이다.",
+            "cta": "지금 시작",
         }
 
 # =========================================================
@@ -1790,22 +1822,26 @@ reset_error()
 
 if st.query_params.get(ADMIN_PARAM) == "1":
     render_admin_page()
+    # [진입 차단] 관리자 페이지 렌더링 후 나머지 앱 실행 중단
     st.stop()
 
 # ── 닉네임 수집 화면 (게스트 1회 실행 후) ──
 if st.session_state.get("_show_nickname_collect"):
     render_nickname_collect()
+    # [진입 차단] 게스트 → 닉네임 수집 화면 (1회 실행 후)
     st.stop()
 
 # ── 타겟 선택 화면 (닉네임 입력 후) ──
 if st.session_state.get("_show_target_select"):
     render_target_select()
+    # [진입 차단] 닉네임 설정 후 타겟 선택 화면
     st.stop()
 
 # ── 닉네임 미확정 + 게스트 모드 아닌 경우에만 온보딩 표시 ──
 # 게스트 모드: nickname_confirmed=False지만 앱 진입 허용
 if not st.session_state.nickname_confirmed and not st.session_state.get("_guest_mode"):
     render_nickname_setup()
+    # [진입 차단] 닉네임 미설정 + 비게스트 → 온보딩
     st.stop()
 
 # ── 데이터 로드 ──
@@ -1837,7 +1873,13 @@ success_rate      = get_success_rate(records)
 today_complete    = 0 if is_guest else get_today_complete_count()
 
 # ── AI 명령 ──
-command, reason, warning = fast_command(st.session_state.goal)
+# 목표 없어도 기본 명령 바로 표시 — 생각할 시간을 주면 이탈
+if not st.session_state.goal:
+    command  = "지금 30초만 아무거나 시작해라. 생각하지 말고."
+    reason   = "완벽한 계획보다 불완전한 시작이 낫다."
+    warning  = "지금 안 하면 오늘도 준비만 하다 끝난다."
+else:
+    command, reason, warning = fast_command(st.session_state.goal)
 if st.session_state.command_ready:
     if can_generate_command(is_premium):
         with st.spinner("AI 명령 생성 중..."):
@@ -1914,14 +1956,15 @@ if active_tab == "home":
     # 시간대별 긴급도 배너 — 하루 3회 트리거 구조
     time_ctx = get_time_context()
     st.markdown(f"""
-<div style="padding:7px 14px; border-radius:11px; margin-bottom:10px;
-            background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06);
-            display:flex; align-items:center; justify-content:space-between;">
-    <span style="font-size:0.74rem; color:#64748B; font-weight:600;">
-        {time_ctx["label"]}
-    </span>
-    <span style="font-size:0.72rem; color:#FCA5A5; font-weight:700;">
-        {time_ctx["pressure"][:30]}...
+<div style="padding:8px 14px; border-radius:11px; margin-bottom:10px;
+            background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.18);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:3px;">
+        <span style="font-size:0.68rem; color:#64748B; font-weight:600;">
+            {time_ctx["label"]}
+        </span>
+    </div>
+    <span style="font-size:0.78rem; color:#FCA5A5; font-weight:700; line-height:1.5;">
+        {html.escape(time_ctx["pressure"])}
     </span>
 </div>
 """, unsafe_allow_html=True)
@@ -2244,7 +2287,16 @@ if active_tab == "home":
         if st.session_state.get("_show_fail_select", False):
             fail_reason = st.selectbox(
                 "실패 이유",
-                ["집중 안됨", "피곤함", "딴짓", "시간 부족", "기타"],
+                [
+                    "시작이 부담됨",
+                    "어디서 시작할지 모르겠음",
+                    "폰/유튜브 봄",
+                    "너무 피곤함",
+                    "일정이 밀림",
+                    "다른 일에 끌림",
+                    "목표가 너무 큼",
+                    "기타",
+                ],
                 label_visibility="collapsed",
             )
             if st.button("실패 기록하기", use_container_width=True, key="btn_fail_confirm"):
@@ -2558,6 +2610,27 @@ elif active_tab == "analysis":
 # ──────────────────────── Premium ────────────────────────
 elif active_tab == "premium":
 
+    # ── 게스트 — 닉네임 먼저 설정하도록 유도 ──
+    if is_guest:
+        st.markdown("""
+<div class="warning-card" style="text-align:center; padding:24px 16px;">
+    <div style="font-size:1.6rem; margin-bottom:8px;">🔒</div>
+    <div class="strong-title" style="margin-top:0; font-size:1rem;">
+        Premium 신청은 닉네임 설정 후 가능합니다
+    </div>
+    <div class="body-small" style="margin-top:8px;">
+        먼저 홈에서 1회 실행하고 닉네임을 설정하세요.<br>
+        닉네임이 있어야 신청 내역을 추적할 수 있습니다.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+        if st.button("🏠 홈으로 돌아가기", use_container_width=True,
+                     key="guest_premium_home"):
+            st.session_state["_active_tab"] = "home"
+            st.rerun()
+        # [진입 차단] 게스트는 Premium 탭 이후 내용 렌더링 중단
+        st.stop()
+
     # ── 이미 Premium 활성화된 사용자 ──
     if is_premium:
         st.markdown(f"""
@@ -2621,6 +2694,44 @@ elif active_tab == "premium":
 
     # ── 신규 신청 화면 ──
     else:
+        # ── Premium 탭 최상단 손실 지표 — 항상 표시 ──
+        loss = get_loss_stats(records)
+        if loss["total_count"] >= 1:
+            rate_color = "#86EFAC" if loss["success_rate"] >= 80 else                          "#FCD34D" if loss["success_rate"] >= 50 else "#FCA5A5"
+            st.markdown(f"""
+<div style="padding:16px; border-radius:16px; margin-bottom:12px;
+            background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.20);">
+    <div style="font-size:0.72rem; color:#FCA5A5; font-weight:700;
+                letter-spacing:0.06em; margin-bottom:10px;">
+        지금 내 현실
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; text-align:center;">
+        <div>
+            <div style="font-size:1.4rem; font-weight:900; color:{rate_color};">
+                {loss["success_rate"]}%
+            </div>
+            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">이달 성공률</div>
+        </div>
+        <div>
+            <div style="font-size:1.4rem; font-weight:900; color:#FCA5A5;">
+                {loss["fail_hours"]}h
+            </div>
+            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">날린 시간</div>
+        </div>
+        <div>
+            <div style="font-size:1.4rem; font-weight:900; color:#FCA5A5;">
+                {loss["fail_prob"]}%
+            </div>
+            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">목표 실패 확률</div>
+        </div>
+    </div>
+    <div style="font-size:0.78rem; color:#94A3B8; margin-top:10px;
+                padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);">
+        {html.escape(loss["danger_msg"])}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
         # ── 실패 직후 진입 시 팩트폭행 카드 ──
         fail_reason_trigger = st.session_state.pop("_fail_reason_for_premium", None)
         fail_count_trigger  = st.session_state.pop("_fail_count_for_premium", None)
