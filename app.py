@@ -102,10 +102,12 @@ FREE_RECORD_DAYS     = 7   # 무료 사용자 기록 열람 일수 제한
 
 # ── 시트 URL — secrets 우선, fallback으로 하드코딩 ──
 # Streamlit secrets에 NEXUS_SHEET_URL 등록 권장 (코드 노출 방지)
-NEXUS_SHEET_URL = get_secret(
-    "NEXUS_SHEET_URL",
-    "https://docs.google.com/spreadsheets/d/1MPJ94HeiRs_xjZfkBCWKQNhKHf45H9YhZgoZ2M_tNSI/edit?usp=sharing"
-)
+# 운영 배포용: fallback 하드코딩 제거 — Secrets 미등록 시 명확한 에러 발생
+# 로컬 개발 시엔 .streamlit/secrets.toml에 직접 등록할 것
+NEXUS_SHEET_URL = get_secret("NEXUS_SHEET_URL", "")
+if not NEXUS_SHEET_URL:
+    st.error("⚠️ NEXUS_SHEET_URL이 Secrets에 등록되지 않았습니다. Streamlit Cloud → Settings → Secrets를 확인하세요.")
+    st.stop()
 
 # ── Premium 신청 ──
 PREMIUM_PRICE       = 9900
@@ -418,11 +420,11 @@ TXT = {
     "time_evening": "저녁",
     # Premium
     "premium_page_title": "🔒 Vanguard Premium",
-    "premium_tagline": "왜 계속 실패하는지 — 이제 알 수 있다",
+    "premium_tagline": "무너질 때 끌어올리는 개입 장치",
     "premium_applied_title": "신청 완료 ✓",
     "premium_applied_body": "신청서 확인 후 1~3시간 내에 Premium이 활성화됩니다.\\n입금 확인까지 완료되면 닉네임 기준으로 수동 승인됩니다.",
     "premium_active_title": "⚡ Premium 활성화됨",
-    "premium_active_body": "패턴 교정 명령 · 실패 원인 분석 · 위험 시간대 · 복귀 프로토콜이 모두 활성화됐습니다.",
+    "premium_active_body": "무너질 때 끌어올리는 개입이 활성화됐습니다. 실패 원인 · 위험 시간대 · 복귀 프로토콜 모두 열림.",
 }
 
 # =========================================================
@@ -461,6 +463,7 @@ DEFAULTS: Dict[str, Any] = {
     "_show_nickname_collect": False,   # 실행 후 닉네임 수집 화면 표시
     "_show_target_select": False,      # 닉네임 입력 후 타겟 선택 화면
     "target_type": "founder",          # 기본값: founder / student / fitness
+    "_last_fail_reason": "",           # 마지막 실패 이유 — Premium 트리거에서 참조
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -482,9 +485,12 @@ def yesterday_str() -> str:
     return (korea_now().date() - timedelta(days=1)).strftime("%Y-%m-%d")
 
 def elapsed_to_text(elapsed: int) -> str:
-    """경과 시간을 사람이 읽기 쉬운 텍스트로"""
+    """
+    경과 시간 표시 — 실시간 갱신 없으므로 초 단위 제거
+    0초가 멈춰 보이는 UX 문제 해결
+    """
     if elapsed < 60:
-        return f"{elapsed}초"
+        return "집중 시작"
     mins = elapsed // 60
     secs = elapsed % 60
     return f"{mins}분 {secs}초" if secs else f"{mins}분"
@@ -587,13 +593,18 @@ def get_loss_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
     total_c   = fail_c + success_c
 
     success_rate = int(success_c / total_c * 100) if total_c > 0 else 0
-    fail_hours   = fail_c * 2  # 실패 1회 = 낭비 추정 2시간
+
+    # ⚠️ 아래 수치는 정확한 분석 모델이 아닌 행동 유도용 heuristic
+    # fail_hours: 실패 1회당 2시간 낭비로 추정 (실제 측정값 아님)
+    # fail_prob: 현재 실패율 기반 심리적 압박용 수치 (통계적 예측 아님)
+    # 나중에 실제 사용 데이터가 쌓이면 보정 가능
+    fail_hours   = fail_c * 2
 
     # 이번 달 남은 일수
     days_in_month = calendar.monthrange(today.year, today.month)[1]
     days_left     = days_in_month - today.day
 
-    # 실패 확률 — 현재 실패율 기반
+    # 실패 확률 — 현재 실패율 기반 heuristic (정확한 예측값 아님)
     if total_c > 0:
         fail_prob = min(99, max(1, int((fail_c / total_c) * 100 * 1.2))) if fail_c > 0 else 5
     else:
@@ -704,14 +715,17 @@ def infer_target(goal: str) -> str:
     """
     목표 텍스트 기반 타겟 자동 추론
     기본값: founder (메시지 톤이 가장 잘 맞고 지불 의향 높음)
+    일반적인 목표(밥먹기 등)는 founder로 분류되지만
+    pain 메시지는 타겟 톤 대신 중립적으로 표시
     """
     g = goal.lower()
     student_kw = {"시험", "수능", "공부", "학교", "수업", "과제", "토익", "토플",
-                  "학점", "입시", "고시", "자격증", "시험공부"}
+                  "학점", "입시", "고시", "자격증", "시험공부", "강의", "숙제"}
     fitness_kw = {"운동", "헬스", "다이어트", "살", "몸무게", "체중", "근육",
-                  "러닝", "조깅", "수영", "요가", "필라테스", "PT"}
+                  "러닝", "조깅", "수영", "요가", "필라테스", "pt", "홈트", "스트레칭"}
     founder_kw = {"매출", "런칭", "클라이언트", "창업", "사업", "스타트업",
-                  "고객", "마케팅", "개발", "제품", "서비스", "투자", "미팅"}
+                  "고객", "마케팅", "개발", "제품", "서비스", "투자", "미팅",
+                  "프로젝트", "작업", "업무", "일"}
 
     if any(kw in g for kw in student_kw):
         return "student"
@@ -719,12 +733,50 @@ def infer_target(goal: str) -> str:
         return "fitness"
     if any(kw in g for kw in founder_kw):
         return "founder"
-    return "founder"  # 기본값
+    return "general"  # 키워드 매칭 실패 — 일반 목표
 
 def get_target_config() -> dict:
     """현재 세션의 타겟 설정 반환"""
     t = st.session_state.get("target_type", "founder")
     return TARGET_CONFIG.get(t, TARGET_CONFIG["founder"])
+
+def get_goal_matched_pain(goal: str) -> tuple:
+    """
+    목표 텍스트 기반으로 압박 문구 반환
+    — 세션 target_type이 아닌 실제 목표 내용에 맞게 즉시 반영
+    — tcfg["pain"]과 분리된 별도 함수
+
+    infer_target()이 "general"을 반환하면
+    목표 텍스트를 직접 활용한 문구로 fallback
+    """
+    g = goal.strip()
+    if not g:
+        return (
+            "지금 안 하면 오늘은 끝이다.",
+            "생각만 하면 아무것도 안 바뀐다. 지금 시작해야 오늘이 살아난다."
+        )
+    t = infer_target(g)
+    if t == "student":
+        return (
+            "오늘 안 하면 점수는 안 오른다.",
+            "작은 공부 1개라도 오늘 해야 흐름이 이어진다."
+        )
+    if t == "fitness":
+        return (
+            "오늘 안 하면 몸은 그대로다.",
+            "짧게라도 움직여야 패턴이 유지된다."
+        )
+    if t == "founder":
+        return (
+            "오늘 안 하면 결과는 안 나온다.",
+            "미루는 하루가 쌓이면 이번 달 결과가 된다."
+        )
+    # general — 키워드 매칭 실패한 일반 목표 (밥먹기, 방청소 등)
+    # 목표 텍스트를 직접 반영해서 관련성 있는 문구 생성
+    return (
+        f"오늘 '{g}' 안 하면 또 미뤄진다.",
+        "지금 이 순간 시작하지 않으면 오늘도 생각만 하다 끝난다."
+    )
 
 def get_daily_cmd_count() -> int:
     """오늘 AI 명령 생성 횟수 반환 — 날짜 바뀌면 자동 초기화"""
@@ -988,10 +1040,7 @@ USERS_HEADER = ["time", "nickname", "email", "goal", "type", "is_premium"]
 def ensure_users_header() -> None:
     if st.session_state.get("_users_header_ensured"):
         return
-    spreadsheet = get_spreadsheet()
-    ws = spreadsheet.get_worksheet(1)
-    if ws is None:
-        ws = spreadsheet.add_worksheet(title="Users", rows=1000, cols=len(USERS_HEADER))
+    ws = _get_users_ws()  # 인덱스 대신 이름 기반 조회로 통일
     values = ws.get_all_values()
     if not values:
         # 빈 시트 — 헤더 추가
@@ -1057,10 +1106,12 @@ def save_record(
     - 닉네임 확정 후 시트로 이전 (synced 플래그로 중복 방지)
 
     [닉네임 유저]
-    - 시트가 단일 진실 원천
-    - load_records() → session_state.records 동기화 → save_record() → append → 반환
-    - 이 순서로 항상 누적 기록 전체 기준으로 판단 가능
+    - 시트가 단일 진실 원천 (엄밀히는 시트 + 세션 캐시 혼합 구조)
+    - 보통 진입 시 load_records()로 session_state.records 동기화됨
+    - 저장 시 시트 append → session_state.records에도 append (즉시 반영용)
+    - 단, load_records()가 항상 save 직전에 보장되는 건 아님 — 주의
     - 시트 저장 실패 시: 세션에만 저장 (데이터 유실 방지 fallback)
+    - 완전한 단일 원천은 DB 전환 시점에 달성 (DAU 100명+ 기준)
 
     [나중에 할 것]
     - DAU 30명+ 시: 시트 기반 카운트로 전환
@@ -1078,8 +1129,13 @@ def save_record(
         "synced": False,
     }
 
-    # 게스트는 세션에만 저장
-    if nickname == "guest":
+    # 게스트 판별 — 닉네임 문자열이 아닌 세션 상태로 판단 (일관성)
+    # nickname == "guest" 단독 조건은 빈 닉네임 케이스를 놓칠 수 있음
+    is_guest_mode = (
+        st.session_state.get("_guest_mode", False)
+        and not st.session_state.get("nickname_confirmed", False)
+    )
+    if is_guest_mode:
         st.session_state.records.append(row)
         return True, list(st.session_state.records)
 
@@ -1189,20 +1245,33 @@ def activate_premium(nickname: str) -> bool:
     """
     관리자용: 닉네임의 모든 premium_apply 행을 is_premium=True로 업데이트
     중복 신청이 있어도 전부 처리해서 상태 꼬임 방지
+
+    batch_update 사용으로 API 호출 1회로 처리
+    — update_cell 반복 대비 신청자 수에 무관하게 빠름
     """
     try:
         ws = _get_users_ws()
         rows = ws.get_all_records()
-        updated = False
+
+        # 업데이트 대상 셀 좌표 수집
+        updates = []
         for idx, row in enumerate(rows, start=2):
             if (str(row.get("nickname","")).strip() == nickname.strip()
                     and row.get("type") == "premium_apply"):
-                ws.update_cell(idx, 6, "True")
-                updated = True
-        if updated:
-            get_user_premium_status.clear()
-            get_premium_nicknames.clear()
-        return updated
+                # is_premium 컬럼(6번째) 셀 주소
+                updates.append({
+                    "range": f"F{idx}",
+                    "values": [["True"]],
+                })
+
+        if not updates:
+            return False
+
+        # batch_update — API 1회 호출로 전체 처리
+        ws.batch_update(updates)
+        get_user_premium_status.clear()
+        get_premium_nicknames.clear()
+        return True
     except Exception as e:
         set_error(f"Premium activate failed: {e}")
         return False
@@ -1415,9 +1484,9 @@ def render_target_select() -> None:
     nickname = st.session_state.get("nickname", "")
     goal     = st.session_state.get("goal", "")
 
-    # 목표 기반 자동 추론
+    # 목표 기반 자동 추론 — general은 TARGET_CONFIG에 없으므로 founder fallback
     inferred = infer_target(goal)
-    cfg      = TARGET_CONFIG[inferred]
+    cfg      = TARGET_CONFIG.get(inferred, TARGET_CONFIG["founder"])
 
     st.markdown(f"""
 <div style="text-align:center; padding:20px 0 14px;">
@@ -1431,8 +1500,10 @@ def render_target_select() -> None:
 </div>
 """, unsafe_allow_html=True)
 
-    # 추천 타겟 표시 — 목표가 있으면 분석 결과, 없으면 기본값 안내
-    if goal.strip():
+    # 추천 타겟 표시 — general이면 직접 선택 유도
+    if inferred == "general":
+        rec_text = "💡 일반 목표입니다 · 아래에서 가장 가까운 유형을 선택하세요"
+    elif goal.strip():
         rec_text = f'💡 목표 분석 → <b>{cfg["emoji"]} {cfg["label"]}</b> 로 설정됩니다'
     else:
         rec_text = f'💡 기본값: <b>{cfg["emoji"]} {cfg["label"]}</b> (아래에서 변경 가능)'
@@ -1832,6 +1903,17 @@ if st.query_params.get(ADMIN_PARAM) == "1":
     # [진입 차단] 관리자 페이지 렌더링 후 나머지 앱 실행 중단
     st.stop()
 
+# =============================================================
+# EARLY EXIT ZONE — st.stop() 허용 구역
+# 이 구역 외부에서 st.stop() 사용 금지
+# 1. missing secrets gate  (line ~110)
+# 2. admin gate            (render_admin_page 직후)
+# 3. guest nickname gate   (render_nickname_collect 직후)
+# 4. target select gate    (render_target_select 직후)
+# 5. onboarding gate       (render_nickname_setup 직후)
+# 6. guest premium gate    (Premium 탭 최상단)
+# =============================================================
+
 # ── 닉네임 수집 화면 (게스트 1회 실행 후) ──
 if st.session_state.get("_show_nickname_collect"):
     render_nickname_collect()
@@ -2004,17 +2086,21 @@ if active_tab == "home":
     if today_status == "success" and streak > 0:
         render_streak_share(streak, st.session_state.goal, success_rate)
 
-    # 목표 입력
-    st.session_state.goal = st.text_input(
+    # 목표 입력 — 버튼으로 등록 (엔터 단독으로 안 되는 Streamlit 특성 보완)
+    goal_input = st.text_input(
         TXT["goal_label"],
         value=st.session_state.goal,
         placeholder=TXT["goal_placeholder"],
+        key="goal_text_input",
     )
-    if st.session_state.goal != st.session_state["_prev_goal"]:
-        st.session_state.lazy_command = ""
-        st.session_state.lazy_reason  = ""
-        st.session_state.lazy_warning = ""
-        st.session_state["_prev_goal"] = st.session_state.goal
+    if st.button("목표 설정", use_container_width=True, key="btn_set_goal", type="secondary"):
+        if goal_input.strip():
+            st.session_state.goal = goal_input.strip()
+            st.session_state.lazy_command = ""
+            st.session_state.lazy_reason  = ""
+            st.session_state.lazy_warning = ""
+            st.session_state["_prev_goal"] = st.session_state.goal
+            st.rerun()
 
     # 어제 vs 오늘
     render_yesterday_vs_today(records, today_status)
@@ -2040,31 +2126,34 @@ if active_tab == "home":
         <div style="font-size:1.1rem; font-weight:900; color:{rate_color};">
             {loss["success_rate"]}%
         </div>
-        <div style="font-size:0.65rem; color:#475569;">이달 성공률</div>
+        <div style="font-size:0.65rem; color:#475569;">이달 실행률</div>
     </div>
     <div style="text-align:center; flex:1;">
         <div style="font-size:1.1rem; font-weight:900; color:#FCA5A5;">
             {loss["fail_hours"]}h
         </div>
-        <div style="font-size:0.65rem; color:#475569;">날린 시간</div>
+        <div style="font-size:0.65rem; color:#475569;">추정 손실 시간</div>
     </div>
     <div style="text-align:center; flex:1;">
         <div style="font-size:1.1rem; font-weight:900; color:#FCA5A5;">
             {loss["fail_prob"]}%
         </div>
-        <div style="font-size:0.65rem; color:#475569;">목표 실패 확률</div>
+        <div style="font-size:0.65rem; color:#475569;">현재 패턴 위험도</div>
     </div>
 </div>"""
     else:
         loss_inline = ""
 
+    # 목표 텍스트 기반 압박 문구 — 세션 target_type이 아닌 실제 목표에 맞게
+    goal_pain, goal_pain_sub = get_goal_matched_pain(st.session_state.goal)
+
     st.markdown(f"""
 <div class="warning-card">
     <div style="font-size:1rem; font-weight:900; color:#FCA5A5;">
-        {html.escape(tcfg["pain"])}
+        {html.escape(goal_pain)}
     </div>
     <div class="body-small" style="margin-top:6px;">
-        {html.escape(tcfg["pain_sub"])}
+        {html.escape(goal_pain_sub)}
     </div>
     {pain_extra}
     {loss_inline}
@@ -2169,9 +2258,20 @@ if active_tab == "home":
         {html.escape(tcfg["complete"])}
     </div>
     <div style="font-size:0.78rem; color:#475569; margin-top:8px; line-height:1.6;">
-        이번 달 성공 {current_sc}회 · 성공률 {loss["success_rate"]}%<br>
+        이번 달 성공 {current_sc}회 · 실행률 {loss["success_rate"]}%<br>
         <span style="color:#94A3B8;">{next_action}</span>
     </div>
+</div>
+""", unsafe_allow_html=True)
+
+        # streak 공유 버튼 — 다음날 재방문 + 바이럴 구조
+        if streak >= 2:
+            share_text = f"🔥 {streak}일 연속 실행 중 — Vanguard로 패턴 끊는 중"
+            st.markdown(f"""
+<div style="padding:8px 14px; border-radius:12px; margin-top:6px;
+            background:rgba(134,239,172,0.08); border:1px solid rgba(134,239,172,0.20);
+            font-size:0.75rem; color:#86EFAC; text-align:center;">
+    🔥 {streak}일 streak 달성 — 내일도 이어가면 패턴이 된다
 </div>
 """, unsafe_allow_html=True)
 
@@ -2187,7 +2287,7 @@ if active_tab == "home":
         또 같은 이유로 무너졌다. 이번 달 실패 {current_fc}회째다.
     </div>
     <div style="font-size:0.78rem; color:#94A3B8; margin-top:6px; line-height:1.6;">
-        지금 날린 추정 시간: <b style="color:#FCA5A5;">{loss["fail_hours"]}시간</b><br>
+        지금 추정 손실 시간: <b style="color:#FCA5A5;">{loss["fail_hours"]}시간</b><br>
         {"한 번은 괜찮다. 두 번째부터가 패턴이다." if current_fc == 1
           else "지금 30초짜리 1개라도 시작하면 오늘은 살릴 수 있다."}
     </div>
@@ -2203,6 +2303,19 @@ if active_tab == "home":
                 st.session_state.current_task = "30초만 시작해라. 딱 30초."
                 st.session_state["_show_fail_select"]  = False
                 st.session_state["_crisis_dismissed"]  = True
+                st.rerun()
+
+        # 실패 2회 미만이어도 Premium 직접 트리거 — 결제 전환 단축
+        if not is_premium:
+            if st.button("🔥 지금 이 패턴 끊기 → Premium",
+                         use_container_width=True,
+                         key="btn_fail_to_premium"):
+                # fail_reason은 records에서 안전하게 가져옴
+                # dir() 방식 제거 — 예측 불가능한 스코프 의존 제거
+                last_fail = st.session_state.get("_last_fail_reason", get_top_fail_reason(records))
+                st.session_state["_fail_reason_for_premium"] = last_fail
+                st.session_state["_fail_count_for_premium"]  = current_fc
+                st.session_state["_active_tab"] = "premium"
                 st.rerun()
 
     # 액션
@@ -2256,7 +2369,8 @@ if active_tab == "home":
 </div>
 """, unsafe_allow_html=True)
     else:
-        # 타이머: 페이지 진입 시 경과 시간 계산만. rerun/sleep 없음.
+        # 타이머: 페이지 진입 시 경과 시간 표시 (실시간 갱신 없음 — MVP)
+        # sleep/rerun 제거 — 완료/실패 버튼 상호작용 보호
         elapsed = int(time.time() - st.session_state.start_time)
         render_focus_card(elapsed, st.session_state.current_task)
 
@@ -2328,6 +2442,8 @@ if active_tab == "home":
                     _ok, updated_records = save_record(
                         st.session_state.current_task, False, fail_reason
                     )
+                    # 마지막 실패 이유 저장 — Premium 트리거 버튼에서 안전하게 참조
+                    st.session_state["_last_fail_reason"] = fail_reason
                     st.session_state.running      = False
                     st.session_state.current_task = ""
                     st.session_state["_show_fail_select"]  = False
@@ -2406,8 +2522,9 @@ elif active_tab == "record":
     🔒 {record_limit_label}
 </div>
 """, unsafe_allow_html=True)
-        if st.button("전체 기록 보기 → Premium", use_container_width=True,
-                     key="btn_record_premium"):
+        if st.button("🔥 전체 기록 + 패턴 분석 열기 → Premium",
+                     use_container_width=True,
+                     key="btn_record_premium", type="primary"):
             st.session_state["_active_tab"] = "premium"
             st.rerun()
 
@@ -2476,7 +2593,7 @@ elif active_tab == "analysis":
             <div style="font-size:1.6rem; font-weight:900; color:{prob_color};">
                 {loss["fail_prob"]}%
             </div>
-            <div style="font-size:0.7rem; color:#475569; margin-top:2px;">이달 목표 실패 확률</div>
+            <div style="font-size:0.7rem; color:#475569; margin-top:2px;">현재 패턴 위험도</div>
         </div>
     </div>
     <div style="font-size:0.82rem; color:#94A3B8; font-weight:600;
@@ -2486,7 +2603,7 @@ elif active_tab == "analysis":
 </div>
 """, unsafe_allow_html=True)
 
-        # 복구 비용 표시 (실패가 있을 때)
+        # 복귀 난이도 표시 (실패가 있을 때)
         if loss["fail_count"] > 0:
             if loss["recovery_days"] > 0:
                 recovery_msg = f"지금 streak이 끊겼다. 복구까지 최소 {loss['recovery_days']}일 필요하다."
@@ -2497,7 +2614,7 @@ elif active_tab == "analysis":
 <div style="padding:10px 14px; border-radius:12px; margin-bottom:10px;
             background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.20);">
     <div style="font-size:0.8rem; color:#FCA5A5; font-weight:700;">
-        ⚠️ 복구 비용
+        ⚠️ 복귀 난이도
     </div>
     <div style="font-size:0.78rem; color:#94A3B8; margin-top:4px;">
         {html.escape(recovery_msg)}
@@ -2606,7 +2723,7 @@ elif active_tab == "analysis":
     </div>
 </div>
 """, unsafe_allow_html=True)
-            if st.button("🔒 원인 분석 열기 → Premium 신청",
+            if st.button("🔥 왜 계속 실패하는지 지금 열기 → Premium",
                          use_container_width=True, key="goto_premium",
                          type="primary"):
                 st.session_state["_active_tab"] = "premium"
@@ -2717,19 +2834,19 @@ elif active_tab == "premium":
             <div style="font-size:1.4rem; font-weight:900; color:{rate_color};">
                 {loss["success_rate"]}%
             </div>
-            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">이달 성공률</div>
+            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">이달 실행률</div>
         </div>
         <div>
             <div style="font-size:1.4rem; font-weight:900; color:#FCA5A5;">
                 {loss["fail_hours"]}h
             </div>
-            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">날린 시간</div>
+            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">추정 손실 시간</div>
         </div>
         <div>
             <div style="font-size:1.4rem; font-weight:900; color:#FCA5A5;">
                 {loss["fail_prob"]}%
             </div>
-            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">목표 실패 확률</div>
+            <div style="font-size:0.65rem; color:#475569; margin-top:2px;">현재 패턴 위험도</div>
         </div>
     </div>
     <div style="font-size:0.78rem; color:#94A3B8; margin-top:10px;
@@ -2801,9 +2918,9 @@ elif active_tab == "premium":
             <td class="ct-prem">✓ 전체 기간</td>
         </tr>
         <tr>
-            <td class="ct-label">실패 전 미리 개입</td>
-            <td class="ct-free">🔒 없음</td>
-            <td class="ct-prem">✓ 복귀 프로토콜</td>
+            <td class="ct-label">무너질 때 개입</td>
+            <td class="ct-free">🔒 혼자 버팀</td>
+            <td class="ct-prem">✓ 끌어올려줌</td>
         </tr>
         <tr>
             <td class="ct-label">이메일 리마인드</td>
@@ -2835,7 +2952,7 @@ elif active_tab == "premium":
         ③ 앱 새로고침 → Premium 즉시 열림
     </div>
     <div class="body-small" style="color:#475569; margin-top:6px;">
-        이메일을 남기면 활성화 알림을 드립니다 (선택)
+        이메일을 남기면 <b style="color:#94A3B8;">실패 직전에 알림</b>을 보내드립니다 (선택)
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -2843,13 +2960,13 @@ elif active_tab == "premium":
         # 이메일 (선택 입력 — 알림용)
         email_input = st.text_input(
             "이메일 (선택)",
-            placeholder="활성화 알림을 받을 이메일 (선택사항)",
+            placeholder="실패 직전 알림받을 이메일 (선택)",
             label_visibility="collapsed",
         )
 
         # 결제 링크 버튼 — 클릭 시 Stripe/Toss로 이동
         st.link_button(
-            f"📋 Premium 신청하기  ₩{PREMIUM_PRICE:,}/월",
+            f"🔥 지금 이 패턴 끊기  ₩{PREMIUM_PRICE:,}/월",
             url=PREMIUM_PAYMENT_URL,
             use_container_width=True,
         )
@@ -2864,13 +2981,9 @@ elif active_tab == "premium":
                 spreadsheet = get_spreadsheet()
                 st.caption(f"✓ 시트 연결 OK")
 
-                # 2단계: Users 탭 확인
-                ws = spreadsheet.get_worksheet(1)
-                if ws is None:
-                    ws = spreadsheet.add_worksheet(title="Users", rows=1000, cols=6)
-                    st.caption(f"✓ Users 탭 자동 생성")
-                else:
-                    st.caption(f"✓ Users 탭 OK: {ws.title}")
+                # 2단계: Users 탭 확인 (_get_users_ws로 통일)
+                ws = _get_users_ws()
+                st.caption(f"✓ Users 탭 OK: {ws.title}")
 
                 # 3단계: 저장
                 if has_premium_apply(nickname):
