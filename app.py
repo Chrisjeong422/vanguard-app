@@ -475,9 +475,6 @@ for k, v in DEFAULTS.items():
 def korea_now() -> datetime:
     return datetime.now(ZoneInfo("Asia/Seoul"))
 
-def now_time() -> str:
-    return korea_now().strftime("%H:%M")
-
 def today_str() -> str:
     return korea_now().strftime("%Y-%m-%d")
 
@@ -576,9 +573,8 @@ def get_loss_stats(records: List[Dict[str, Any]]) -> Dict[str, Any]:
       fail_count      — 이번 달 실패 횟수
       success_count   — 이번 달 성공 횟수
       success_rate    — 성공률 (%)
-      fail_hours      — 실패로 날린 추정 시간 (회당 2시간 기준)
-      goal_loss_pct   — 목표 대비 손실 (%)
-      fail_prob       — 이 속도면 이번 달 목표 달성 실패 확률 (%)
+      fail_hours      — 실패로 날린 추정 시간 (회당 2시간 기준, heuristic)
+      fail_prob       — 현재 패턴 위험도 (%, heuristic — 정확한 예측값 아님)
       recovery_days   — 지금 streak 회복에 필요한 일수
       danger_msg      — 현재 상태 압박 메시지
     """
@@ -1307,7 +1303,7 @@ def load_admin_stats() -> Dict[str, Any]:
     try:
         rows = load_sheet_records()
         if not rows:
-            return {"total": 0, "today": 0, "users": 0, "complete_rate": 0, "top_fail": "", "emails": 0}
+            return {"total": 0, "today": 0, "users": 0, "complete_rate": 0, "top_fail": ""}
         today = today_str()
         today_rows = [r for r in rows if str(r.get("date", "")) == today]
         nicknames = {str(r.get("nickname", "")) for r in rows if r.get("nickname")}
@@ -1900,7 +1896,8 @@ reset_error()
 
 if st.query_params.get(ADMIN_PARAM) == "1":
     render_admin_page()
-    # [진입 차단] 관리자 페이지 렌더링 후 나머지 앱 실행 중단
+    # [진입 차단] 관리자 페이지 완료 후 앱 나머지 실행 중단
+    # 아래 코드는 ?admin=1 파라미터 없을 때만 실행됨
     st.stop()
 
 # =============================================================
@@ -1917,20 +1914,23 @@ if st.query_params.get(ADMIN_PARAM) == "1":
 # ── 닉네임 수집 화면 (게스트 1회 실행 후) ──
 if st.session_state.get("_show_nickname_collect"):
     render_nickname_collect()
-    # [진입 차단] 게스트 → 닉네임 수집 화면 (1회 실행 후)
+    # [진입 차단] 게스트가 1회 실행 후 닉네임 입력 화면
+    # 아래 코드는 _show_nickname_collect=False 일 때만 실행됨
     st.stop()
 
 # ── 타겟 선택 화면 (닉네임 입력 후) ──
 if st.session_state.get("_show_target_select"):
     render_target_select()
-    # [진입 차단] 닉네임 설정 후 타겟 선택 화면
+    # [진입 차단] 닉네임 확정 후 타겟(창업자/수험생/운동) 선택
+    # 아래 코드는 _show_target_select=False 일 때만 실행됨
     st.stop()
 
 # ── 닉네임 미확정 + 게스트 모드 아닌 경우에만 온보딩 표시 ──
 # 게스트 모드: nickname_confirmed=False지만 앱 진입 허용
 if not st.session_state.nickname_confirmed and not st.session_state.get("_guest_mode"):
     render_nickname_setup()
-    # [진입 차단] 닉네임 미설정 + 비게스트 → 온보딩
+    # [진입 차단] 비게스트인데 닉네임 미설정 상태 → 온보딩
+    # 아래 코드는 nickname_confirmed=True 일 때만 실행됨
     st.stop()
 
 # ── 데이터 로드 ──
@@ -2037,14 +2037,37 @@ render_tab_nav(active_tab)
 # =========================================================
 
 # ──────────────────────── 홈 ────────────────────────
+# =============================================================
+# HOME TAB
+# 수정 시 주의사항:
+# - 분기 더 늘리지 말 것 (현재도 충분히 복잡함)
+# - session_state 신규 키는 반드시 DEFAULTS에 먼저 선언
+# - 실패/완료 후 상태 플래그 중첩 금지
+# =============================================================
 if active_tab == "home":
 
     if GENAI_IMPORT_ERROR:
         st.info(TXT["fallback_ai"])
 
-    # 시간대별 긴급도 배너 — 하루 3회 트리거 구조
+    # ── 첫 화면 구조: 헤드라인 → 시작 버튼 → 목표 입력(선택) → 나머지 ──
+    # 핵심: "입력"이 아니라 "시작"이 먼저
+    # 목표 없어도 바로 시작 가능 — 마찰 최소화
+    if not st.session_state.running and not st.session_state.goal:
+        st.markdown("""
+<div style="text-align:center; padding:16px 0 6px;">
+    <div style="font-size:1.3rem; font-weight:900; color:#F8FAFC; line-height:1.3;">
+        생각하지 말고<br>지금 시작해라
+    </div>
+    <div style="font-size:0.78rem; color:#475569; margin-top:6px;">
+        목표 없어도 됩니다. 일단 시작하면 됩니다.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # 시간대별 긴급도 배너 — 목표 있을 때만 표시 (목표 없으면 헤드라인이 대신)
     time_ctx = get_time_context()
-    st.markdown(f"""
+    if st.session_state.goal:
+        st.markdown(f"""
 <div style="padding:8px 14px; border-radius:11px; margin-bottom:10px;
             background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.18);">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:3px;">
@@ -2086,20 +2109,36 @@ if active_tab == "home":
     if today_status == "success" and streak > 0:
         render_streak_share(streak, st.session_state.goal, success_rate)
 
-    # 목표 입력 — 버튼으로 등록 (엔터 단독으로 안 되는 Streamlit 특성 보완)
+    # 목표 입력 — 선택사항. 없어도 바로 시작 가능
+    # 버튼은 항상 보임 — 조건 걸면 UX 흐름이 애매해짐
     goal_input = st.text_input(
-        TXT["goal_label"],
+        "목표 (선택사항)",
         value=st.session_state.goal,
-        placeholder=TXT["goal_placeholder"],
+        placeholder="오늘 가장 중요한 것 하나 (없어도 됩니다)",
         key="goal_text_input",
+        label_visibility="collapsed",
     )
-    if st.button("목표 설정", use_container_width=True, key="btn_set_goal", type="secondary"):
-        if goal_input.strip():
-            st.session_state.goal = goal_input.strip()
+    if st.button("목표 설정", use_container_width=True,
+                 key="btn_set_goal", type="secondary"):
+        new_goal = goal_input.strip()
+        if new_goal != st.session_state.goal:
+            st.session_state.goal = new_goal
             st.session_state.lazy_command = ""
             st.session_state.lazy_reason  = ""
             st.session_state.lazy_warning = ""
-            st.session_state["_prev_goal"] = st.session_state.goal
+            st.session_state["_prev_goal"] = new_goal
+            st.rerun()
+
+    # ── 시작 버튼 — 목표 입력 바로 아래 (입력보다 시작이 먼저) ──
+    if not st.session_state.running:
+        start_label = time_ctx["cta"]
+        if st.button(f"🚀 {start_label}", use_container_width=True,
+                     key="btn_start_top", type="primary"):
+            st.session_state.running      = True
+            st.session_state.start_time   = time.time()
+            st.session_state.current_task = command
+            st.session_state["_show_fail_select"] = False
+            st.session_state["_crisis_dismissed"] = True
             st.rerun()
 
     # 어제 vs 오늘
@@ -2284,34 +2323,46 @@ if active_tab == "home":
 <div style="padding:14px 16px; border-radius:16px; margin-bottom:10px;
             background:rgba(239,68,68,0.10); border:1px solid rgba(239,68,68,0.25);">
     <div style="font-size:0.9rem; font-weight:700; color:#FCA5A5;">
-        또 같은 이유로 무너졌다. 이번 달 실패 {current_fc}회째다.
+        지금 포기하면 오늘은 그냥 무너진 하루로 끝난다.
     </div>
     <div style="font-size:0.78rem; color:#94A3B8; margin-top:6px; line-height:1.6;">
-        지금 추정 손실 시간: <b style="color:#FCA5A5;">{loss["fail_hours"]}시간</b><br>
+        추정 손실 시간: <b style="color:#FCA5A5;">{loss["fail_hours"]}시간</b>
+        · 이번 달 {current_fc}회째<br>
         {"한 번은 괜찮다. 두 번째부터가 패턴이다." if current_fc == 1
-          else "지금 30초짜리 1개라도 시작하면 오늘은 살릴 수 있다."}
+          else "다시 시작할 수 있다. 3분만 해도 오늘은 살아난다."}
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-        # 30초 복구 미션 버튼
+        # 복구 버튼 — "다시 시작하기"가 핵심 가치
         if current_fc >= 1:
-            if st.button("⚡ 30초 복구 미션 시작", use_container_width=True,
+            if st.button("⚡ 3분만 다시 해 — 지금 바로",
+                         use_container_width=True,
                          key="btn_recovery_mission", type="primary"):
                 st.session_state.running      = True
                 st.session_state.start_time   = time.time()
-                st.session_state.current_task = "30초만 시작해라. 딱 30초."
+                st.session_state.current_task = "3분만 해라. 딱 3분. 그것만 하면 오늘은 살아난다."
                 st.session_state["_show_fail_select"]  = False
                 st.session_state["_crisis_dismissed"]  = True
                 st.rerun()
 
-        # 실패 2회 미만이어도 Premium 직접 트리거 — 결제 전환 단축
-        if not is_premium:
-            if st.button("🔥 지금 이 패턴 끊기 → Premium",
+        # Premium 유도 — 복구 버튼 아래, 실패 2회 이상일 때만
+        # 초기 유저: "다시 쓰게 만들기" 우선, 결제 유도는 그 다음
+        if not is_premium and current_fc >= 2:
+            st.markdown(f"""
+<div style="padding:12px 16px; border-radius:14px; margin-top:8px;
+            background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.18);">
+    <div style="font-size:0.8rem; color:#A5B4FC; font-weight:600; margin-bottom:4px;">
+        계속 같은 이유로 무너지고 있다면
+    </div>
+    <div style="font-size:0.74rem; color:#475569; line-height:1.6;">
+        혼자 버티기 어렵다면 — 필요할 때만 열면 됩니다.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+            if st.button("Premium 알아보기 →",
                          use_container_width=True,
                          key="btn_fail_to_premium"):
-                # fail_reason은 records에서 안전하게 가져옴
-                # dir() 방식 제거 — 예측 불가능한 스코프 의존 제거
                 last_fail = st.session_state.get("_last_fail_reason", get_top_fail_reason(records))
                 st.session_state["_fail_reason_for_premium"] = last_fail
                 st.session_state["_fail_count_for_premium"]  = current_fc
@@ -2326,16 +2377,8 @@ if active_tab == "home":
 """, unsafe_allow_html=True)
 
     if not st.session_state.running:
-        # 단일 CTA — 시작 버튼 하나만 전면에
-        start_label = time_ctx["cta"]
-        if st.button(f"🚀 {start_label}", use_container_width=True,
-                     key="btn_start", type="primary"):
-            st.session_state.running      = True
-            st.session_state.start_time   = time.time()
-            st.session_state.current_task = command
-            st.session_state["_show_fail_select"] = False
-            st.session_state["_crisis_dismissed"] = True
-            st.rerun()
+        # 시작 버튼은 위쪽 btn_start_top 하나만 사용
+        # btn_start 제거 — 중복 버튼 UX 문제 해결
 
         # refresh — 무료 제한 표시
         remaining_cmd = FREE_DAILY_CMD_LIMIT - get_daily_cmd_count()
@@ -2453,12 +2496,12 @@ if active_tab == "home":
                     # save_record()가 반환한 updated_records 기준으로 판단
                     # → API 재호출 없이 세션 버퍼 / 시트 불일치 없는 정확한 카운트
                     updated_fail_count = get_success_fail_counts(updated_records)[1]
+                    # 강제 탭 이동 제거 — 홈에서 실패 카드 + Premium CTA 노출
+                    # 강제 이동은 초기 유저에게 거슬릴 수 있음
+                    st.session_state["_show_fail_msg"] = True
                     if updated_fail_count >= 2 and not is_premium:
                         st.session_state["_fail_reason_for_premium"] = fail_reason
                         st.session_state["_fail_count_for_premium"]  = updated_fail_count
-                        st.session_state["_active_tab"] = "premium"
-                    else:
-                        st.session_state["_show_fail_msg"] = True
                     st.rerun()
 
 # ──────────────────────── 기록 ────────────────────────
@@ -2952,7 +2995,11 @@ elif active_tab == "premium":
         ③ 앱 새로고침 → Premium 즉시 열림
     </div>
     <div class="body-small" style="color:#475569; margin-top:6px;">
-        이메일을 남기면 <b style="color:#94A3B8;">실패 직전에 알림</b>을 보내드립니다 (선택)
+        이메일을 남기면 <b style="color:#94A3B8;">실패 직전에 알림</b>을 보내드립니다 (선택)<br>
+        <span style="color:#334155; font-size:0.7rem;">
+            활성화 후 새로고침하면 바로 열립니다.
+            1분 내 반영 안 되면 새로고침해주세요.
+        </span>
     </div>
 </div>
 """, unsafe_allow_html=True)
