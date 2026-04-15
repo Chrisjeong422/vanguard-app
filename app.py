@@ -464,6 +464,7 @@ DEFAULTS: Dict[str, Any] = {
     "_show_target_select": False,      # 닉네임 입력 후 타겟 선택 화면
     "target_type": "founder",          # 기본값: founder / student / fitness
     "_last_fail_reason": "",           # 마지막 실패 이유 — Premium 트리거에서 참조
+    "_show_gave_up_msg": False,        # 포기 버튼 누른 후 안내 메시지
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -871,6 +872,7 @@ WARNING: 지금 또 같은 패턴으로 실패하면 어떻게 되는지
 def generate_command(
     goal: str, streak: int, success_rate: int,
     target_type: str = "founder",  # 캐시 키에 포함 — session_state 직접 참조 금지
+    is_premium: bool = False,       # 무료/유료 톤 분기용
 ) -> Tuple[str, str, str]:
     fallback = fast_command(goal)
     client = get_genai_client()
@@ -878,7 +880,27 @@ def generate_command(
         return fallback
     target_label = TARGET_CONFIG.get(target_type, TARGET_CONFIG["founder"])["label"]
 
-    prompt = f"""
+    # Premium 여부에 따라 프롬프트 톤 분리
+    # 무료: 설명형 / 유료: 감독형 (첫날부터 체감 차이)
+    if is_premium:
+        # 유료 — 감독형. "AI가 아니라 감독" 느낌
+        prompt = f"""
+너는 행동 강제 감독 AI 'Vanguard'다.
+유저의 실패 패턴을 알고 있다. 위로 없음. 설명 없음. 명령만.
+지금 이 순간 행동하지 않으면 오늘도 무너진다는 걸 유저가 체감하게 만들어라.
+
+유저 유형: {target_label}
+목표: {goal or '미입력'}
+streak: {streak}일 / 성공률: {success_rate}%
+
+다음 형식만 출력 (명령형, 직접적, 유저를 "너"로 호칭):
+COMMAND: 너가 지금 당장 해야 할 행동 1개 (강하게, 구체적으로)
+REASON: 지금 안 하면 생기는 손실 (팩트로)
+WARNING: 너 지금 또 같은 패턴 반복하고 있다 (직접적으로)
+"""
+    else:
+        # 무료 — 설명형. 부드럽지만 실행 유도
+        prompt = f"""
 너는 행동 통제 AI 'Vanguard'다.
 위로 금지. 공감 금지. 오직 실행 강제.
 사용자가 지금 이 순간 행동하게 만드는 것이 유일한 목표다.
@@ -1986,6 +2008,7 @@ if st.session_state.command_ready:
                     streak=streak,
                     success_rate=success_rate,
                     target_type=st.session_state.get("target_type", "founder"),
+                    is_premium=is_premium,
                 )
             increment_daily_cmd_count()
             st.session_state.lazy_command = command
@@ -2319,24 +2342,35 @@ if active_tab == "home":
         current_fc = get_success_fail_counts(records)[1]
         loss       = get_loss_stats(records)
 
+        # 연속 실패 압박 — 횟수에 따라 메시지 강도 달라짐
+        if current_fc == 1:
+            fail_headline = "지금 포기하면 오늘은 그냥 무너진 하루로 끝난다."
+            fail_sub = "한 번은 괜찮다. 두 번째부터가 패턴이다."
+        elif current_fc <= 3:
+            fail_headline = f"이번 달 {current_fc}번째다. 지금 패턴 반복 중이다."
+            fail_sub = "같은 이유로 계속 무너지고 있다. 지금 끊지 않으면 오늘도 끝난다."
+        else:
+            fail_headline = f"오늘 {current_fc}번 무너졌다. 완전히 무너지고 있다."
+            fail_sub = "이 패턴 그대로 가면 이번 달도 똑같이 끝난다. 지금이 마지막 기회다."
+
         st.markdown(f"""
 <div style="padding:14px 16px; border-radius:16px; margin-bottom:10px;
             background:rgba(239,68,68,0.10); border:1px solid rgba(239,68,68,0.25);">
     <div style="font-size:0.9rem; font-weight:700; color:#FCA5A5;">
-        지금 포기하면 오늘은 그냥 무너진 하루로 끝난다.
+        {fail_headline}
     </div>
     <div style="font-size:0.78rem; color:#94A3B8; margin-top:6px; line-height:1.6;">
         추정 손실 시간: <b style="color:#FCA5A5;">{loss["fail_hours"]}시간</b>
-        · 이번 달 {current_fc}회째<br>
-        {"한 번은 괜찮다. 두 번째부터가 패턴이다." if current_fc == 1
-          else "다시 시작할 수 있다. 3분만 해도 오늘은 살아난다."}
+        · {fail_sub}
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-        # 복구 버튼 — "다시 시작하기"가 핵심 가치
-        if current_fc >= 1:
-            if st.button("⚡ 3분만 다시 해 — 지금 바로",
+        # 선택지 강제 — [지금 시작] / [오늘 포기] 두 가지만
+        # 닫기 없음 — 뇌가 결정을 강제당하는 구조
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            if st.button("⚡ 지금 시작",
                          use_container_width=True,
                          key="btn_recovery_mission", type="primary"):
                 st.session_state.running      = True
@@ -2345,6 +2379,25 @@ if active_tab == "home":
                 st.session_state["_show_fail_select"]  = False
                 st.session_state["_crisis_dismissed"]  = True
                 st.rerun()
+        with col_r2:
+            if st.button("오늘은 포기",
+                         use_container_width=True,
+                         key="btn_give_up"):
+                st.session_state["_show_fail_msg"] = False
+                st.session_state["_crisis_dismissed"] = True
+                st.session_state["_show_gave_up_msg"] = True
+                st.rerun()
+
+    # 포기 후 안내 — 내일 다시 오게 만드는 장치
+    if st.session_state.pop("_show_gave_up_msg", False):
+        st.markdown("""
+<div style="padding:10px 14px; border-radius:12px; margin-bottom:8px;
+            background:rgba(100,116,139,0.10); border:1px solid rgba(100,116,139,0.20);
+            font-size:0.78rem; color:#64748B; text-align:center;">
+    오늘 기록은 실패로 저장됐습니다.<br>
+    <span style="color:#475569;">내일 다시 시작하면 됩니다.</span>
+</div>
+""", unsafe_allow_html=True)
 
         # Premium 유도 — 복구 버튼 아래, 실패 2회 이상일 때만
         # 초기 유저: "다시 쓰게 만들기" 우선, 결제 유도는 그 다음
@@ -3022,17 +3075,8 @@ elif active_tab == "premium":
         st.caption("신청서 제출 + 입금 완료 후 아래 버튼을 눌러주세요.")
         if st.button("✅ 신청 및 입금 완료했습니다", use_container_width=True,
                      key="btn_premium_apply"):
-            # 단계별 디버그 — 실패 지점 정확히 표시
+            # 디버그 문구 제거 — 출시판
             try:
-                # 1단계: 시트 연결 확인
-                spreadsheet = get_spreadsheet()
-                st.caption(f"✓ 시트 연결 OK")
-
-                # 2단계: Users 탭 확인 (_get_users_ws로 통일)
-                ws = _get_users_ws()
-                st.caption(f"✓ Users 탭 OK: {ws.title}")
-
-                # 3단계: 저장
                 if has_premium_apply(nickname):
                     get_user_premium_status.clear()
                     st.rerun()
@@ -3046,11 +3090,9 @@ elif active_tab == "premium":
                         get_user_premium_status.clear()
                         st.rerun()
                     else:
-                        err = st.session_state.get("last_error", "알 수 없는 오류")
-                        st.error(f"저장 실패: {err}")
-            except Exception as e:
-                st.error(f"연결 실패: {type(e).__name__}: {str(e)}")
-                st.caption("위 에러 내용을 캡처해서 알려주세요.")
+                        st.error("잠시 후 다시 시도해주세요.")
+            except Exception:
+                st.error("잠시 후 다시 시도해주세요.")
 
     # 운영 안내 (공통)
     st.markdown(f"""
