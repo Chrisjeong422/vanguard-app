@@ -1680,8 +1680,7 @@ def get_today_complete_count() -> int:
     except Exception:
         return 0
 
-@st.cache_data(ttl=30)
-def load_admin_stats() -> Dict[str, Any]:
+def load_admin_stats() -> Dict[str, Any]:  # 캐시 없음 — 관리자는 항상 최신
     try:
         rows = load_sheet_records()
         # Records 없어도 Users는 반드시 읽음 — early return 제거
@@ -1749,6 +1748,11 @@ def render_admin_page() -> None:
             else:
                 st.error("틀렸습니다.")
         st.stop()
+    # 관리자 데이터 새로고침
+    col_title, col_refresh = st.columns([3, 1])
+    with col_refresh:
+        if st.button("🔄 새로고침", key="btn_admin_refresh", use_container_width=True):
+            st.rerun()
     stats = load_admin_stats()
 
     # ── 디버그: Users 시트 원본 확인 ──
