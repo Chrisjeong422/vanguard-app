@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Tuple
 from collections import defaultdict
 
 import calendar
+import uuid
 import streamlit as st
 
 # =========================================================
@@ -441,12 +442,9 @@ DEFAULTS: Dict[str, Any] = {
     "lazy_reason": "",
     "lazy_warning": "",
     "command_ready": False,
-    "_show_complete_msg": False,
-    "_show_fail_msg": False,
     "_show_fail_select": False,
     "_header_ensured": False,
     "_users_header_ensured": False,
-    "_prev_goal": "",
     "nickname": "",
     "nickname_confirmed": False,
     "_admin_authed": False,
@@ -465,6 +463,12 @@ DEFAULTS: Dict[str, Any] = {
     "target_type": "founder",          # 기본값: founder / student / fitness
     "_last_fail_reason": "",           # 마지막 실패 이유 — Premium 트리거에서 참조
     "_show_gave_up_msg": False,        # 포기 버튼 누른 후 안내 메시지
+    # ── 미션 시스템 ──
+    "today_mission": "",               # 오늘의 핵심 미션 1개
+    "today_mission_date": "",          # 미션 설정 날짜 (날짜 변경 시 자동 초기화)
+    "_show_completion_insight": False, # 완료 후 인사이트 화면
+    "_show_fail_insight": False,       # 실패 후 인사이트 화면
+    "_save_failed": False,             # 시트 저장 실패 플래그 — UI 안내용
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -793,12 +797,123 @@ def can_generate_command(is_premium: bool) -> bool:
         return True
     return get_daily_cmd_count() < FREE_DAILY_CMD_LIMIT
 
+# =========================================================
+# PREMIUM CTA 헬퍼 — 실패 횟수 기반 메시지 (13번 정리)
+# =========================================================
+def get_premium_cta(fail_count: int) -> Tuple[str, str, str]:
+    """실패 횟수 기반 Premium 유도 메시지 반환 (title, body, color)"""
+    if fail_count >= 5:
+        return (
+            f"이번 달 {fail_count}번째다. 혼자로는 안 된다.",
+            "같은 이유로 계속 무너지는 건 의지 문제가 아니다. 패턴이다. 지금 분석 안 하면 다음 달도 똑같이 끝난다.",
+            "#FCA5A5",
+        )
+    elif fail_count >= 3:
+        return (
+            f"이번 달 {fail_count}번 같은 패턴이다.",
+            "두 번은 우연, 세 번은 패턴이다. Premium으로 원인 찾아야 한다.",
+            "#FCD34D",
+        )
+    else:
+        return (
+            "같은 이유로 또 실패했다.",
+            "분석 안 하면 계속 반복된다. Premium으로 패턴 끊어.",
+            "#A5B4FC",
+        )
+
 def fast_command(goal: str) -> Tuple[str, str, str]:
     return (
         f"지금 '{goal or '핵심 작업'}' 2분만 해라. 지금 당장.",
         "2분만 넘기면 흐름이 붙는다. 시작이 전부다.",
         "지금 안 하면 오늘은 끝이다. 내일도 똑같이 미룬다.",
     )
+
+# =========================================================
+# 미션 시스템 헬퍼
+# =========================================================
+def get_today_mission() -> str:
+    """오늘 미션 반환 (날짜 변경 시 자동 초기화)"""
+    today = today_str()
+    if st.session_state.get("today_mission_date", "") != today:
+        st.session_state["today_mission"] = ""
+        st.session_state["today_mission_date"] = today
+        return ""
+    return st.session_state.get("today_mission", "")
+
+def set_today_mission(mission: str) -> None:
+    """오늘 미션 설정"""
+    st.session_state["today_mission"] = mission.strip()
+    st.session_state["today_mission_date"] = today_str()
+
+def get_completion_insight(records: List[Dict[str, Any]], streak: int, mission: str) -> Dict[str, str]:
+    """완료 인사이트 — 같은 요일 실패 기록 기반 개인화"""
+    today = korea_now().date()
+    weekday_name = ["월", "화", "수", "목", "금", "토", "일"][today.weekday()]
+
+    same_weekday_fails = 0
+    for r in records:
+        try:
+            d = datetime.strptime(str(r.get("date", "")), "%Y-%m-%d").date()
+            if d.weekday() == today.weekday() and not record_to_bool_done(r):
+                same_weekday_fails += 1
+        except Exception:
+            pass
+
+    if same_weekday_fails > 0:
+        headline = f"{weekday_name}요일에 해냈다. 항상 무너지던 날이었다."
+        sub = f"같은 요일에 {same_weekday_fails}번 실패했는데 오늘은 끊었다. 패턴이 깨졌다."
+    else:
+        headline = f"해냈다. 연속 {streak}일."
+        sub = f"내일도 이 시간에 다시 와라. {streak + 1}일을 만드는 건 지금부터다."
+
+    return {
+        "headline": headline,
+        "sub": sub,
+        "streak": str(streak),
+    }
+
+def get_fail_pattern_insight(records: List[Dict[str, Any]], fail_reason: str, mission: str) -> Dict[str, str]:
+    """실패 패턴 인사이트 — 같은 이유 반복 횟수 + 위험 시간대"""
+    today = korea_now().date()
+    month_start = today.replace(day=1).strftime("%Y-%m-%d")
+
+    same_reason_count = sum(
+        1 for r in records
+        if str(r.get("date", "")) >= month_start
+        and not record_to_bool_done(r)
+        and str(r.get("fail_reason", "")).strip() == fail_reason.strip()
+    )
+
+    fail_times = []
+    for r in records:
+        if not record_to_bool_done(r) and r.get("time"):
+            try:
+                h = int(str(r.get("time", ""))[11:13])
+                fail_times.append(h)
+            except Exception:
+                pass
+
+    safe_zone = ""
+    if fail_times:
+        morning = sum(1 for h in fail_times if h < 12)
+        afternoon = sum(1 for h in fail_times if 12 <= h < 18)
+        evening = sum(1 for h in fail_times if h >= 18)
+        peak = max([("오전", morning), ("오후", afternoon), ("저녁", evening)], key=lambda x: x[1])
+        safe_zone = {"오전": "저녁에 시도해보자", "오후": "아침 일찍 해보자", "저녁": "오전 중에 해보자"}[peak[0]]
+
+    if same_reason_count == 1:
+        pattern_msg = f"'{fail_reason}' 패턴이 시작되고 있다."
+    elif same_reason_count == 2:
+        pattern_msg = f"두 번은 패턴의 시작이다. '{fail_reason}'."
+    else:
+        pattern_msg = f"'{fail_reason}'으로 이번 달 {same_reason_count}번째다."
+
+    return {
+        "pattern_msg": pattern_msg,
+        "fix_msg": f"같은 이유로 반복되고 있다. {safe_zone}.",
+        "warning": "지금 이 패턴을 끊지 않으면 내일도 같은 방식으로 끝난다.",
+        "same_reason_count": str(same_reason_count),
+    }
 
 # =========================================================
 # GEMINI
@@ -1045,12 +1160,22 @@ def get_spreadsheet():
         else client.open(SHEET_NAME)
     )
 
+SHEET_HEADER = ["time", "date", "nickname", "task", "done", "fail_reason", "source", "record_id"]
+
 def ensure_sheet_header() -> None:
+    """헤더 보장 — 빈 시트는 생성, 기존 7컬럼 시트는 8컬럼으로 마이그레이션"""
     if st.session_state.get("_header_ensured"):
         return
     sheet = get_sheet()
-    if not sheet.get_all_values():
-        sheet.append_row(["time", "date", "nickname", "task", "done", "fail_reason", "source"])
+    values = sheet.get_all_values()
+    if not values:
+        # 빈 시트 — 헤더 생성
+        sheet.append_row(SHEET_HEADER)
+    else:
+        header = values[0]
+        if len(header) < len(SHEET_HEADER):
+            # 기존 7컬럼 → 8컬럼 마이그레이션 (record_id 추가)
+            sheet.update("A1:H1", [SHEET_HEADER])
     st.session_state["_header_ensured"] = True
 
 USERS_HEADER = ["time", "nickname", "email", "goal", "type", "is_premium"]
@@ -1136,6 +1261,7 @@ def save_record(
     - DAU 100명+ 시: Supabase로 이전 (시트 병목 발생 시)
     """
     nickname = st.session_state.get("nickname", "anonymous")
+    record_id = uuid.uuid4().hex  # 충돌 없는 고유 ID — 중복 저장 방지용
     row = {
         "time": korea_now().strftime("%Y-%m-%d %H:%M"),
         "date": today_str(),
@@ -1144,6 +1270,7 @@ def save_record(
         "done": str(done),
         "fail_reason": fail_reason,
         "source": source,
+        "record_id": record_id,   # 중복 저장 방지용 식별자
         "synced": False,
     }
 
@@ -1164,22 +1291,27 @@ def save_record(
         sheet.append_row([
             row["time"], row["date"], row["nickname"],
             row["task"], row["done"], row["fail_reason"], row["source"],
+            row.get("record_id", ""),   # 중복 방지용 — 시트 H열
         ])
         row["synced"] = True
         load_sheet_records.clear()
         get_today_complete_count.clear()
-        st.session_state.records.append(row)
-        # 저장 성공: session_state.records가 시트 + 신규 row = 최신 상태
-        return True, list(st.session_state.records)
+        # 저장 성공 후 시트 기준 재동기화 — 세션+시트 혼합 원천 해소
+        updated, _ = load_records(nickname=nickname)
+        return True, updated
     except Exception as e:
         set_error(f"Sheet save failed: {e}")
         # 시트 실패 fallback: 세션에만 저장
         st.session_state.records.append(row)
+        st.session_state["_save_failed"] = True   # 저장 실패 플래그 — UI에서 안내
         return False, list(st.session_state.records)
 
 def save_nickname_signup(nickname: str) -> bool:
     try:
         ensure_users_header()
+        # 저장 직전 중복 체크 — 레이스 컨디션 방어
+        if is_nickname_taken(nickname):
+            return False
         ws = _get_users_ws()
         ws.append_row([
             korea_now().strftime("%Y-%m-%d %H:%M"),
@@ -1295,7 +1427,12 @@ def activate_premium(nickname: str) -> bool:
         return False
 
 def save_premium_apply(nickname: str, email: str, goal: str) -> bool:
-    """Premium 신청 정보 저장 (입금 전 신청 단계)"""
+    """
+    Premium 신청 정보 저장 — MVP 수준 자기신고형
+    ⚠️ 현재: 신청 접수 시스템 (실제 자동 결제 검증 아님)
+    관리자가 입금 확인 후 수동 승인 → activate_premium() 호출
+    나중에: 토스페이먼츠/Stripe 웹훅으로 자동 검증 전환 예정
+    """
     try:
         ensure_users_header()
         ws = _get_users_ws()
@@ -1421,12 +1558,33 @@ def render_admin_page() -> None:
     if not apply_list:
         st.caption("신청자 없음")
     else:
-        for item in apply_list:
-            nick    = item["nickname"]
-            email   = item["email"]
-            t       = item["time"]
-            active  = item["active"].strip().lower() in {"true","1","yes"}
-            status  = "✅ 활성" if active else "⏳ 대기 중"
+        # 필터 + 닉네임 검색
+        f_col1, f_col2 = st.columns([1, 1])
+        with f_col1:
+            filter_opt = st.radio(
+                "필터", ["전체", "대기 중만", "활성만"],
+                horizontal=True, label_visibility="collapsed",
+            )
+        with f_col2:
+            search_nick = st.text_input(
+                "닉네임 검색", placeholder="검색...",
+                label_visibility="collapsed",
+            )
+
+        filtered = [
+            (item, item["active"].strip().lower() in {"true","1","yes"})
+            for item in apply_list
+            if not (filter_opt == "대기 중만" and item["active"].strip().lower() in {"true","1","yes"})
+            and not (filter_opt == "활성만" and item["active"].strip().lower() not in {"true","1","yes"})
+            and (not search_nick.strip() or search_nick.strip().lower() in item["nickname"].lower())
+        ]
+        st.caption(f"총 {len(apply_list)}명 · 표시 {len(filtered)}명")
+
+        for item, active in filtered:
+            nick   = item["nickname"]
+            email  = item["email"]
+            t      = item["time"]
+            status = "✅ 활성" if active else "⏳ 대기 중"
             with st.container():
                 col_info, col_btn = st.columns([3, 1])
                 with col_info:
@@ -1440,7 +1598,7 @@ def render_admin_page() -> None:
                                 st.success(f"{nick} Premium 활성화 완료")
                                 st.rerun()
                             else:
-                                st.error("활성화 실패. 시트를 확인하세요.")
+                                st.error("활성화 실패.")
                 st.divider()
 
     st.caption("30초 캐시 · 새로고침하면 최신 데이터")
@@ -1484,12 +1642,15 @@ def render_nickname_setup() -> None:
         elif is_nickname_taken(name):
             st.error("이미 사용 중인 닉네임입니다.")
         else:
-            st.session_state.nickname = name
-            st.session_state.nickname_confirmed = True
-            st.session_state["_show_target_select"] = True  # 타겟 선택으로 이동
-            save_nickname_signup(name)
-            get_taken_nicknames.clear()
-            st.rerun()
+            ok = save_nickname_signup(name)
+            if not ok:
+                st.error("닉네임 저장에 실패했습니다. 잠시 후 다시 시도해주세요.")
+            else:
+                st.session_state.nickname = name
+                st.session_state.nickname_confirmed = True
+                st.session_state["_show_target_select"] = True
+                get_taken_nicknames.clear()
+                st.rerun()
 
 # =========================================================
 # 타겟 선택 컴포넌트
@@ -1638,27 +1799,33 @@ def render_nickname_collect() -> None:
                     if row.get("nickname") == "guest":
                         row["nickname"] = name
 
+                ok = save_nickname_signup(name)
+                if not ok:
+                    st.error("닉네임 저장에 실패했습니다. 잠시 후 다시 시도해주세요.")
+                    return  # early exit zone 외부 — st.stop() 대신 return
                 st.session_state.nickname = name
                 st.session_state.nickname_confirmed = True
                 st.session_state["_guest_mode"] = False
                 st.session_state["_show_nickname_collect"] = False
-                st.session_state["_show_target_select"] = True  # 타겟 선택으로 이동
-                save_nickname_signup(name)
+                st.session_state["_show_target_select"] = True
                 get_taken_nicknames.clear()
 
                 # synced=False인 기록만 시트에 저장 → 중복 저장 방지
-                # ensure_sheet_header() 먼저 호출 — 빈 시트에서 헤더 누락 방지
                 try:
                     ensure_sheet_header()
                     sheet = get_sheet()
                     for row in st.session_state.records:
                         if (row.get("nickname") == name
                                 and not row.get("synced", True)):
+                            # row에 record_id 없으면 확정 후 저장
+                            if not row.get("record_id"):
+                                row["record_id"] = uuid.uuid4().hex
                             sheet.append_row([
                                 row["time"], row["date"], row["nickname"],
                                 row["task"], row["done"],
                                 row.get("fail_reason", ""),
                                 row.get("source", "control"),
+                                row["record_id"],
                             ])
                             row["synced"] = True  # 저장 완료 표시
                     load_sheet_records.clear()
@@ -1706,6 +1873,114 @@ def render_tab_nav(active: str) -> None:
 # - 페이지에 진입할 때만 경과 시간 업데이트
 # - 사용자에게 "집중 중" 상태를 보여주는 것이 목적
 # =========================================================
+# =========================================================
+# 미션 화면 렌더 함수
+# =========================================================
+def render_mission_input_screen() -> None:
+    """미션 입력 화면 — 첫 화면처럼 강하게"""
+    st.markdown("""
+<div style="text-align:center; padding:32px 0 20px;">
+    <div style="font-size:2.2rem; margin-bottom:12px;">⚡</div>
+    <div style="font-size:1.4rem; font-weight:900; color:#F8FAFC; line-height:1.35;">
+        오늘 뭘 끝낼 거야?
+    </div>
+    <div style="font-size:0.8rem; color:#475569; margin-top:8px; line-height:1.6;">
+        1개만. 이것만 끝내면 오늘은 성공이다.<br>
+        생각하지 말고 바로 써라.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    mission_input = st.text_input(
+        "미션",
+        placeholder="예: 앱 로그인 기능 구현",
+        label_visibility="collapsed",
+    )
+
+    if st.button("🚀 이것이 오늘의 미션이다",
+                 use_container_width=True, type="primary", key="btn_set_mission"):
+        mission = mission_input.strip()
+        if not mission:
+            st.warning("미션을 입력해주세요.")
+        elif len(mission) < 3:
+            st.warning("좀 더 구체적으로 입력해주세요.")
+        else:
+            set_today_mission(mission)
+            st.rerun()
+
+    st.caption("미션을 정하는 것 자체가 이미 시작이다.")
+
+    # 이번 달 목표 — 한 줄 노출, 선택사항
+    goal_input = st.text_input(
+        "이번 달 목표도 있나요? (선택)",
+        value=st.session_state.goal,
+        placeholder="예: 4월 안에 앱 출시",
+    )
+    if goal_input.strip() != st.session_state.goal:
+        st.session_state.goal = goal_input.strip()
+        st.session_state.lazy_command = ""
+
+def render_mission_ready_screen(mission: str, goal: str) -> None:
+    """미션 확인 + 시작 대기 화면"""
+    # tcfg 불필요 — goal_pain은 get_goal_matched_pain()으로 처리
+    st.markdown(f"""
+<div class="command-card">
+    <div class="section-label">오늘의 미션</div>
+    <div class="strong-title">{html.escape(mission)}</div>
+    {f'<div class="body-small" style="margin-top:4px;">목표: {html.escape(goal)}</div>' if goal else ''}
+</div>
+""", unsafe_allow_html=True)
+
+    goal_pain, goal_pain_sub = get_goal_matched_pain(goal)
+    st.markdown(f"""
+<div class="warning-card">
+    <div style="font-size:0.9rem; font-weight:900; color:#FCA5A5;">
+        {html.escape(goal_pain)}
+    </div>
+    <div class="body-small" style="margin-top:4px;">{html.escape(goal_pain_sub)}</div>
+</div>
+""", unsafe_allow_html=True)
+
+def render_completion_screen(mission: str, insight: Dict[str, str], streak: int) -> None:
+    """완료 인사이트 화면"""
+    st.markdown(f"""
+<div class="success-card" style="padding:20px 16px; text-align:center;">
+    <div style="font-size:1.6rem; margin-bottom:8px;">🔥</div>
+    <div class="strong-title" style="margin-top:0;">
+        {html.escape(insight["headline"])}
+    </div>
+    <div class="body-small" style="margin-top:6px;">
+        {html.escape(insight["sub"])}
+    </div>
+    <div style="margin-top:12px; padding-top:10px;
+                border-top:1px solid rgba(255,255,255,0.06);
+                font-size:0.75rem; color:#475569;">
+        미션: {html.escape(mission)}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+def render_fail_insight_screen(mission: str, insight: Dict[str, str]) -> None:
+    """실패 인사이트 화면"""
+    st.markdown(f"""
+<div class="warning-card">
+    <div style="font-size:0.9rem; font-weight:700; color:#FCA5A5;">
+        {html.escape(insight["pattern_msg"])}
+    </div>
+    <div class="body-small" style="margin-top:6px; color:#86EFAC;">
+        💡 {html.escape(insight["fix_msg"])}
+    </div>
+    <div class="body-small" style="margin-top:4px; color:#FCA5A5;">
+        {html.escape(insight["warning"])}
+    </div>
+    <div style="margin-top:10px; padding-top:8px;
+                border-top:1px solid rgba(255,255,255,0.06);
+                font-size:0.75rem; color:#475569;">
+        미션: {html.escape(mission)}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 def render_focus_card(elapsed: int, task: str) -> None:
     elapsed_text = elapsed_to_text(elapsed)
 
@@ -1916,6 +2191,57 @@ def render_monthly_calendar(
 # =========================================================
 reset_error()
 
+# ── 저장 실패 레코드 재시도 — 홈 진입 시 자동 복구 ──
+def retry_unsynced_records() -> None:
+    """synced=False 레코드를 시트에 재전송 시도"""
+    if not st.session_state.get("_save_failed"):
+        return
+    if st.session_state.get("_guest_mode") or not st.session_state.get("nickname_confirmed"):
+        return
+    try:
+        ensure_sheet_header()
+        sheet = get_sheet()
+        # 기존 시트 record_id 목록 조회 — 중복 방지
+        existing_ids: set = set()
+        try:
+            all_rows = load_sheet_records()
+            existing_ids = {str(r.get("record_id", "")) for r in all_rows if r.get("record_id")}
+        except Exception:
+            pass
+
+        retried = 0
+        for row in st.session_state.records:
+            if not row.get("synced", True):
+                rid = row.get("record_id", "")
+                if rid and rid in existing_ids:
+                    # 이미 시트에 있음 — 중복 skip
+                    row["synced"] = True
+                    continue
+                sheet.append_row([
+                    row["time"], row["date"], row["nickname"],
+                    row["task"], row["done"],
+                    row.get("fail_reason", ""),
+                    row.get("source", "control"),
+                    rid,
+                ])
+                row["synced"] = True
+                retried += 1
+                if rid:
+                    existing_ids.add(rid)  # 루프 내 중복 방지 갱신
+        if retried > 0:
+            load_sheet_records.clear()
+        # unsynced row가 하나도 없으면 복구 완료 (중복 skip 포함)
+        all_synced = not any(
+            not row.get("synced", True)
+            for row in st.session_state.records
+        )
+        if all_synced:
+            st.session_state["_save_failed"] = False
+    except Exception:
+        pass  # 재시도 실패 시 조용히 넘김 — 다음 진입 시 다시 시도
+
+retry_unsynced_records()
+
 if st.query_params.get(ADMIN_PARAM) == "1":
     render_admin_page()
     # [진입 차단] 관리자 페이지 완료 후 앱 나머지 실행 중단
@@ -1976,8 +2302,7 @@ else:
     premium_status = get_user_premium_status(nickname)
 is_premium = premium_status == "active"
 is_applied = premium_status == "applied"
-st.session_state["_is_premium"]      = is_premium
-st.session_state["_premium_applied"] = is_applied
+# is_premium, is_applied는 로컬 변수로 사용 (세션 캐시 불필요)
 success_count, fail_count = get_success_fail_counts(records)
 success_rate      = get_success_rate(records)
 # 게스트는 시트 조회 없이 0 처리 — 사회적 증거 배너는 닉네임 유저 기준
@@ -2061,313 +2386,132 @@ render_tab_nav(active_tab)
 
 # ──────────────────────── 홈 ────────────────────────
 # =============================================================
-# HOME TAB
-# 수정 시 주의사항:
-# - 분기 더 늘리지 말 것 (현재도 충분히 복잡함)
-# - session_state 신규 키는 반드시 DEFAULTS에 먼저 선언
-# - 실패/완료 후 상태 플래그 중첩 금지
+# =============================================================
+# HOME TAB — 완전한 상태 머신
+# home_mode로 단독 화면 제어 — 화면 중첩 없음
+# 수정 시 주의:
+#   - 각 elif 블록은 독립적 화면. 아래로 fall-through 없음
+#   - 신규 session_state 키는 DEFAULTS에 먼저 선언
+#   - st.stop() 허용 구역:
+#       1) ENTRY POINT (admin gate, nickname gate 등 early exit)
+#       2) render_admin_page() 내부 (비밀번호 미인증 시)
+#       3) Premium 게스트 차단 분기
+#     위 3곳 외에는 st.stop() 사용 금지
 # =============================================================
 if active_tab == "home":
 
     if GENAI_IMPORT_ERROR:
         st.info(TXT["fallback_ai"])
 
-    # ── 첫 화면 구조: 헤드라인 → 시작 버튼 → 목표 입력(선택) → 나머지 ──
-    # 핵심: "입력"이 아니라 "시작"이 먼저
-    # 목표 없어도 바로 시작 가능 — 마찰 최소화
-    if not st.session_state.running and not st.session_state.goal:
+    today_mission = get_today_mission()
+    time_ctx      = get_time_context()
+    tcfg          = get_target_config()
+    loss          = get_loss_stats(records)
+
+    # ── 저장 실패 안내 — 복구 전까지 플래그 유지 (pop 아닌 get)
+    # retry_unsynced_records() 성공 시에만 False로 바뀜
+    if st.session_state.get("_save_failed"):
         st.markdown("""
-<div style="text-align:center; padding:16px 0 6px;">
-    <div style="font-size:1.3rem; font-weight:900; color:#F8FAFC; line-height:1.3;">
-        생각하지 말고<br>지금 시작해라
-    </div>
-    <div style="font-size:0.78rem; color:#475569; margin-top:6px;">
-        목표 없어도 됩니다. 일단 시작하면 됩니다.
-    </div>
+<div style="padding:8px 14px; border-radius:10px; margin-bottom:8px;
+            background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.20);
+            font-size:0.75rem; color:#FCD34D; text-align:center;">
+    ⚠️ 임시 저장됨 — 재시도 중입니다
 </div>
 """, unsafe_allow_html=True)
 
-    # 시간대별 긴급도 배너 — 목표 있을 때만 표시 (목표 없으면 헤드라인이 대신)
-    time_ctx = get_time_context()
-    if st.session_state.goal:
-        st.markdown(f"""
-<div style="padding:8px 14px; border-radius:11px; margin-bottom:10px;
-            background:rgba(239,68,68,0.07); border:1px solid rgba(239,68,68,0.18);">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:3px;">
-        <span style="font-size:0.68rem; color:#64748B; font-weight:600;">
-            {time_ctx["label"]}
-        </span>
-    </div>
-    <span style="font-size:0.78rem; color:#FCA5A5; font-weight:700; line-height:1.5;">
-        {html.escape(time_ctx["pressure"])}
-    </span>
-</div>
-""", unsafe_allow_html=True)
+    # ── home_mode 결정 — 단 하나의 모드만 활성 ──
+    # 플래그 읽기 → 모드 결정 → 렌더 후 명시적 초기화 순서로 분리
+    _completion_flag = st.session_state.get("_show_completion_insight", False)
+    _fail_flag       = st.session_state.get("_show_fail_insight", False)
 
-    # Premium 활성 배지
-    if is_premium:
-        st.markdown("""
-<div style="padding:6px 14px; border-radius:10px; margin-bottom:10px;
-            background:linear-gradient(90deg,rgba(99,102,241,0.20),rgba(56,189,248,0.12));
-            border:1px solid rgba(99,102,241,0.35);
-            font-size:0.75rem; color:#C7D2FE; font-weight:700; text-align:center;">
-    ⚡ Premium 활성 · 패턴 교정 모드
-</div>
-""", unsafe_allow_html=True)
+    if _completion_flag:
+        home_mode = "completion"
+        st.session_state["_show_completion_insight"] = False  # 명시적 초기화
+    elif _fail_flag:
+        home_mode = "fail_insight"
+        st.session_state["_show_fail_insight"] = False        # 명시적 초기화
+    elif st.session_state.running:
+        home_mode = "running"
+    elif not today_mission:
+        home_mode = "mission_input"
+    else:
+        home_mode = "mission_ready"
 
-    # 사회적 증거 — 10명 이상일 때만
-    if today_complete >= SOCIAL_PROOF_MIN:
-        st.markdown(f"""
-<div class="social-proof">
-    오늘 <b>{today_complete}명</b>이 목표를 실행했습니다
-</div>
-""", unsafe_allow_html=True)
-
-    # Streak 위기 — tcfg를 먼저 로드 후 전달 (NameError 방지)
-    tcfg = get_target_config()
-    if today_status == "none" and streak >= 3 and not st.session_state.running:
-        render_streak_crisis(streak, tcfg)
-
-    # Streak 공유
-    if today_status == "success" and streak > 0:
+    # =========================================================
+    # 모드 1: 완료 인사이트 (단독 화면)
+    # =========================================================
+    if home_mode == "completion":
+        insight = get_completion_insight(records, streak, today_mission)
+        render_completion_screen(today_mission, insight, streak)
         render_streak_share(streak, st.session_state.goal, success_rate)
 
-    # 목표 입력 — 선택사항. 없어도 바로 시작 가능
-    # 버튼은 항상 보임 — 조건 걸면 UX 흐름이 애매해짐
-    goal_input = st.text_input(
-        "목표 (선택사항)",
-        value=st.session_state.goal,
-        placeholder="오늘 가장 중요한 것 하나 (없어도 됩니다)",
-        key="goal_text_input",
-        label_visibility="collapsed",
-    )
-    if st.button("목표 설정", use_container_width=True,
-                 key="btn_set_goal", type="secondary"):
-        new_goal = goal_input.strip()
-        if new_goal != st.session_state.goal:
-            st.session_state.goal = new_goal
-            st.session_state.lazy_command = ""
-            st.session_state.lazy_reason  = ""
-            st.session_state.lazy_warning = ""
-            st.session_state["_prev_goal"] = new_goal
-            st.rerun()
-
-    # ── 시작 버튼 — 목표 입력 바로 아래 (입력보다 시작이 먼저) ──
-    if not st.session_state.running:
-        start_label = time_ctx["cta"]
-        if st.button(f"🚀 {start_label}", use_container_width=True,
-                     key="btn_start_top", type="primary"):
-            st.session_state.running      = True
-            st.session_state.start_time   = time.time()
-            st.session_state.current_task = command
-            st.session_state["_show_fail_select"] = False
-            st.session_state["_crisis_dismissed"] = True
-            st.rerun()
-
-    # 어제 vs 오늘
-    render_yesterday_vs_today(records, today_status)
-
-    # 현실 점검 — fail_count에 따라 강도 달라짐
-    # tcfg는 이미 위 streak 위기 배너에서 정의됨 (재사용)
-    loss = get_loss_stats(records)
-
-    if fail_count >= 3:
-        pain_extra = f'<div class="body-small" style="color:#FCA5A5; margin-top:6px; font-weight:700;">이번 달 실패 {fail_count}회. 패턴이 굳어지고 있다.</div>'
-    elif fail_count >= 1:
-        pain_extra = f'<div class="body-small" style="color:#FCD34D; margin-top:6px;">이번 달 실패 {fail_count}회. 두 번째부터가 패턴이다.</div>'
-    else:
-        pain_extra = ""
-
-    # 손실 지표 인라인 추가
-    if loss["total_count"] >= 1:
-        rate_color = "#86EFAC" if loss["success_rate"] >= 80 else                      "#FCD34D" if loss["success_rate"] >= 50 else "#FCA5A5"
-        loss_inline = f"""
-<div style="display:flex; gap:12px; margin-top:10px; padding-top:10px;
-            border-top:1px solid rgba(255,255,255,0.06);">
-    <div style="text-align:center; flex:1;">
-        <div style="font-size:1.1rem; font-weight:900; color:{rate_color};">
-            {loss["success_rate"]}%
-        </div>
-        <div style="font-size:0.65rem; color:#475569;">이달 실행률</div>
-    </div>
-    <div style="text-align:center; flex:1;">
-        <div style="font-size:1.1rem; font-weight:900; color:#FCA5A5;">
-            {loss["fail_hours"]}h
-        </div>
-        <div style="font-size:0.65rem; color:#475569;">추정 손실 시간</div>
-    </div>
-    <div style="text-align:center; flex:1;">
-        <div style="font-size:1.1rem; font-weight:900; color:#FCA5A5;">
-            {loss["fail_prob"]}%
-        </div>
-        <div style="font-size:0.65rem; color:#475569;">현재 패턴 위험도</div>
-    </div>
-</div>"""
-    else:
-        loss_inline = ""
-
-    # 목표 텍스트 기반 압박 문구 — 세션 target_type이 아닌 실제 목표에 맞게
-    goal_pain, goal_pain_sub = get_goal_matched_pain(st.session_state.goal)
-
-    st.markdown(f"""
-<div class="warning-card">
-    <div style="font-size:1rem; font-weight:900; color:#FCA5A5;">
-        {html.escape(goal_pain)}
-    </div>
-    <div class="body-small" style="margin-top:6px;">
-        {html.escape(goal_pain_sub)}
-    </div>
-    {pain_extra}
-    {loss_inline}
+        # streak별 인센티브 메시지
+        if not is_premium:
+            if streak == 0 or streak == 1:
+                # 첫 완료 — 3일 도전 유도
+                st.markdown(f"""
+<div style="padding:12px 16px; border-radius:14px; margin-top:6px;
+            background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.20);
+            font-size:0.78rem; color:#A5B4FC; text-align:center; line-height:1.6;">
+    🎯 <b>3일 연속 완료하면 Premium 첫 달 할인 혜택</b><br>
+    <span style="color:#475569;">내일도 같은 시간에 와라. 2일 남았다.</span>
+</div>
+""", unsafe_allow_html=True)
+            elif streak == 2:
+                st.markdown(f"""
+<div style="padding:12px 16px; border-radius:14px; margin-top:6px;
+            background:rgba(99,102,241,0.10); border:1px solid rgba(99,102,241,0.28);
+            font-size:0.78rem; color:#A5B4FC; text-align:center; line-height:1.6;">
+    🎯 <b>내일 하면 Premium 첫 달 할인 대상</b><br>
+    <span style="color:#C7D2FE;">딱 하루 남았다. 내일 오면 된다.</span>
+</div>
+""", unsafe_allow_html=True)
+            elif streak == 3:
+                st.markdown(f"""
+<div style="padding:12px 16px; border-radius:14px; margin-top:6px;
+            background:rgba(34,197,94,0.10); border:1px solid rgba(34,197,94,0.28);
+            font-size:0.78rem; color:#86EFAC; text-align:center; line-height:1.6;">
+    🔥 <b>3일 달성! Premium 첫 달 할인 대상입니다</b><br>
+    <span style="color:#475569;">Premium 탭에서 신청 시 할인 혜택을 받으세요.</span>
 </div>
 """, unsafe_allow_html=True)
 
-    # Premium 전용 — 오늘 위험도 배지
-    if is_premium and records:
-        hour = korea_now().hour
-        # 가장 자주 실패하는 시간대를 간단히 추정 (오전/오후/저녁)
-        fail_times = [
-            str(r.get("time","")) for r in records
-            if not record_to_bool_done(r) and r.get("time")
-        ]
-        if fail_times:
-            # 시간대별 실패 분포
-            morning = sum(1 for t in fail_times if t[11:13].isdigit() and int(t[11:13]) < 12)
-            afternoon = sum(1 for t in fail_times if t[11:13].isdigit() and 12 <= int(t[11:13]) < 18)
-            evening = sum(1 for t in fail_times if t[11:13].isdigit() and int(t[11:13]) >= 18)
-            peak_zone = max(
-                [("오전", morning), ("오후", afternoon), ("저녁", evening)],
-                key=lambda x: x[1]
-            )
-            in_danger = (
-                (peak_zone[0] == "오전"   and hour < 12) or
-                (peak_zone[0] == "오후"   and 12 <= hour < 18) or
-                (peak_zone[0] == "저녁"   and hour >= 18)
-            )
-            danger_color = "#FCA5A5" if in_danger else "#86EFAC"
-            danger_text  = f"⚠️ 지금이 네가 가장 자주 무너지는 시간대다" if in_danger else f"✓ 지금은 상대적으로 안전한 시간대"
-            st.markdown(f"""
-<div style="padding:8px 14px; border-radius:10px; margin-bottom:8px;
-            background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07);
-            display:flex; align-items:center; gap:8px;">
-    <span style="font-size:0.75rem; color:{danger_color}; font-weight:700;">
-        ⚡ PREMIUM · {danger_text}
-    </span>
+        st.markdown("---")
+        if is_guest:
+            st.markdown("""
+<div style="padding:10px 14px; border-radius:12px; margin-bottom:8px;
+            background:rgba(99,102,241,0.10); border:1px solid rgba(99,102,241,0.25);
+            font-size:0.78rem; color:#A5B4FC; text-align:center;">
+    이 streak은 저장 전까지 사라집니다.<br>
+    <b style="color:#C7D2FE;">닉네임을 만들면 영구 보관됩니다.</b>
 </div>
 """, unsafe_allow_html=True)
-
-    # 명령 카드 — Premium이면 라벨 다르게
-    cmd_label = "⚡ 패턴 교정 명령" if is_premium else "지금 해야 할 것"
-    st.markdown(f"""
-<div class="command-card">
-    <div class="section-label">{cmd_label}</div>
-    <div class="strong-title">{html.escape(command)}</div>
-    <div class="body-small">{html.escape(reason)}</div>
-    <div class="body-small" style="color:#FCA5A5;">{html.escape(warning)}</div>
-</div>
-""", unsafe_allow_html=True)
-
-    # 상태 카드
-    today_label = {
-        "success": TXT["today_success"],
-        "fail":    TXT["today_fail"],
-        "none":    TXT["today_none"],
-    }[today_status]
-
-    st.markdown(f"""
-<div class="card">
-    <div class="metric-grid">
-        <div class="metric">
-            <div class="metric-label">Streak</div>
-            <div class="metric-value">{streak}</div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">성공률</div>
-            <div class="metric-value">{success_rate}%</div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">오늘</div>
-            <div class="metric-value" style="font-size:0.76rem;">{today_label}</div>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-    if today_status == "none" and 0 < streak < 3:
-        st.markdown(f"""
-<div class="warning-card">
-    <div class="body-small" style="color:#FCA5A5;font-weight:700;">{TXT['streak_warning']}</div>
-</div>
-""", unsafe_allow_html=True)
-
-    # 완료 메시지 → 다음 행동 유도
-    if st.session_state.pop("_show_complete_msg", False):
-        current_sc = get_success_fail_counts(records)[0]
-        loss       = get_loss_stats(records)
-        hour       = korea_now().hour
-
-        # 시간대별 다음 행동 메시지
-        if hour < 12:
-            next_action = "오후에 한 번 더 열어봐라. 하루 2번이 패턴을 만든다."
-        elif hour < 18:
-            next_action = "저녁 전에 한 번 더 확인해라. 오늘 마무리가 내일을 결정한다."
+            if st.button("⚡ 이 streak 저장하기 →", use_container_width=True,
+                         key="btn_completion_home", type="primary"):
+                st.session_state["_show_nickname_collect"] = True
+                st.rerun()
+            if st.button("나중에 저장", use_container_width=True,
+                         key="btn_completion_skip"):
+                st.session_state["today_mission"]      = ""
+                st.session_state["today_mission_date"] = ""
+                st.rerun()
         else:
-            next_action = "내일 오전에 다시 열어라. 같은 시간에 오는 게 streak을 만든다."
+            if st.button("홈으로", use_container_width=True, key="btn_completion_home"):
+                st.session_state["today_mission"]      = ""
+                st.session_state["today_mission_date"] = ""
+                st.rerun()
 
-        st.markdown(f"""
-<div class="success-card" style="padding:16px;">
-    <div style="font-size:1rem; font-weight:900; color:#86EFAC;">
-        {html.escape(tcfg["complete"])}
-    </div>
-    <div style="font-size:0.78rem; color:#475569; margin-top:8px; line-height:1.6;">
-        이번 달 성공 {current_sc}회 · 실행률 {loss["success_rate"]}%<br>
-        <span style="color:#94A3B8;">{next_action}</span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    # =========================================================
+    # 모드 2: 실패 인사이트 (단독 화면)
+    # =========================================================
+    elif home_mode == "fail_insight":
+        fail_reason = st.session_state.get("_last_fail_reason", "")
+        insight = get_fail_pattern_insight(records, fail_reason, today_mission)
+        render_fail_insight_screen(today_mission, insight)
+        st.markdown("---")
 
-        # streak 공유 버튼 — 다음날 재방문 + 바이럴 구조
-        if streak >= 2:
-            share_text = f"🔥 {streak}일 연속 실행 중 — Vanguard로 패턴 끊는 중"
-            st.markdown(f"""
-<div style="padding:8px 14px; border-radius:12px; margin-top:6px;
-            background:rgba(134,239,172,0.08); border:1px solid rgba(134,239,172,0.20);
-            font-size:0.75rem; color:#86EFAC; text-align:center;">
-    🔥 {streak}일 streak 달성 — 내일도 이어가면 패턴이 된다
-</div>
-""", unsafe_allow_html=True)
-
-    # 실패 메시지 — fail_count 1회만 (2회 이상은 Premium 탭으로 이동)
-    if st.session_state.pop("_show_fail_msg", False):
+        # 실패 직후 복구 버튼
         current_fc = get_success_fail_counts(records)[1]
-        loss       = get_loss_stats(records)
-
-        # 연속 실패 압박 — 횟수에 따라 메시지 강도 달라짐
-        if current_fc == 1:
-            fail_headline = "지금 포기하면 오늘은 그냥 무너진 하루로 끝난다."
-            fail_sub = "한 번은 괜찮다. 두 번째부터가 패턴이다."
-        elif current_fc <= 3:
-            fail_headline = f"이번 달 {current_fc}번째다. 지금 패턴 반복 중이다."
-            fail_sub = "같은 이유로 계속 무너지고 있다. 지금 끊지 않으면 오늘도 끝난다."
-        else:
-            fail_headline = f"오늘 {current_fc}번 무너졌다. 완전히 무너지고 있다."
-            fail_sub = "이 패턴 그대로 가면 이번 달도 똑같이 끝난다. 지금이 마지막 기회다."
-
-        st.markdown(f"""
-<div style="padding:14px 16px; border-radius:16px; margin-bottom:10px;
-            background:rgba(239,68,68,0.10); border:1px solid rgba(239,68,68,0.25);">
-    <div style="font-size:0.9rem; font-weight:700; color:#FCA5A5;">
-        {fail_headline}
-    </div>
-    <div style="font-size:0.78rem; color:#94A3B8; margin-top:6px; line-height:1.6;">
-        추정 손실 시간: <b style="color:#FCA5A5;">{loss["fail_hours"]}시간</b>
-        · {fail_sub}
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
-        # 선택지 강제 — [지금 시작] / [오늘 포기] 두 가지만
-        # 닫기 없음 — 뇌가 결정을 강제당하는 구조
         col_r1, col_r2 = st.columns(2)
         with col_r1:
             if st.button("⚡ 지금 시작",
@@ -2383,14 +2527,15 @@ if active_tab == "home":
             if st.button("오늘은 포기",
                          use_container_width=True,
                          key="btn_give_up"):
-                st.session_state["_show_fail_msg"] = False
-                st.session_state["_crisis_dismissed"] = True
-                st.session_state["_show_gave_up_msg"] = True
+                st.session_state["_crisis_dismissed"]  = True
+                st.session_state["_show_gave_up_msg"]  = True
+                if is_guest:
+                    # 게스트: 포기 후 닉네임 수집으로 유도
+                    st.session_state["_show_nickname_collect"] = True
                 st.rerun()
 
-    # 포기 후 안내 — 내일 다시 오게 만드는 장치
-    if st.session_state.pop("_show_gave_up_msg", False):
-        st.markdown("""
+        if st.session_state.pop("_show_gave_up_msg", False):
+            st.markdown("""
 <div style="padding:10px 14px; border-radius:12px; margin-bottom:8px;
             background:rgba(100,116,139,0.10); border:1px solid rgba(100,116,139,0.20);
             font-size:0.78rem; color:#64748B; text-align:center;">
@@ -2399,81 +2544,43 @@ if active_tab == "home":
 </div>
 """, unsafe_allow_html=True)
 
-        # Premium 유도 — 복구 버튼 아래, 실패 2회 이상일 때만
-        # 초기 유저: "다시 쓰게 만들기" 우선, 결제 유도는 그 다음
+        # Premium 유도 — get_premium_cta() 함수로 분리
         if not is_premium and current_fc >= 2:
+            fail_cta_title, fail_cta_body, fail_cta_color = get_premium_cta(current_fc)
+
             st.markdown(f"""
-<div style="padding:12px 16px; border-radius:14px; margin-top:8px;
-            background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.18);">
-    <div style="font-size:0.8rem; color:#A5B4FC; font-weight:600; margin-bottom:4px;">
-        계속 같은 이유로 무너지고 있다면
+<div style="padding:14px 16px; border-radius:16px; margin-top:10px;
+            background:rgba(99,102,241,0.10); border:1.5px solid rgba(99,102,241,0.28);">
+    <div style="font-size:0.88rem; font-weight:900; color:{fail_cta_color}; margin-bottom:6px;">
+        {fail_cta_title}
     </div>
-    <div style="font-size:0.74rem; color:#475569; line-height:1.6;">
-        혼자 버티기 어렵다면 — 필요할 때만 열면 됩니다.
+    <div style="font-size:0.78rem; color:#94A3B8; line-height:1.6;">
+        {fail_cta_body}
+    </div>
+    <div style="font-size:0.72rem; color:#475569; margin-top:8px;">
+        ₩{PREMIUM_PRICE:,}/월 · 지금 패턴 분석 시작
     </div>
 </div>
 """, unsafe_allow_html=True)
-            if st.button("Premium 알아보기 →",
+            if st.button("⚡ 지금 패턴 끊기 → Premium",
                          use_container_width=True,
-                         key="btn_fail_to_premium"):
+                         key="btn_fail_to_premium", type="primary"):
                 last_fail = st.session_state.get("_last_fail_reason", get_top_fail_reason(records))
                 st.session_state["_fail_reason_for_premium"] = last_fail
                 st.session_state["_fail_count_for_premium"]  = current_fc
                 st.session_state["_active_tab"] = "premium"
                 st.rerun()
 
-    # 액션
-    st.markdown(f"""
-<div style="text-align:center; margin:10px 0 8px;">
-    <div style="font-size:0.8rem; color:#FCA5A5; font-weight:700;">{TXT['action_motivate']}</div>
-</div>
-""", unsafe_allow_html=True)
-
-    if not st.session_state.running:
-        # 시작 버튼은 위쪽 btn_start_top 하나만 사용
-        # btn_start 제거 — 중복 버튼 UX 문제 해결
-
-        # refresh — 무료 제한 표시
-        remaining_cmd = FREE_DAILY_CMD_LIMIT - get_daily_cmd_count()
-        if is_premium:
-            refresh_label = TXT["refresh"]
-        elif remaining_cmd > 0:
-            refresh_label = "↻ 새 명령 (오늘 추가 가능)"
-        else:
-            refresh_label = "🔒 오늘 무료 명령 종료"
-
-        if st.button(refresh_label, use_container_width=True,
-                     key="btn_refresh", type="secondary"):
-            if not is_premium and remaining_cmd <= 0:
-                # 제한 도달 — 강한 메시지 후 Premium 탭 이동
-                st.session_state["_fail_reason_for_premium"] = "AI 명령 일일 제한 도달"
-                st.session_state["_active_tab"] = "premium"
-            else:
-                st.session_state.command_ready = True
-            st.rerun()
-
-        # 명령 소진 시 배너 표시
-        if not is_premium and remaining_cmd <= 0:
-            st.markdown("""
-<div class="warning-card" style="text-align:center; padding:12px 16px; margin-top:6px;">
-    <div style="font-size:0.82rem; color:#FCA5A5; font-weight:700;">
-        오늘 무료 명령이 모두 사용됐습니다<br>
-        <span style="color:#94A3B8; font-weight:400;">
-            Premium은 무제한 개인화 명령을 제공합니다
-        </span>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-    else:
-        # 타이머: 페이지 진입 시 경과 시간 표시 (실시간 갱신 없음 — MVP)
-        # sleep/rerun 제거 — 완료/실패 버튼 상호작용 보호
+    # =========================================================
+    # 모드 3: 실행 중 (단독 화면)
+    # =========================================================
+    elif home_mode == "running":
         elapsed = int(time.time() - st.session_state.start_time)
         render_focus_card(elapsed, st.session_state.current_task)
 
         col1, col2 = st.columns(2)
         with col1:
             if st.button(TXT["complete"], use_container_width=True, key="btn_complete"):
-                # 게스트: 세션 records에만 저장 (시트 저장은 닉네임 설정 후)
                 if is_guest:
                     st.session_state.records.append({
                         "time": korea_now().strftime("%Y-%m-%d %H:%M"),
@@ -2483,19 +2590,22 @@ if active_tab == "home":
                         "done": "True",
                         "fail_reason": "",
                         "source": "control",
-                        "synced": False,   # 시트 저장 전 플래그
+                        "record_id": uuid.uuid4().hex,
+                        "synced": False,
                     })
                     st.session_state.running      = False
                     st.session_state.current_task = ""
-                    st.session_state["_show_nickname_collect"] = True
+                    # 게스트: 인사이트 먼저 보여준 뒤 닉네임 수집
+                    st.session_state["_show_completion_insight"] = True
+                    st.session_state["_show_nickname_collect"]   = False  # 인사이트 후 수집
                     st.rerun()
                 else:
                     _ok, _updated = save_record(st.session_state.current_task, True)
                     st.session_state.running      = False
                     st.session_state.current_task = ""
-                    st.session_state["_show_fail_select"]  = False
-                    st.session_state["_crisis_dismissed"]  = False
-                    st.session_state["_show_complete_msg"] = True
+                    st.session_state["_show_fail_select"]        = False
+                    st.session_state["_crisis_dismissed"]        = False
+                    st.session_state["_show_completion_insight"] = True
                     st.rerun()
         with col2:
             if st.button(TXT["fail"], use_container_width=True, key="btn_fail"):
@@ -2518,7 +2628,6 @@ if active_tab == "home":
             )
             if st.button("실패 기록하기", use_container_width=True, key="btn_fail_confirm"):
                 if is_guest:
-                    # 게스트: 세션에만 저장 후 닉네임 수집
                     st.session_state.records.append({
                         "time": korea_now().strftime("%Y-%m-%d %H:%M"),
                         "date": today_str(),
@@ -2527,40 +2636,222 @@ if active_tab == "home":
                         "done": "False",
                         "fail_reason": fail_reason,
                         "source": "control",
-                        "synced": False,   # 시트 저장 전 플래그
+                        "record_id": uuid.uuid4().hex,
+                        "synced": False,
                     })
-                    st.session_state.running      = False
-                    st.session_state.current_task = ""
-                    st.session_state["_show_fail_select"]  = False
-                    st.session_state["_show_nickname_collect"] = True
+                    st.session_state["_last_fail_reason"]      = fail_reason
+                    st.session_state.running                    = False
+                    st.session_state.current_task               = ""
+                    st.session_state["_show_fail_select"]       = False
+                    st.session_state["_show_fail_insight"]      = True
                     st.rerun()
                 else:
                     _ok, updated_records = save_record(
                         st.session_state.current_task, False, fail_reason
                     )
-                    # 마지막 실패 이유 저장 — Premium 트리거 버튼에서 안전하게 참조
                     st.session_state["_last_fail_reason"] = fail_reason
-                    st.session_state.running      = False
-                    st.session_state.current_task = ""
-                    st.session_state["_show_fail_select"]  = False
-                    st.session_state["_crisis_dismissed"]  = False
+                    st.session_state.running              = False
+                    st.session_state.current_task         = ""
+                    st.session_state["_show_fail_select"] = False
+                    st.session_state["_show_fail_insight"]= True
 
-                    # 실패 2회 이상 & 비 Premium → 즉시 Premium 탭으로 강제 이동
-                    # save_record()가 반환한 updated_records 기준으로 판단
-                    # → API 재호출 없이 세션 버퍼 / 시트 불일치 없는 정확한 카운트
                     updated_fail_count = get_success_fail_counts(updated_records)[1]
-                    # 강제 탭 이동 제거 — 홈에서 실패 카드 + Premium CTA 노출
-                    # 강제 이동은 초기 유저에게 거슬릴 수 있음
-                    st.session_state["_show_fail_msg"] = True
                     if updated_fail_count >= 2 and not is_premium:
                         st.session_state["_fail_reason_for_premium"] = fail_reason
                         st.session_state["_fail_count_for_premium"]  = updated_fail_count
                     st.rerun()
 
+    # =========================================================
+    # 모드 4: 미션 입력 (단독 화면)
+    # =========================================================
+    elif home_mode == "mission_input":
+        render_mission_input_screen()
+
+        # 하단 상태 카드만 추가 (정보 제공용)
+        if records:
+            st.divider()
+            st.markdown(f"""
+<div class="card">
+    <div class="metric-grid">
+        <div class="metric">
+            <div class="metric-label">Streak</div>
+            <div class="metric-value">{streak}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">성공률</div>
+            <div class="metric-value">{success_rate}%</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">오늘</div>
+            <div class="metric-value" style="font-size:0.76rem;">
+                {"✅" if today_status == "success" else "❌" if today_status == "fail" else "⬜"}
+            </div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    # =========================================================
+    # 모드 5: 미션 준비됨 (단독 화면)
+    # =========================================================
+    elif home_mode == "mission_ready":
+        # streak 3일 달성 → Premium 첫 달 할인 배너
+        if not is_premium and streak == 3:
+            st.markdown(f"""
+<div style="padding:10px 14px; border-radius:12px; margin-bottom:10px;
+            background:rgba(34,197,94,0.10); border:1px solid rgba(34,197,94,0.28);
+            font-size:0.78rem; color:#86EFAC; text-align:center;">
+    🔥 3일 달성! Premium 첫 달 할인 혜택 대상<br>
+    <span style="color:#475569; font-size:0.72rem;">Premium 탭 → 신청하기</span>
+</div>
+""", unsafe_allow_html=True)
+
+        # Premium 배지
+        if is_premium:
+            st.markdown("""
+<div style="padding:6px 14px; border-radius:10px; margin-bottom:10px;
+            background:linear-gradient(90deg,rgba(99,102,241,0.20),rgba(56,189,248,0.12));
+            border:1px solid rgba(99,102,241,0.35);
+            font-size:0.75rem; color:#C7D2FE; font-weight:700; text-align:center;">
+    ⚡ Premium 활성 · 패턴 교정 모드
+</div>
+""", unsafe_allow_html=True)
+
+        # 사회적 증거
+        if today_complete >= SOCIAL_PROOF_MIN:
+            st.markdown(f"""
+<div class="social-proof">
+    오늘 <b>{today_complete}명</b>이 목표를 실행했습니다
+</div>
+""", unsafe_allow_html=True)
+
+        # streak 위기
+        if today_status == "none" and streak >= 3:
+            render_streak_crisis(streak, tcfg)
+
+        # 미션 준비 화면
+        render_mission_ready_screen(today_mission, st.session_state.goal)
+
+        # 시작 버튼
+        if st.button(f"🚀 {time_ctx['cta']}",
+                     use_container_width=True,
+                     key="btn_start_top", type="primary"):
+            st.session_state.running      = True
+            st.session_state.start_time   = time.time()
+            st.session_state.current_task = today_mission
+            st.session_state["_show_fail_select"] = False
+            st.session_state["_crisis_dismissed"] = True
+            st.rerun()
+
+        # 새 명령 생성 버튼 (미션이 있어도 AI 보조 명령 요청 가능)
+        remaining_cmd = FREE_DAILY_CMD_LIMIT - get_daily_cmd_count()
+        if is_premium:
+            refresh_label = "↻ AI 보조 명령 생성"
+        elif remaining_cmd > 0:
+            refresh_label = f"↻ AI 보조 명령 ({remaining_cmd}회 남음)"
+        else:
+            refresh_label = "🔒 오늘 무료 명령 종료"
+
+        if st.button(refresh_label, use_container_width=True,
+                     key="btn_refresh", type="secondary"):
+            if not is_premium and remaining_cmd <= 0:
+                st.session_state["_active_tab"] = "premium"
+            else:
+                st.session_state.command_ready = True
+            st.rerun()
+
+        # AI 보조 명령 카드 — 생성된 경우에만 표시
+        # 미션이 메인, AI 명령은 보조
+        if st.session_state.lazy_command:
+            st.markdown(f"""
+<div class="command-card">
+    <div class="section-label">AI 보조 명령</div>
+    <div class="strong-title">{html.escape(command)}</div>
+    <div class="body-small">{html.escape(reason)}</div>
+    <div class="body-small" style="color:#FCA5A5;">{html.escape(warning)}</div>
+</div>
+""", unsafe_allow_html=True)
+
+        render_yesterday_vs_today(records, today_status)
+
+        # 손실 지표
+        goal_pain, goal_pain_sub = get_goal_matched_pain(st.session_state.goal)
+        if fail_count >= 3:
+            pain_extra = f'<div class="body-small" style="color:#FCA5A5; margin-top:6px; font-weight:700;">이번 달 실패 {fail_count}회. 패턴이 굳어지고 있다.</div>'
+        elif fail_count >= 1:
+            pain_extra = f'<div class="body-small" style="color:#FCD34D; margin-top:6px;">이번 달 실패 {fail_count}회. 두 번째부터가 패턴이다.</div>'
+        else:
+            pain_extra = ""
+
+        if loss["total_count"] >= 1:
+            rate_color = "#86EFAC" if loss["success_rate"] >= 80 else "#FCD34D" if loss["success_rate"] >= 50 else "#FCA5A5"
+            loss_inline = f"""
+<div style="display:flex; gap:12px; margin-top:10px; padding-top:10px;
+            border-top:1px solid rgba(255,255,255,0.06);">
+    <div style="text-align:center; flex:1;">
+        <div style="font-size:1.1rem; font-weight:900; color:{rate_color};">{loss["success_rate"]}%</div>
+        <div style="font-size:0.65rem; color:#475569;">이달 실행률</div>
+    </div>
+    <div style="text-align:center; flex:1;">
+        <div style="font-size:1.1rem; font-weight:900; color:#FCA5A5;">{loss["fail_hours"]}h</div>
+        <div style="font-size:0.65rem; color:#475569;">추정 손실 시간</div>
+    </div>
+    <div style="text-align:center; flex:1;">
+        <div style="font-size:1.1rem; font-weight:900; color:#FCA5A5;">{loss["fail_prob"]}%</div>
+        <div style="font-size:0.65rem; color:#475569;">현재 패턴 위험도</div>
+    </div>
+</div>"""
+        else:
+            loss_inline = ""
+
+        st.markdown(f"""
+<div class="warning-card">
+    <div style="font-size:1rem; font-weight:900; color:#FCA5A5;">
+        {html.escape(goal_pain)}
+    </div>
+    <div class="body-small" style="margin-top:6px;">
+        {html.escape(goal_pain_sub)}
+    </div>
+    {pain_extra}
+    {loss_inline}
+</div>
+""", unsafe_allow_html=True)
+
+        # 하단 상태 카드
+        st.markdown(f"""
+<div class="card">
+    <div class="metric-grid">
+        <div class="metric">
+            <div class="metric-label">Streak</div>
+            <div class="metric-value">{streak}</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">성공률</div>
+            <div class="metric-value">{success_rate}%</div>
+        </div>
+        <div class="metric">
+            <div class="metric-label">오늘</div>
+            <div class="metric-value" style="font-size:0.76rem;">
+                {"✅" if today_status == "success" else "❌" if today_status == "fail" else "⬜"}
+            </div>
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 # ──────────────────────── 기록 ────────────────────────
 elif active_tab == "record":
     st.markdown('<div class="section-label" style="margin-bottom:10px;">최근 기록</div>',
                 unsafe_allow_html=True)
+
+    # 저장 실패 안내 — get으로 읽기만 (홈 탭에서 pop으로 초기화)
+    if st.session_state.get("_save_failed"):
+        st.markdown("""
+<div style="padding:8px 14px; border-radius:10px; margin-bottom:8px;
+            background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.20);
+            font-size:0.75rem; color:#FCD34D; text-align:center;">
+    ⚠️ 일부 기록이 임시 저장됨 — 새로고침하면 시트에 반영됩니다
+</div>
+""", unsafe_allow_html=True)
 
     # 게스트 안내
     if is_guest:
@@ -2698,6 +2989,7 @@ elif active_tab == "analysis":
     </div>
 </div>
 """, unsafe_allow_html=True)
+        st.caption("위 수치는 행동 기록 기반 단순 추정치입니다. 실측 예측이 아닙니다.")
 
         # 복귀 난이도 표시 (실패가 있을 때)
         if loss["fail_count"] > 0:
@@ -2848,11 +3140,8 @@ elif active_tab == "premium":
                      key="guest_premium_home"):
             st.session_state["_active_tab"] = "home"
             st.rerun()
-        # [진입 차단] 게스트는 Premium 탭 이후 내용 렌더링 중단
-        st.stop()
-
     # ── 이미 Premium 활성화된 사용자 ──
-    if is_premium:
+    elif is_premium:
         st.markdown(f"""
 <div class="success-card" style="text-align:center; padding:24px 16px;">
     <div style="font-size:1.8rem; margin-bottom:8px;">⚡</div>
@@ -2888,16 +3177,42 @@ elif active_tab == "premium":
     # ── 결제 진행 중 (신청 완료 후) ──
     elif is_applied:
         st.markdown(f"""
-<div class="card" style="text-align:center; padding:24px 16px;">
-    <div style="font-size:1.8rem; margin-bottom:8px;">⏳</div>
-    <div class="strong-title" style="margin-top:0;">{TXT['premium_applied_title']}</div>
-    <div class="body-small" style="margin-top:8px; white-space:pre-line;">
-        {TXT['premium_applied_body']}
+<div class="card" style="padding:20px 16px;">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+        <div style="font-size:1.6rem;">⏳</div>
+        <div>
+            <div class="strong-title" style="margin-top:0; font-size:0.95rem;">
+                신청 완료 · 활성화 대기 중
+            </div>
+            <div style="font-size:0.72rem; color:#475569; margin-top:2px;">
+                입금 확인 후 수동 승인됩니다
+            </div>
+        </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; align-items:center; gap:8px; font-size:0.78rem; color:#86EFAC;">
+            ✓ <span>신청서 제출 완료</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:0.78rem; color:#FCD34D;">
+            ◎ <span>입금 확인 대기 중 (보통 1~3시간)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; font-size:0.78rem; color:#475569;">
+            ○ <span>Premium 활성화</span>
+        </div>
+    </div>
+    <div style="font-size:0.72rem; color:#334155; margin-top:10px; padding-top:10px;
+                border-top:1px solid rgba(255,255,255,0.05);">
+        활성화 후 최대 1분 내 반영됩니다. 바로 안 보이면 새로고침해주세요.
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-        # 결제 미완료 시 다시 결제 버튼 제공
+        # 수동 새로고침 — 캐시 TTL 60초 UX 개선
+        if st.button("🔄 활성화 확인하기", use_container_width=True,
+                     key="btn_premium_refresh"):
+            get_user_premium_status.clear()
+            st.rerun()
+
         st.markdown(f"""
 <div class="card" style="text-align:center; padding:16px;">
     <div class="body-small" style="color:#475569; margin-bottom:10px;">
@@ -3051,7 +3366,7 @@ elif active_tab == "premium":
         이메일을 남기면 <b style="color:#94A3B8;">실패 직전에 알림</b>을 보내드립니다 (선택)<br>
         <span style="color:#334155; font-size:0.7rem;">
             활성화 후 새로고침하면 바로 열립니다.
-            1분 내 반영 안 되면 새로고침해주세요.
+            활성화 후 최대 1분 내 반영됩니다. 바로 안 보이면 새로고침해주세요.
         </span>
     </div>
 </div>
