@@ -1751,6 +1751,22 @@ def render_admin_page() -> None:
         st.stop()
     stats = load_admin_stats()
 
+    # ── 디버그: Users 시트 원본 확인 ──
+    with st.expander("🔍 Users 시트 원본 데이터 (디버그)", expanded=False):
+        try:
+            ws_debug = _get_users_ws()
+            raw = ws_debug.get_all_values()
+            st.write(f"총 {len(raw)}행 (헤더 포함)")
+            if raw:
+                st.write("헤더:", raw[0])
+                st.write(f"데이터 {len(raw)-1}행:")
+                for row in raw[1:]:
+                    st.write(row)
+            else:
+                st.warning("Users 시트가 완전히 비어 있습니다")
+        except Exception as e:
+            st.error(f"Users 시트 읽기 실패: {e}")
+
     # ── 핵심 지표 ──
     c1, c2, c3 = st.columns(3)
     c1.metric("전체 실행", stats["total"])
@@ -1801,6 +1817,21 @@ def render_admin_page() -> None:
         st.caption(f"퍼널: 진입 {funnel['visit']} → 미션시작 {funnel['start']} → 완료 {funnel['complete']} → Premium클릭 {funnel['premium_click']} → 신청 {funnel['payment']}")
     except Exception:
         pass
+
+    # Users 시트 원본 디버그 패널
+    if st.checkbox("🔍 Users 시트 원본 보기 (디버그)", value=False):
+        try:
+            ws_debug = _get_users_ws()
+            raw = ws_debug.get_all_values()
+            st.write(f"총 {len(raw)}행 (헤더 포함)")
+            if raw:
+                st.write("헤더:", raw[0])
+                for idx, row in enumerate(raw[1:], 1):
+                    st.write(f"행 {idx}:", row)
+            else:
+                st.warning("Users 탭이 완전히 비어 있습니다.")
+        except Exception as e:
+            st.error(f"Users 탭 읽기 실패: {e}")
 
     st.markdown("**Premium 신청자 목록**")
     apply_list = stats.get("apply_list", [])
