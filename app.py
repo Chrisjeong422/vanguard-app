@@ -2734,12 +2734,16 @@ active_tab = st.session_state.get("_active_tab", "home")
 # =========================================================
 flame = '<span class="flame">🔥</span>' if streak >= 3 else "🔥"
 nick_display = "게스트" if is_guest else html.escape(nickname)
-nick_color = "#FCD34D" if is_guest else "#334155"
-st.markdown(f"""
+nick_color = "#FCD34D" if is_guest else "#94A3B8"
+
+# 헤더 + 로그아웃
+header_col, logout_col = st.columns([4, 1])
+with header_col:
+    st.markdown(f"""
 <div style="display:flex; align-items:center; justify-content:space-between;
             padding:10px 2px 12px;
             border-bottom:1px solid rgba(255,255,255,0.05);
-            margin-bottom:12px;">
+            margin-bottom:4px;">
     <div>
         <div style="font-size:1.08rem; font-weight:900; color:#F8FAFC;
                     letter-spacing:-0.03em;">⚡ Vanguard</div>
@@ -2752,6 +2756,15 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+with logout_col:
+    if not is_guest:
+        st.markdown("<div style='padding-top:10px;'></div>", unsafe_allow_html=True)
+        if st.button("로그아웃", key="btn_logout", use_container_width=True):
+            # 세션 초기화 + URL 파라미터 제거
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.query_params.clear()
+            st.rerun()
 
 # ── 탭 네비게이션 (단일 레이어) ──
 render_tab_nav(active_tab)
