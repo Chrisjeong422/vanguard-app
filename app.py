@@ -3726,23 +3726,23 @@ elif active_tab == "premium":
         if st.button("✅ 입금 완료했습니다", use_container_width=True,
                      key="btn_premium_apply"):
             try:
-                if has_premium_apply(nickname):
+                # 캐시 무효화 후 신청 저장 시도
+                get_user_premium_status.clear()
+                ok = save_premium_apply(
+                    nickname=nickname,
+                    email=email_input.strip() if email_input.strip() and "@" in email_input else "",
+                    goal=st.session_state.goal,
+                )
+                if ok:
+                    log_event(nickname, "apply_premium")
+                    st.success("신청이 완료됐습니다. 입금 확인 후 1~3시간 내 활성화됩니다.")
                     get_user_premium_status.clear()
                     st.rerun()
                 else:
-                    ok = save_premium_apply(
-                        nickname=nickname,
-                        email=email_input.strip() if email_input.strip() and "@" in email_input else "",
-                        goal=st.session_state.goal,
-                    )
-                    if ok:
-                        log_event(nickname, "apply_premium")
-                        get_user_premium_status.clear()
-                        st.rerun()
-                    else:
-                        st.error("잠시 후 다시 시도해주세요.")
-            except Exception:
-                st.error("잠시 후 다시 시도해주세요.")
+                    err = st.session_state.get("last_error", "")
+                    st.error(f"저장 실패: {err if err else '잠시 후 다시 시도해주세요.'}")
+            except Exception as e:
+                st.error(f"오류 발생: {e}")
 
     # 운영 안내 (공통)
     st.markdown(f"""
