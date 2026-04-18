@@ -1051,7 +1051,6 @@ def _parse_gemini_response(text: str, keys: List[str]) -> Dict[str, str]:
                 parsed[key] = v.strip()
     return parsed
 
-@st.cache_data(ttl=60)
 @st.cache_data(ttl=300)
 def generate_schedule_briefing(
     nickname: str, goal: str, schedules_json: str,
@@ -1576,7 +1575,14 @@ def get_funnel_stats() -> dict:
     """퍼널 카운터 — 관리자 페이지용"""
     try:
         ws = _get_analytics_ws()
-        rows = _read_users_rows()
+        # Analytics 시트에서 이벤트 읽기 (Users 시트 아님)
+        all_vals = ws.get_all_values() or []
+        rows = []
+        if len(all_vals) >= 2:
+            header = [str(h).strip() for h in all_vals[0]]
+            for row in all_vals[1:]:
+                padded = row + [""] * max(0, len(header) - len(row))
+                rows.append(dict(zip(header, padded)))
         from collections import Counter
         event_counts = Counter(r.get("event", "") for r in rows)
         # 재방문율 계산 (return_visit / enter_home)
@@ -2490,6 +2496,24 @@ def render_mission_input_screen() -> None:
         st.session_state.goal = goal_input.strip()
         st.session_state.lazy_command = ""
 
+    # ── 게스트 로그인 유도 ──
+    if st.session_state.get("_guest_mode"):
+        st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div style="padding:10px 14px;border-radius:12px;'
+            'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);'
+            'font-size:0.75rem;color:#475569;text-align:center;margin-bottom:6px;">'
+            '닉네임을 만들면 기록이 저장되고 패턴 분석이 시작됩니다.'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button("닉네임 만들고 기록 시작하기 →",
+                     use_container_width=True,
+                     key="btn_guest_to_login"):
+            st.session_state["_guest_mode"] = False
+            st.session_state.nickname_confirmed = False
+            st.rerun()
+
 def render_mission_ready_screen(mission: str, goal: str) -> None:
     """미션 확인 + 시작 대기 화면"""
     # tcfg 불필요 — goal_pain은 get_goal_matched_pain()으로 처리
@@ -3378,30 +3402,6 @@ if active_tab == "home":
     elif home_mode == "mission_input":
         render_mission_input_screen()
 
-        # 하단 상태 카드만 추가 (정보 제공용)
-        if records:
-            st.divider()
-            st.markdown(f"""
-<div class="card">
-    <div class="metric-grid">
-        <div class="metric">
-            <div class="metric-label">Streak</div>
-            <div class="metric-value">{streak}</div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">성공률</div>
-            <div class="metric-value">{success_rate}%</div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">오늘</div>
-            <div class="metric-value" style="font-size:0.76rem;">
-                {"✅" if today_status == "success" else "❌" if today_status == "fail" else "⬜"}
-            </div>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
-
     # =========================================================
     # 모드 5: 미션 준비됨 (단독 화면)
     # =========================================================
@@ -3532,181 +3532,10 @@ if active_tab == "home":
                     st.session_state.command_ready = True
                 st.rerun()
 
-        render_yesterday_vs_today(records, today_status)
-
-        # 손실 지표
-        goal_pain, goal_pain_sub = get_goal_matched_pain(st.session_state.goal)
-        if fail_count >= 3:
-            pain_extra = f'<div class="body-small" style="color:#FCA5A5; margin-top:6px; font-weight:700;">이번 달 실패 {fail_count}회. 패턴이 굳어지고 있다.</div>'
-        elif fail_count >= 1:
-            pain_extra = f'<div class="body-small" style="color:#FCD34D; margin-top:6px;">이번 달 실패 {fail_count}회. 두 번째부터가 패턴이다.</div>'
-        else:
-            pain_extra = ""
-
-        if loss["total_count"] >= 1:
-            rate_color = "#86EFAC" if loss["success_rate"] >= 80 else "#FCD34D" if loss["success_rate"] >= 50 else "#FCA5A5"
-            loss_inline = f"""
-<div style="display:flex; gap:12px; margin-top:10px; padding-top:10px;
-            border-top:1px solid rgba(255,255,255,0.06);">
-    <div style="text-align:center; flex:1;">
-        <div style="font-size:1.1rem; font-weight:900; color:{rate_color};">{loss["success_rate"]}%</div>
-        <div style="font-size:0.65rem; color:#475569;">이달 실행률</div>
-    </div>
-    <div style="text-align:center; flex:1;">
-        <div style="font-size:1.1rem; font-weight:900; color:#FCA5A5;">{loss["fail_hours"]}h</div>
-        <div style="font-size:0.65rem; color:#475569;">추정 손실 시간</div>
-    </div>
-    <div style="text-align:center; flex:1;">
-        <div style="font-size:1.1rem; font-weight:900; color:#FCA5A5;">{loss["fail_prob"]}%</div>
-        <div style="font-size:0.65rem; color:#475569;">현재 패턴 위험도</div>
-    </div>
-</div>"""
-        else:
-            loss_inline = ""
-
-        st.markdown(f"""
-<div class="warning-card">
-    <div style="font-size:1rem; font-weight:900; color:#FCA5A5;">
-        {html.escape(goal_pain)}
-    </div>
-    <div class="body-small" style="margin-top:6px;">
-        {html.escape(goal_pain_sub)}
-    </div>
-    {pain_extra}
-    {loss_inline}
-</div>
-""", unsafe_allow_html=True)
-
-        # 하단 상태 카드
-        st.markdown(f"""
-<div class="card">
-    <div class="metric-grid">
-        <div class="metric">
-            <div class="metric-label">Streak</div>
-            <div class="metric-value">{streak}</div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">성공률</div>
-            <div class="metric-value">{success_rate}%</div>
-        </div>
-        <div class="metric">
-            <div class="metric-label">오늘</div>
-            <div class="metric-value" style="font-size:0.76rem;">
-                {"✅" if today_status == "success" else "❌" if today_status == "fail" else "⬜"}
-            </div>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+        # 스트릭 공유 (심플)
+        if streak >= 1:
+            render_streak_share(streak, st.session_state.goal, success_rate)
 # ──────────────────────── 기록 ────────────────────────
-elif active_tab == "record":
-    st.markdown('<div class="section-label" style="margin-bottom:10px;">최근 기록</div>',
-                unsafe_allow_html=True)
-
-    # 저장 실패 안내 — get으로 읽기만 (홈 탭에서 pop으로 초기화)
-    if st.session_state.get("_save_failed"):
-        st.markdown("""
-<div style="padding:8px 14px; border-radius:10px; margin-bottom:8px;
-            background:rgba(251,191,36,0.08); border:1px solid rgba(251,191,36,0.20);
-            font-size:0.75rem; color:#FCD34D; text-align:center;">
-    ⚠️ 일부 기록이 임시 저장됨 — 네트워크 불안정 시 발생. 새로고침하면 재시도합니다.
-</div>
-""", unsafe_allow_html=True)
-
-    # 게스트 안내
-    if is_guest:
-        st.markdown("""
-<div class="warning-card" style="text-align:center; padding:16px;">
-    <div class="body-small" style="color:#FCD34D; font-weight:700;">
-        지금은 게스트 모드입니다.<br>
-        닉네임을 설정하면 기록이 저장됩니다.
-    </div>
-</div>
-""", unsafe_allow_html=True)
-        if st.button("닉네임 설정하기 →", use_container_width=True, type="primary"):
-            st.session_state["_guest_mode"] = False
-            st.session_state["_show_nickname_collect"] = False
-            st.rerun()
-
-    if not using_sheet and not is_guest:
-        st.caption("세션 내 임시 저장 중")
-
-    # 캘린더 — Premium/게스트는 전체, 무료는 lock_before로 이전 구간 잠금 표시
-    # "데이터 없음"이 아니라 "잠김"으로 보여서 UX 오해 방지
-    if is_premium or is_guest:
-        render_monthly_calendar(records)
-    else:
-        cutoff_date = korea_now().date() - timedelta(days=FREE_RECORD_DAYS - 1)
-        lock_before = cutoff_date.strftime("%Y-%m-%d")
-        render_monthly_calendar(records, lock_before=lock_before)
-        st.markdown("""
-<div style="padding:5px 12px; border-radius:9px; margin-bottom:6px;
-            background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.20);
-            font-size:0.73rem; color:#A5B4FC; text-align:center;">
-    🔒 표시된 구간은 Premium에서 열람 가능합니다
-</div>
-""", unsafe_allow_html=True)
-
-    # 무료: 최근 7일 기록만 / Premium: 전체
-    if is_premium or is_guest:
-        visible_records = records
-        record_limit_label = ""
-    else:
-        cutoff = (korea_now().date() - timedelta(days=FREE_RECORD_DAYS - 1)).strftime("%Y-%m-%d")
-        visible_records = [r for r in records if str(r.get("date","")) >= cutoff]
-        total_count = len(records)
-        visible_count = len(visible_records)
-        if total_count > visible_count:
-            record_limit_label = f"최근 {FREE_RECORD_DAYS}일 기록만 표시 중 · 전체 {total_count}개는 Premium에서 열람 가능"
-        else:
-            record_limit_label = ""
-
-    if record_limit_label:
-        st.markdown(f"""
-<div style="padding:8px 14px; border-radius:10px; margin-bottom:10px;
-            background:rgba(99,102,241,0.10); border:1px solid rgba(99,102,241,0.25);
-            font-size:0.77rem; color:#A5B4FC; text-align:center;">
-    🔒 {record_limit_label}
-</div>
-""", unsafe_allow_html=True)
-        if st.button("🔥 전체 기록 + 패턴 분석 열기 → Premium",
-                     use_container_width=True,
-                     key="btn_record_premium", type="primary"):
-            st.session_state["_active_tab"] = "premium"
-            st.rerun()
-
-    recent = get_recent_records(visible_records, 50 if is_premium else 15)
-    if not recent:
-        st.markdown("""
-<div class="card" style="text-align:center; padding:28px 14px;">
-    <div style="font-size:1.8rem; margin-bottom:8px;">📭</div>
-    <div class="body-small">아직 기록이 없습니다.<br>홈에서 첫 실행을 시작하세요.</div>
-</div>
-""", unsafe_allow_html=True)
-    else:
-        for row in reversed(recent):
-            is_done = record_to_bool_done(row)
-            emoji   = "✅" if is_done else "❌"
-            status  = "성공" if is_done else "실패"
-            fail_text = (
-                f" · {html.escape(str(row.get('fail_reason', '')))}"
-                if not is_done and row.get("fail_reason") else ""
-            )
-            st.markdown(f"""
-<div class="card">
-    <div style="display:flex; align-items:center; justify-content:space-between;">
-        <span>{emoji}</span>
-        <span class="muted">{html.escape(str(row.get('time', '-')))}</span>
-    </div>
-    <div class="strong-title" style="font-size:0.9rem; margin-top:5px;">
-        {html.escape(str(row.get('task', '-')))}
-    </div>
-    <div class="body-small">{status}{fail_text}</div>
-</div>
-""", unsafe_allow_html=True)
-
-# ──────────────────────── 분석 ────────────────────────
-# ──────────────────────── 일정 ────────────────────────
 elif active_tab == "schedule":
     import json as _json
 
