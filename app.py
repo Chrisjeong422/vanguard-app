@@ -1670,20 +1670,28 @@ def save_premium_apply(nickname: str, email: str, goal: str) -> bool:
     나중에: 토스페이먼츠/Stripe 웹훅으로 자동 검증 전환 예정
     """
     try:
-        # Users 시트 헤더 먼저 보장
-        st.session_state["_users_header_ensured"] = False  # 강제 재확인
+        st.session_state["_users_header_ensured"] = False
         ensure_users_header()
         ws = _get_users_ws()
         row_data = [
             korea_now().strftime("%Y-%m-%d %H:%M"),
-            nickname, email, goal, "premium_apply", "False",
-            "",       # last_visit 초기값
-            "False",  # first_action_done 초기값
+            nickname.strip(),
+            email.strip() if email else "",
+            goal.strip() if goal else "",
+            "premium_apply",
+            "False",
+            "",
+            "False",
         ]
         ws.append_row(row_data)
+        # 저장 직후 강제 검증 — 디버그용
+        all_vals = ws.get_all_values() or []
+        last_row = all_vals[-1] if all_vals else "NONE"
+        st.session_state["last_error"] = f"ROWS={len(all_vals)} LAST={last_row}"
         return True
     except Exception as e:
         set_error(f"Premium apply save failed: {e}")
+        st.session_state["last_error"] = f"EXCEPTION: {e}"
         return False
 
 @st.cache_data(ttl=60)
@@ -1772,21 +1780,40 @@ def render_admin_page() -> None:
             st.rerun()
     stats = load_admin_stats()
 
-    # ── 디버그: Users 시트 원본 확인 ──
-    with st.expander("🔍 Users 시트 원본 데이터 (디버그)", expanded=False):
+    # ── 디버그: Users 시트 + _read_users_rows 결과 확인 ──
+    with st.expander("🔍 디버그 (클릭해서 확인)", expanded=True):
         try:
+            # 1. 원본 시트 값
             ws_debug = _get_users_ws()
             raw = ws_debug.get_all_values()
-            st.write(f"총 {len(raw)}행 (헤더 포함)")
+            st.write(f"**원본: 총 {len(raw)}행**")
             if raw:
                 st.write("헤더:", raw[0])
-                st.write(f"데이터 {len(raw)-1}행:")
-                for row in raw[1:]:
-                    st.write(row)
+                for i, row in enumerate(raw[1:], 1):
+                    st.write(f"행{i}:", row)
             else:
-                st.warning("Users 시트가 완전히 비어 있습니다")
+                st.error("시트 완전히 비어 있음")
+
+            st.divider()
+
+            # 2. _read_users_rows 결과
+            parsed = _read_users_rows()
+            st.write(f"**파싱 결과: {len(parsed)}개 행**")
+            for r in parsed:
+                st.write(r)
+
+            st.divider()
+
+            # 3. premium_apply 필터 결과
+            applies = [r for r in parsed if r.get("type") == "premium_apply"]
+            st.write(f"**premium_apply 행: {len(applies)}개**")
+            for r in applies:
+                st.write(r)
+
         except Exception as e:
-            st.error(f"Users 시트 읽기 실패: {e}")
+            st.error(f"디버그 오류: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
     # ── 핵심 지표 ──
     c1, c2, c3 = st.columns(3)
@@ -3800,7 +3827,9 @@ elif active_tab == "premium":
                 )
                 if ok:
                     log_event(nickname, "apply_premium")
-                    st.success("신청이 완료됐습니다. 입금 확인 후 1~3시간 내 활성화됩니다.")
+                    st.success("신청 저장 성공!")
+                    debug_info = st.session_state.get("last_error", "없음")
+                    st.code(f"진단: {debug_info}")
                     get_user_premium_status.clear()
                     st.rerun()
                 else:
