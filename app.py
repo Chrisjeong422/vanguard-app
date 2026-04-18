@@ -1401,8 +1401,18 @@ def _get_users_ws():
 
 @st.cache_data(ttl=20)
 def load_sheet_records() -> List[Dict[str, Any]]:
+    """Records 시트 읽기 — get_all_values 사용 (빈 셀/중복 컬럼 예외 방지)"""
     sheet = get_sheet()
-    return sheet.get_all_records() or []
+    all_vals = sheet.get_all_values() or []
+    if len(all_vals) < 2:
+        return []
+    header = [str(h).strip().lstrip("\ufeff") for h in all_vals[0]]
+    rows = []
+    for row in all_vals[1:]:
+        padded = row + [""] * max(0, len(header) - len(row))
+        item = dict(zip(header, padded))
+        rows.append({k: str(v).strip() for k, v in item.items()})
+    return rows
 
 def load_records(nickname: str = "") -> Tuple[List[Dict[str, Any]], bool]:
     """
