@@ -1684,8 +1684,7 @@ def get_today_complete_count() -> int:
 def load_admin_stats() -> Dict[str, Any]:
     try:
         rows = load_sheet_records()
-        if not rows:
-            return {"total": 0, "today": 0, "users": 0, "complete_rate": 0, "top_fail": ""}
+        # Records 없어도 Users는 반드시 읽음 — early return 제거
         today = today_str()
         today_rows = [r for r in rows if str(r.get("date", "")) == today]
         nicknames = {str(r.get("nickname", "")) for r in rows if r.get("nickname")}
