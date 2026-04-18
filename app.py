@@ -1522,8 +1522,10 @@ def check_and_log_return_visit(nickname: str) -> None:
 
 def save_nickname_signup(nickname: str) -> bool:
     try:
+        st.session_state["_users_header_ensured"] = False  # 강제 재확인
         ensure_users_header()
         # 저장 직전 중복 체크 — 레이스 컨디션 방어
+        get_taken_nicknames.clear()  # 최신 목록으로 확인
         if is_nickname_taken(nickname):
             return False
         ws = _get_users_ws()
@@ -1650,14 +1652,17 @@ def save_premium_apply(nickname: str, email: str, goal: str) -> bool:
     나중에: 토스페이먼츠/Stripe 웹훅으로 자동 검증 전환 예정
     """
     try:
+        # Users 시트 헤더 먼저 보장
+        st.session_state["_users_header_ensured"] = False  # 강제 재확인
         ensure_users_header()
         ws = _get_users_ws()
-        ws.append_row([
+        row_data = [
             korea_now().strftime("%Y-%m-%d %H:%M"),
             nickname, email, goal, "premium_apply", "False",
             "",       # last_visit 초기값
             "False",  # first_action_done 초기값
-        ])
+        ]
+        ws.append_row(row_data)
         return True
     except Exception as e:
         set_error(f"Premium apply save failed: {e}")
@@ -1895,6 +1900,7 @@ def render_nickname_setup() -> None:
                 st.session_state.nickname_confirmed = True
                 st.session_state["_show_target_select"] = True
                 get_taken_nicknames.clear()
+                st.query_params["n"] = name  # 새로고침해도 닉네임 유지
                 st.rerun()
 
 # =========================================================
@@ -2054,6 +2060,7 @@ def render_nickname_collect() -> None:
                 st.session_state["_show_nickname_collect"] = False
                 st.session_state["_show_target_select"] = True
                 get_taken_nicknames.clear()
+                st.query_params["n"] = name  # 새로고침해도 닉네임 유지
 
                 # synced=False인 기록만 시트에 저장 → 중복 저장 방지
                 try:
@@ -2553,6 +2560,22 @@ if st.query_params.get(ADMIN_PARAM) == "1":
     st.stop()
 
 # =============================================================
+# ── URL 파라미터로 닉네임 자동 복원 ──
+# 새로고침해도 닉네임 유지: ?n=닉네임 형태로 URL에 박아둠
+_url_nickname = st.query_params.get("n", "").strip()
+if _url_nickname and not st.session_state.nickname_confirmed:
+    # 캐시 무시하고 직접 시트에서 닉네임 존재 여부 확인
+    try:
+        get_taken_nicknames.clear()  # 캐시 무효화
+    except Exception:
+        pass
+    if is_nickname_taken(_url_nickname):
+        st.session_state.nickname           = _url_nickname
+        st.session_state.nickname_confirmed = True
+        st.session_state["_guest_mode"]     = False
+        st.session_state["_show_target_select"]    = False
+        st.session_state["_show_nickname_collect"] = False
+
 # EARLY EXIT ZONE — st.stop() 허용 구역
 # 이 구역 외부에서 st.stop() 사용 금지
 # 1. missing secrets gate  (line ~110)
