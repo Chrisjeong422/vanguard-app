@@ -3075,10 +3075,16 @@ with header_col:
 </div>
 """, unsafe_allow_html=True)
 with logout_col:
-    if not is_guest:
-        st.markdown("<div style='padding-top:10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='padding-top:10px;'></div>", unsafe_allow_html=True)
+    if is_guest:
+        # 게스트 → 로그인 버튼
+        if st.button("로그인", key="btn_login_header", use_container_width=True):
+            st.session_state["_guest_mode"] = False
+            st.session_state.nickname_confirmed = False
+            st.rerun()
+    else:
+        # 로그인 상태 → 로그아웃 버튼
         if st.button("로그아웃", key="btn_logout", use_container_width=True):
-            # 세션 초기화 + URL 파라미터 제거
             for k in list(st.session_state.keys()):
                 del st.session_state[k]
             st.query_params.clear()
