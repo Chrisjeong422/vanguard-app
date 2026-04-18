@@ -1363,17 +1363,19 @@ def ensure_users_header() -> None:
 
 def _get_users_ws():
     """
-    Users 워크시트 반환
-    인덱스(1) 대신 이름("Users")으로 찾아서
-    탭 순서와 무관하게 안전하게 작동
+    Users 워크시트 반환 — 없으면 헤더 포함해서 자동 생성
+    인덱스(1) 대신 이름("Users")으로 찾아서 탭 순서와 무관하게 안전하게 작동
     """
     spreadsheet = get_spreadsheet()
     try:
         ws = spreadsheet.worksheet("Users")
+        return ws
     except Exception:
-        # Users 탭 없으면 자동 생성
+        # Users 탭 없으면 헤더 포함해서 자동 생성
         ws = spreadsheet.add_worksheet(title="Users", rows=1000, cols=8)
-    return ws
+        ws.append_row(USERS_HEADER)  # 생성 즉시 헤더 삽입
+        st.session_state["_users_header_ensured"] = True  # 헤더 중복 방지
+        return ws
 
 @st.cache_data(ttl=20)
 def load_sheet_records() -> List[Dict[str, Any]]:
