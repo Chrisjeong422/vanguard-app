@@ -1871,10 +1871,52 @@ def render_nickname_setup() -> None:
 </div>
 """, unsafe_allow_html=True)
 
-    st.markdown(f"""
+    # ── 기존 닉네임으로 로그인 ──
+    st.markdown("""
 <div class="card" style="margin-top:4px;">
-    <div class="section-label">{TXT['nickname_label']}</div>
-    <div class="body-small" style="margin-top:3px;">{TXT['nickname_desc']}</div>
+    <div class="section-label">기존에 쓰던 닉네임이 있나요?</div>
+    <div class="body-small" style="margin-top:3px; color:#475569;">
+        닉네임이 비밀번호 없는 로그인이에요.<br>
+        전에 쓰던 닉네임을 그대로 입력하면 기록이 이어집니다.
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+    login_input = st.text_input(
+        "기존 닉네임으로 로그인",
+        placeholder="기존 닉네임 입력",
+        label_visibility="collapsed",
+        key="login_input",
+    )
+    if st.button("기존 닉네임으로 계속하기 →", use_container_width=True,
+                 key="btn_login", type="secondary"):
+        name = login_input.strip()
+        if not name:
+            st.warning("닉네임을 입력해주세요.")
+        elif is_nickname_taken(name):
+            st.session_state.nickname           = name
+            st.session_state.nickname_confirmed = True
+            st.session_state["_guest_mode"]     = False
+            st.query_params["n"] = name
+            st.rerun()
+        else:
+            st.error("등록된 닉네임이 없어요. 아래에서 새로 만들어주세요.")
+
+    st.markdown("""
+<div style="display:flex; align-items:center; gap:10px; margin:14px 0;">
+    <div style="flex:1; height:1px; background:rgba(255,255,255,0.08);"></div>
+    <div style="font-size:0.72rem; color:#334155;">처음이라면</div>
+    <div style="flex:1; height:1px; background:rgba(255,255,255,0.08);"></div>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── 새 닉네임 만들기 ──
+    st.markdown(f"""
+<div class="card">
+    <div class="section-label">새 닉네임 만들기</div>
+    <div class="body-small" style="margin-top:3px; color:#475569;">
+        나만의 이름을 정하면 기록이 저장되고 다음에 와도 이어집니다.
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1883,14 +1925,14 @@ def render_nickname_setup() -> None:
         placeholder=TXT["nickname_placeholder"],
         label_visibility="collapsed",
     )
-    if st.button(TXT["nickname_confirm"], use_container_width=True):
+    if st.button(TXT["nickname_confirm"], use_container_width=True, type="primary"):
         name = nickname_input.strip()
         if not name:
             st.warning("닉네임을 입력해주세요.")
         elif len(name) < 2:
             st.warning("닉네임은 2자 이상이어야 합니다.")
         elif is_nickname_taken(name):
-            st.error("이미 사용 중인 닉네임입니다.")
+            st.error("이미 사용 중인 닉네임입니다. 위에서 기존 닉네임으로 로그인해보세요.")
         else:
             ok = save_nickname_signup(name)
             if not ok:
@@ -1900,8 +1942,16 @@ def render_nickname_setup() -> None:
                 st.session_state.nickname_confirmed = True
                 st.session_state["_show_target_select"] = True
                 get_taken_nicknames.clear()
-                st.query_params["n"] = name  # 새로고침해도 닉네임 유지
+                st.query_params["n"] = name
                 st.rerun()
+
+    # ── 뒤로가기 — 게스트로 돌아가기 ──
+    st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+    if st.button("← 게스트로 계속하기", use_container_width=True,
+                 key="btn_back_to_guest"):
+        st.session_state["_guest_mode"] = True
+        st.session_state.nickname_confirmed = False
+        st.rerun()
 
 # =========================================================
 # 타겟 선택 컴포넌트
