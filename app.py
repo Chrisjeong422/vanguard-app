@@ -1280,26 +1280,26 @@ USERS_HEADER = [
 ]
 
 def _read_users_rows() -> list:
+    """Users 시트 읽기 — 하위 호환용 alias"""
+    return read_users_rows()
+
+def read_users_rows() -> list:
     """
     Users 시트를 안전하게 읽어 딕셔너리 리스트로 반환.
-    - get_all_records 대신 get_all_values 사용 (빈 셀 예외 방지)
-    - 헤더 정규화: 공백/BOM 제거
-    - 행 길이 부족 시 빈 문자열로 패딩
+    모든 값을 strip() 처리 — 공백/대소문자 비교 문제 방지
+    예외를 숨기지 않고 빈 리스트 반환
     """
-    try:
-        ws = _get_users_ws()
-        all_vals = ws.get_all_values() or []
-        if len(all_vals) < 2:
-            return []
-        # 헤더 정규화 — 공백, BOM, 줄바꿈 제거
-        header = [str(h).strip().lstrip("\ufeff") for h in all_vals[0]]
-        rows = []
-        for row in all_vals[1:]:
-            padded = [str(c) for c in row] + [""] * max(0, len(header) - len(row))
-            rows.append(dict(zip(header, padded)))
-        return rows
-    except Exception:
+    ws = _get_users_ws()
+    all_vals = ws.get_all_values() or []
+    if len(all_vals) < 2:
         return []
+    header = [str(x).strip().lstrip("\ufeff") for x in all_vals[0]]
+    rows = []
+    for row in all_vals[1:]:
+        padded = row + [""] * max(0, len(header) - len(row))
+        item = dict(zip(header, padded))
+        rows.append({k: str(v).strip() for k, v in item.items()})
+    return rows
 
 # =========================================================
 # ANALYTICS — 이탈 지점 로그 + 재방문 체크 + 퍼널 카운터
@@ -1706,52 +1706,41 @@ def get_today_complete_count() -> int:
     except Exception:
         return 0
 
-def load_admin_stats() -> Dict[str, Any]:  # 캐시 없음 — 관리자는 항상 최신
-    try:
-        rows = load_sheet_records()
-        # Records 없어도 Users는 반드시 읽음 — early return 제거
-        today = today_str()
-        today_rows = [r for r in rows if str(r.get("date", "")) == today]
-        nicknames = {str(r.get("nickname", "")) for r in rows if r.get("nickname")}
-        success = sum(1 for r in rows if parse_done(r.get("done", False)))
-        total = len(rows)
-        try:
-            user_rows = _read_users_rows()
+def load_admin_stats() -> Dict[str, Any]:  # 캐시 없음 — 예외 숨기지 않음
+    # Records 탭
+    rows = load_sheet_records() or []
+    today = today_str()
+    today_rows = [r for r in rows if str(r.get("date","")).strip() == today]
+    nicknames  = {str(r.get("nickname","")).strip() for r in rows if r.get("nickname")}
+    success    = sum(1 for r in rows if parse_done(r.get("done", False)))
+    total      = len(rows)
 
-            signups  = sum(1 for r in user_rows if r.get("type") == "signup")
-            applies  = sum(1 for r in user_rows if r.get("type") == "premium_apply")
-            actives  = sum(
-                1 for r in user_rows
-                if str(r.get("is_premium","")).strip().upper() in {"TRUE","1","YES"}
-            )
-            apply_list = [
-                {
-                    "nickname": str(r.get("nickname","")),
-                    "email":    str(r.get("email","")),
-                    "time":     str(r.get("time","")),
-                    "active":   str(r.get("is_premium","False")),
-                }
-                for r in user_rows if r.get("type") == "premium_apply"
-            ]
-        except Exception:
-            signups = applies = actives = 0
-            apply_list = []
-        return {
-            "total":        total,
-            "today":        len(today_rows),
-            "users":        len(nicknames),
-            "complete_rate": int(success / total * 100) if total > 0 else 0,
-            "top_fail":     get_top_fail_reason(rows),
-            "signups":      signups,
-            "applies":      applies,
-            "actives":      actives,
-            "apply_list":   apply_list,
+    # Users 탭 — read_users_rows() 사용 (모든 값 strip 처리)
+    user_rows = read_users_rows()
+    signups = sum(1 for r in user_rows if r.get("type","").lower() == "signup")
+    applies = sum(1 for r in user_rows if r.get("type","").lower() == "premium_apply")
+    actives = sum(1 for r in user_rows if r.get("is_premium","").lower() in {"true","1","yes"})
+    apply_list = [
+        {
+            "nickname": r.get("nickname",""),
+            "email":    r.get("email",""),
+            "time":     r.get("time",""),
+            "active":   r.get("is_premium","False"),
         }
-    except Exception:
-        return {
-            "total":0,"today":0,"users":0,"complete_rate":0,
-            "top_fail":"","signups":0,"applies":0,"actives":0,"apply_list":[],
-        }
+        for r in user_rows
+        if r.get("type","").lower() == "premium_apply"
+    ]
+    return {
+        "total":         total,
+        "today":         len(today_rows),
+        "users":         len(nicknames),
+        "complete_rate": int(success / total * 100) if total > 0 else 0,
+        "top_fail":      get_top_fail_reason(rows) if rows else "",
+        "signups":       signups,
+        "applies":       applies,
+        "actives":       actives,
+        "apply_list":    apply_list,
+    }
 
 # =========================================================
 # 관리자 페이지
@@ -1779,6 +1768,10 @@ def render_admin_page() -> None:
         if st.button("🔄 새로고침", key="btn_admin_refresh", use_container_width=True):
             st.rerun()
     stats = load_admin_stats()
+
+    # 🧪 stats 디버그 — apply_list 확인용
+    with st.expander("🧪 admin stats 디버그", expanded=False):
+        st.write(stats)
 
     # ── 디버그: Users 시트 + _read_users_rows 결과 확인 ──
     with st.expander("🔍 디버그 (클릭해서 확인)", expanded=True):
