@@ -98,7 +98,9 @@ SHEETS_SCOPES = [
 ]
 ADMIN_PARAM      = "admin"
 SOCIAL_PROOF_MIN = 10
-FREE_DAILY_CMD_LIMIT = 3   # 무료 사용자 하루 AI 명령 생성 횟수 제한
+FREE_DAILY_CMD_LIMIT = 3
+FREE_RECORD_DAYS     = 7    # 무료 기록 열람 일수
+FREE_SCHEDULE_LIMIT  = 3    # 무료 일정 개수   # 무료 사용자 하루 AI 명령 생성 횟수 제한
 FREE_RECORD_DAYS     = 7   # 무료 사용자 기록 열람 일수 제한
 
 # ── 시트 URL — secrets 우선, fallback으로 하드코딩 ──
@@ -475,6 +477,9 @@ DEFAULTS: Dict[str, Any] = {
     # 일정 시스템
     "_schedule_briefing": "",          # AI 브리핑 캐시
     "_schedule_briefing_date": "",     # 브리핑 생성 날짜
+    # 컨디션 시스템
+    "_condition_today": "",            # 오늘 입력한 컨디션
+    "_condition_date": "",             # 컨디션 입력 날짜
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -1466,6 +1471,71 @@ USERS_HEADER = [
     "last_visit", "first_action_done",
 ]
 
+def get_recovery_protocol(fail_reason: str = "") -> str:
+    """
+    실패 직후 3분 복귀 프로토콜
+    Intervention Engine 핵심 — 유료 전환 트리거
+    """
+    protocols = {
+        "집중력 부족": "폰 엎어놓고 타이머 3분만 눌러라. 지금 당장.",
+        "시간 없음":   "딱 1개만. 3분이면 시작할 수 있다.",
+        "피곤":        "1분 눈 감아라. 그 다음 바로 시작해라.",
+        "의욕 없음":   "결과 생각하지 마라. 지금 열기만 해라.",
+        "계획 미비":   "계획 필요 없다. 지금 1개만 해라.",
+        "방해":        "자리 바꿔라. 지금 바로.",
+        "미룸":        "30초만 시작해라. 시작이 전부다.",
+    }
+    for key, msg in protocols.items():
+        if key in (fail_reason or ""):
+            return msg
+    return "지금 30초만 시작해라. 생각하지 말고 그냥 열어라."
+
+
+def get_today_priority_score(
+    goal: str, schedules: list, fail_count: int,
+    peak_fail_hour: int, current_hour: int
+) -> dict:
+    """
+    오늘 우선순위 자동 결정 — Goal + Schedule + Pattern
+    반환: {mission, reason, urgency_score}
+    """
+    scores = []
+
+    # 일정 긴급도
+    for s in schedules:
+        urgency = 80  # 오늘 일정은 기본 긴급도 80
+        if s.get("due_time"):
+            try:
+                due_h = int(s["due_time"].split(":")[0])
+                hours_left = due_h - current_hour
+                if hours_left <= 2:
+                    urgency = 99
+                elif hours_left <= 4:
+                    urgency = 90
+            except Exception:
+                pass
+        scores.append({
+            "mission":       f"{s['title']} 준비",
+            "reason":        f"오늘 일정: {s['title']}",
+            "urgency_score": urgency,
+        })
+
+    # 목표 기반 (일정 없을 때)
+    if not scores and goal:
+        fail_weight = min(30, fail_count * 10)
+        hour_weight = 20 if peak_fail_hour and abs(current_hour - peak_fail_hour) <= 1 else 0
+        scores.append({
+            "mission":       goal,
+            "reason":        "이번 달 핵심 목표",
+            "urgency_score": 50 + fail_weight + hour_weight,
+        })
+
+    if not scores:
+        return {"mission": "", "reason": "", "urgency_score": 0}
+
+    return max(scores, key=lambda x: x["urgency_score"])
+
+
 def parse_briefing_to_cards(briefing_text: str) -> list:
     """
     AI 브리핑 텍스트를 카드 리스트로 파싱
@@ -1504,6 +1574,94 @@ def parse_briefing_to_cards(briefing_text: str) -> list:
         if line:
             cards.append({"icon": icon, "label": label, "value": line})
     return cards[:6]  # 최대 6개 카드
+
+# =========================================================
+# 컨디션(감정+상태) 시스템
+# =========================================================
+CONDITION_OPTIONS = {
+    "😴 피곤": "tired",
+    "😐 보통": "normal",
+    "⚡ 좋음": "good",
+    "🔥 최상": "great",
+}
+
+def save_condition(nickname: str, condition: str) -> bool:
+    """오늘 컨디션 기록 — Analytics 시트에 저장"""
+    try:
+        log_event(nickname, "condition", condition)
+        return True
+    except Exception:
+        return False
+
+def get_condition_pattern(records: list, analytics_rows: list = None) -> dict:
+    """
+    컨디션 vs 실패율 패턴 분석
+    반환: {condition: {count, fail_rate, label}, ...}
+    """
+    # Analytics에서 condition 이벤트 추출
+    if not analytics_rows:
+        return {}
+
+    condition_dates = {}
+    for row in analytics_rows:
+        if str(row.get("event","")).strip() == "condition":
+            date = str(row.get("date","")).strip()
+            val  = str(row.get("value","")).strip()
+            if date and val:
+                condition_dates[date] = val
+
+    if not condition_dates:
+        return {}
+
+    # 날짜별 성공/실패 매핑
+    result = {}
+    for date, cond in condition_dates.items():
+        day_records = [r for r in records if str(r.get("date","")) == date]
+        if not day_records:
+            continue
+        failed = sum(1 for r in day_records if not parse_done(r.get("done", False)))
+        fail_rate = int(failed / len(day_records) * 100)
+
+        if cond not in result:
+            result[cond] = {"count": 0, "fail_total": 0}
+        result[cond]["count"] += 1
+        result[cond]["fail_total"] += fail_rate
+
+    # 평균 실패율 계산
+    final = {}
+    label_map = {v: k for k, v in CONDITION_OPTIONS.items()}
+    for cond, data in result.items():
+        if data["count"] >= 2:
+            avg_fail = int(data["fail_total"] / data["count"])
+            final[cond] = {
+                "count":     data["count"],
+                "fail_rate": avg_fail,
+                "label":     label_map.get(cond, cond),
+            }
+    return final
+
+@st.cache_data(ttl=60)
+def load_analytics_rows(nickname: str) -> list:
+    """Analytics 시트에서 닉네임 기준 로우 로드"""
+    try:
+        spreadsheet = get_spreadsheet()
+        try:
+            ws = spreadsheet.worksheet("Analytics")
+        except Exception:
+            return []
+        all_vals = ws.get_all_values() or []
+        if len(all_vals) < 2:
+            return []
+        header = [str(h).strip() for h in all_vals[0]]
+        rows = []
+        for row in all_vals[1:]:
+            padded = row + [""] * max(0, len(header) - len(row))
+            item = dict(zip(header, padded))
+            if item.get("nickname","").strip() == nickname.strip():
+                rows.append(item)
+        return rows
+    except Exception:
+        return []
 
 def _read_users_rows() -> list:
     """Users 시트 읽기 — 하위 호환용 alias"""
@@ -2285,6 +2443,73 @@ def render_target_select() -> None:
 # =========================================================
 # 시간대별 긴급도 — 하루 3회 트리거 구조
 # =========================================================
+def get_danger_level(hour: int, fail_count: int, success_rate: int,
+                     today_done: bool, streak: int) -> Dict[str, Any]:
+    """
+    오늘 망함 위험도 — 시간대 + 실패 패턴 기반 실시간 계산
+    하루에 여러 번 들어오게 만드는 핵심 지표
+    """
+    # 기본 시간대 위험도
+    if 6 <= hour < 10:
+        base = 15
+        zone_msg = "아직 오전이다. 지금 시작하면 오늘 살린다."
+    elif 10 <= hour < 14:
+        base = 35
+        zone_msg = "오전 절반 지났다. 지금이 마지막 황금 타임이다."
+    elif 14 <= hour < 18:
+        base = 55
+        zone_msg = "오후 집중력이 무너지는 시간대다."
+    elif 18 <= hour < 22:
+        base = 72
+        zone_msg = "저녁엔 대부분 포기한다. 너도 그럴 거냐."
+    else:
+        base = 85
+        zone_msg = "오늘 거의 끝났다. 지금 안 하면 오늘도 그냥 간다."
+
+    # 실패 패턴 가산
+    if fail_count >= 3:
+        base = min(99, base + 20)
+    elif fail_count >= 1:
+        base = min(99, base + 10)
+
+    # 성공률 낮으면 가산
+    if success_rate < 40:
+        base = min(99, base + 15)
+    elif success_rate < 60:
+        base = min(99, base + 5)
+
+    # 이미 완료했으면 급감
+    if today_done:
+        base = max(5, base - 60)
+        zone_msg = "오늘 미션 완료. 이 흐름 내일도 이어가야 한다."
+
+    # streak 보정
+    if streak >= 7:
+        base = max(5, base - 10)
+
+    # 색상
+    if base >= 70:
+        color = "#FCA5A5"
+        icon  = "🔴"
+    elif base >= 40:
+        color = "#FCD34D"
+        icon  = "🟡"
+    else:
+        color = "#86EFAC"
+        icon  = "🟢"
+
+    # 손실 시간 추정 (오늘 미션 못 한 시간 기준)
+    hours_since_start = max(0, hour - 6)
+    lost_hours = round(hours_since_start * (base / 100) * 0.5, 1)
+
+    return {
+        "level":    base,
+        "color":    color,
+        "icon":     icon,
+        "zone_msg": zone_msg,
+        "lost_hours": lost_hours,
+    }
+
 def get_time_context() -> Dict[str, str]:
     """
     오전/점심/오후/저녁 시간대별 다른 압박 메시지 반환
@@ -2452,19 +2677,29 @@ def render_tab_nav(active: str) -> None:
 # 미션 화면 렌더 함수
 # =========================================================
 def render_mission_input_screen() -> None:
-    """미션 입력 화면 — 첫 화면처럼 강하게"""
-    st.markdown("""
-<div style="text-align:center; padding:32px 0 20px;">
-    <div style="font-size:2.2rem; margin-bottom:12px;">⚡</div>
-    <div style="font-size:1.4rem; font-weight:900; color:#F8FAFC; line-height:1.35;">
-        오늘 뭘 끝낼 거야?
-    </div>
-    <div style="font-size:0.8rem; color:#475569; margin-top:8px; line-height:1.6;">
-        1개만. 이것만 끝내면 오늘은 성공이다.<br>
-        생각하지 말고 바로 써라.
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    """미션 입력 화면 — 위험도 먼저 보여주고 행동 유도"""
+    hour = korea_now().hour
+    if hour >= 20:
+        urgency = "오늘 얼마 안 남았다."
+    elif hour >= 16:
+        urgency = "오후가 가고 있다."
+    elif hour >= 12:
+        urgency = "오전은 갔다."
+    else:
+        urgency = "지금이 오늘 최고의 타임이다."
+
+    st.markdown(
+        f'<div style="text-align:center;padding:28px 0 16px;">'
+        f'<div style="font-size:2rem;margin-bottom:8px;">⚡</div>'
+        f'<div style="font-size:1.35rem;font-weight:900;color:#F8FAFC;line-height:1.3;">'
+        f'오늘 뭘 끝낼 거야?</div>'
+        f'<div style="font-size:0.78rem;color:#FCA5A5;margin-top:6px;font-weight:700;">'
+        f'{urgency}</div>'
+        f'<div style="font-size:0.74rem;color:#475569;margin-top:4px;">'
+        f'1개만. 지금 바로 써라.</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
     mission_input = st.text_input(
         "미션",
@@ -2486,15 +2721,80 @@ def render_mission_input_screen() -> None:
 
     st.caption("미션을 정하는 것 자체가 이미 시작이다.")
 
-    # 이번 달 목표 — 한 줄 노출, 선택사항
-    goal_input = st.text_input(
+    # 이번 달 목표 — 입력 즉시 저장 (버튼 없이)
+    def _save_goal():
+        val = st.session_state.get("_goal_input_val", "").strip()
+        if val != st.session_state.goal:
+            st.session_state.goal = val
+            st.session_state.lazy_command = ""
+
+    st.text_input(
         "이번 달 목표도 있나요? (선택)",
         value=st.session_state.goal,
         placeholder="예: 4월 안에 앱 출시",
+        key="_goal_input_val",
+        on_change=_save_goal,
     )
-    if goal_input.strip() != st.session_state.goal:
-        st.session_state.goal = goal_input.strip()
-        st.session_state.lazy_command = ""
+
+    # ── 오늘 우선순위 자동 제안 (일정 + 목표 기반) ──
+    if not st.session_state.get("_guest_mode") and st.session_state.get("nickname_confirmed"):
+        _nick = st.session_state.get("nickname", "")
+        _goal = st.session_state.get("goal", "")
+        _today_sch = get_today_schedules(_nick) if _nick else []
+        _fail_c    = st.session_state.get("_fail_count_for_premium", 0)
+
+        if _today_sch or _goal:
+            _priority = get_today_priority_score(
+                goal=_goal,
+                schedules=_today_sch,
+                fail_count=_fail_c,
+                peak_fail_hour=0,
+                current_hour=korea_now().hour,
+            )
+            if _priority.get("mission"):
+                st.markdown(
+                    '<div style="padding:8px 12px;border-radius:10px;margin-bottom:8px;'
+                    'background:rgba(56,189,248,0.06);border:1px solid rgba(56,189,248,0.18);">'
+                    '<div style="font-size:0.6rem;color:#38BDF8;font-weight:700;margin-bottom:2px;">'
+                    '🎯 오늘 우선순위 자동 결정</div>'
+                    f'<div style="font-size:0.82rem;font-weight:800;color:#F8FAFC;">'
+                    f'{_priority["mission"]}</div>'
+                    f'<div style="font-size:0.67rem;color:#475569;">{_priority["reason"]}</div>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button("→ 이걸로 시작", key="btn_priority_apply",
+                             use_container_width=True):
+                    log_event(_nick, "start_mission")
+                    set_today_mission(_priority["mission"])
+                    st.rerun()
+
+    # ── 오늘 컨디션 입력 (3초) ──
+    cond_date  = st.session_state.get("_condition_date", "")
+    cond_today = st.session_state.get("_condition_today", "")
+    if cond_date != today_str() or not cond_today:
+        st.markdown(
+            '<div style="font-size:0.7rem;color:#475569;font-weight:700;'
+            'letter-spacing:0.05em;margin:12px 0 6px;">오늘 컨디션은?</div>',
+            unsafe_allow_html=True,
+        )
+        cond_cols = st.columns(4)
+        for ci, (label, val) in enumerate(CONDITION_OPTIONS.items()):
+            with cond_cols[ci]:
+                if st.button(label, key=f"cond_{val}", use_container_width=True):
+                    st.session_state["_condition_today"] = val
+                    st.session_state["_condition_date"]  = today_str()
+                    if st.session_state.get("nickname_confirmed"):
+                        save_condition(st.session_state.nickname, val)
+                    st.rerun()
+    else:
+        label_map = {v: k for k, v in CONDITION_OPTIONS.items()}
+        st.markdown(
+            f'<div style="font-size:0.72rem;color:#475569;margin:8px 0 4px;">'
+            f'오늘 컨디션: <b style="color:#F8FAFC;">'
+            f'{label_map.get(cond_today, cond_today)}</b></div>',
+            unsafe_allow_html=True,
+        )
 
     # ── 게스트 로그인 유도 ──
     if st.session_state.get("_guest_mode"):
@@ -3272,14 +3572,23 @@ if active_tab == "home":
                 st.rerun()
 
         if st.session_state.pop("_show_gave_up_msg", False):
-            st.markdown("""
-<div style="padding:10px 14px; border-radius:12px; margin-bottom:8px;
-            background:rgba(100,116,139,0.10); border:1px solid rgba(100,116,139,0.20);
-            font-size:0.78rem; color:#64748B; text-align:center;">
-    오늘 기록은 실패로 저장됐습니다.<br>
-    <span style="color:#475569;">내일 다시 시작하면 됩니다.</span>
-</div>
-""", unsafe_allow_html=True)
+            fail_reason = st.session_state.get("_last_fail_reason", "")
+            protocol    = get_recovery_protocol(fail_reason)
+            st.markdown(
+                '<div style="padding:12px 14px;border-radius:14px;margin-bottom:8px;'
+                'background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);">'
+                '<div style="font-size:0.62rem;color:#FCA5A5;font-weight:700;'
+                'letter-spacing:0.05em;margin-bottom:4px;">⚡ 복귀 프로토콜</div>'
+                f'<div style="font-size:0.88rem;font-weight:800;color:#F8FAFC;">{protocol}</div>'
+                '<div style="font-size:0.7rem;color:#475569;margin-top:6px;">'
+                '오늘 기록은 실패로 저장됐습니다. 지금 바로 다시 시작할 수 있다.</div></div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("⚡ 지금 바로 다시 시작", key="btn_recovery",
+                         use_container_width=True, type="primary"):
+                st.session_state["today_mission"]      = ""
+                st.session_state["today_mission_date"] = ""
+                st.rerun()
 
         # Premium 유도 — get_premium_cta() 함수로 분리
         if not is_premium and current_fc >= 2:
@@ -3412,6 +3721,45 @@ if active_tab == "home":
     # 모드 5: 미션 준비됨 (단독 화면)
     # =========================================================
     elif home_mode == "mission_ready":
+
+        # ── 오늘 망함 위험도 (최상단 — 매번 다름) ──
+        _today_done = today_status == "done"
+        danger = get_danger_level(
+            hour=korea_now().hour,
+            fail_count=fail_count,
+            success_rate=success_rate,
+            today_done=_today_done,
+            streak=streak,
+        )
+        st.markdown(
+            f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
+
+            # 위험도
+            f'<div style="padding:12px 14px;border-radius:14px;'
+            f'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">'
+            f'<div style="font-size:0.6rem;color:#475569;font-weight:700;'
+            f'letter-spacing:0.05em;margin-bottom:4px;">오늘 망함 위험도</div>'
+            f'<div style="font-size:1.5rem;font-weight:900;color:{danger["color"]};">'
+            f'{danger["icon"]} {danger["level"]}%</div>'
+            f'<div style="font-size:0.67rem;color:#475569;margin-top:3px;">'
+            f'{danger["zone_msg"][:22]}{"…" if len(danger["zone_msg"])>22 else ""}'
+            f'</div></div>'
+
+            # 오늘 손실 시간
+            f'<div style="padding:12px 14px;border-radius:14px;'
+            f'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">'
+            f'<div style="font-size:0.6rem;color:#475569;font-weight:700;'
+            f'letter-spacing:0.05em;margin-bottom:4px;">오늘 손실 시간</div>'
+            f'<div style="font-size:1.5rem;font-weight:900;color:#FCA5A5;">'
+            f'{danger["lost_hours"]}h</div>'
+            f'<div style="font-size:0.67rem;color:#475569;margin-top:3px;">'
+            f'{"지금 시작하면 줄어든다" if not _today_done else "오늘 미션 완료 ✓"}'
+            f'</div></div>'
+
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
         # streak 3일 달성 → Premium 첫 달 할인 배너
         if not is_premium and streak == 3:
             st.markdown(f"""
@@ -3477,6 +3825,44 @@ if active_tab == "home":
                 unsafe_allow_html=True,
             )
 
+        # ── 패턴 경고 (3회 이상 실패 시) ──
+        if fail_count >= 2 and not is_premium:
+            # 패턴 감지됨 — 핵심은 잠금
+            hour_now = korea_now().hour
+            zone = "오후" if 14 <= hour_now < 18 else ("저녁" if hour_now >= 18 else "오전")
+            st.markdown(
+                f'<div style="padding:10px 14px;border-radius:12px;margin-bottom:8px;'
+                f'background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);">'
+                f'<div style="font-size:0.62rem;color:#FCA5A5;font-weight:700;'
+                f'letter-spacing:0.05em;margin-bottom:3px;">⚠️ 패턴 경고</div>'
+                f'<div style="font-size:0.82rem;font-weight:800;color:#F8FAFC;">'
+                f'이번 달 {fail_count}번째 반복 실패 감지됨</div>'
+                f'<div style="font-size:0.72rem;color:#475569;margin-top:4px;">'
+                f'🔒 언제 무너지는지 · 왜 반복되는지 → '
+                f'<span style="color:#A5B4FC;font-weight:700;">Premium에서 확인</span>'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("⚡ 내 패턴 파악하기 →", key="btn_pattern_lock",
+                         use_container_width=True):
+                st.session_state["_active_tab"] = "premium"
+                st.rerun()
+
+        elif fail_count >= 2 and is_premium:
+            # Premium — 패턴 완전 공개
+            hour_now = korea_now().hour
+            top_fail = get_top_fail_reason(records)
+            st.markdown(
+                f'<div style="padding:10px 14px;border-radius:12px;margin-bottom:8px;'
+                f'background:rgba(239,68,68,0.10);border:1px solid rgba(239,68,68,0.30);">'
+                f'<div style="font-size:0.62rem;color:#FCA5A5;font-weight:700;'
+                f'letter-spacing:0.05em;margin-bottom:3px;">⚡ Premium 패턴 감지</div>'
+                f'<div style="font-size:0.82rem;font-weight:800;color:#F8FAFC;">'
+                f'이번 달 {fail_count}번 · 주요 원인: {html.escape(top_fail or "패턴 분석 중")}'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
+
         # 상태 행 — 실행률 / 리스크
         if loss["total_count"] >= 1:
             rate  = loss["success_rate"]
@@ -3511,7 +3897,7 @@ if active_tab == "home":
                 unsafe_allow_html=True,
             )
 
-        # ── 행동 버튼 3개 ──
+        # ── 행동 버튼 ──
         col1, col2 = st.columns([3, 2])
         with col1:
             if st.button("🚀 지금 시작", use_container_width=True,
@@ -3529,13 +3915,43 @@ if active_tab == "home":
             elif remaining_cmd > 0:
                 refresh_label = f"↻ AI ({remaining_cmd})"
             else:
-                refresh_label = "🔒 AI"
+                refresh_label = "🔒 AI 소진"
             if st.button(refresh_label, use_container_width=True,
                          key="btn_refresh", type="secondary"):
                 if not is_premium and remaining_cmd <= 0:
                     st.session_state["_active_tab"] = "premium"
                 else:
                     st.session_state.command_ready = True
+                st.rerun()
+
+        # 무료 AI 소진 시 작은 안내
+        if not is_premium and remaining_cmd <= 0:
+            st.markdown(
+                '<div style="font-size:0.7rem;color:#475569;text-align:center;margin-top:2px;">'
+                '오늘 무료 AI 명령 소진 · '
+                '<span style="color:#A5B4FC;cursor:pointer;">Premium → 무제한</span></div>',
+                unsafe_allow_html=True,
+            )
+
+        # ── 미션/목표 수정 ──
+        with st.expander("✏️ 미션 / 목표 수정", expanded=False):
+            new_mission = st.text_input(
+                "미션 수정",
+                value=today_mission,
+                key="edit_mission_input",
+            )
+            new_goal = st.text_input(
+                "목표 수정",
+                value=st.session_state.goal,
+                key="edit_goal_input",
+            )
+            if st.button("저장", key="btn_edit_save", type="primary",
+                         use_container_width=True):
+                if new_mission.strip():
+                    set_today_mission(new_mission.strip())
+                if new_goal.strip() != st.session_state.goal:
+                    st.session_state.goal = new_goal.strip()
+                    st.session_state.lazy_command = ""
                 st.rerun()
 
         # 스트릭 공유 (심플)
@@ -3639,21 +4055,70 @@ elif active_tab == "schedule":
                     st.rerun()
 
         # ── 오늘 / 내일 일정 요약 ──
+        # ── 통합 뷰 — 오늘 미션 + 일정 한 화면 ──
+        today_mission_now = get_today_mission()
+        today_status_now  = get_today_status(records) if records else "none"
+
+        # 오늘 미션 상태
+        mission_icon  = "✅" if today_status_now == "done" else ("❌" if today_status_now == "fail" else "⬜")
+        mission_color = "#86EFAC" if today_status_now == "done" else ("#FCA5A5" if today_status_now == "fail" else "#F8FAFC")
+        mission_html  = (
+            f'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;'
+            f'border-bottom:1px solid rgba(255,255,255,0.06);">'
+            f'<div style="font-size:1rem;">{mission_icon}</div>'
+            f'<div><div style="font-size:0.62rem;color:#475569;font-weight:700;">오늘 미션</div>'
+            f'<div style="font-size:0.82rem;font-weight:700;color:{mission_color};">'
+            f'{html.escape(today_mission_now) if today_mission_now else "미션 없음"}</div></div></div>'
+        ) if today_mission_now else ""
+
+        # 오늘 일정들
+        sch_html = ""
+        for s in today_sch:
+            t = f' {s["due_time"]}' if s.get("due_time") else ""
+            sch_html += (
+                f'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;'
+                f'border-bottom:1px solid rgba(255,255,255,0.06);">'
+                f'<div style="font-size:1rem;">📌</div>'
+                f'<div><div style="font-size:0.62rem;color:#475569;font-weight:700;">'
+                f'일정{t}</div>'
+                f'<div style="font-size:0.82rem;font-weight:700;color:#FCD34D;">'
+                f'{html.escape(s["title"])}</div></div></div>'
+            )
+
         col_t, col_tm = st.columns(2)
         with col_t:
-            st.markdown(f"""
-<div class="card" style="padding:12px 14px; min-height:80px;">
-    <div class="section-label" style="margin-bottom:6px;">오늘</div>
-    {''.join(f'<div style="font-size:0.8rem; color:#F1F5F9; margin-bottom:4px;">⏰ {s["due_time"] or ""} {s["title"]}</div>' for s in today_sch) or '<div class="body-small">일정 없음</div>'}
-</div>
-""", unsafe_allow_html=True)
+            st.markdown(
+                '<div style="padding:12px 14px;border-radius:14px;min-height:90px;'
+                'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">'
+                '<div style="font-size:0.62rem;color:#475569;font-weight:700;'
+                'letter-spacing:0.05em;margin-bottom:6px;">오늘</div>'
+                + (mission_html + sch_html or
+                   '<div style="font-size:0.75rem;color:#334155;">일정 없음</div>')
+                + '</div>',
+                unsafe_allow_html=True,
+            )
         with col_tm:
-            st.markdown(f"""
-<div class="card" style="padding:12px 14px; min-height:80px;">
-    <div class="section-label" style="margin-bottom:6px;">내일</div>
-    {''.join(f'<div style="font-size:0.8rem; color:#FCD34D; margin-bottom:4px;">⏰ {s["due_time"] or ""} {s["title"]}</div>' for s in tomorrow_sch) or '<div class="body-small">일정 없음</div>'}
-</div>
-""", unsafe_allow_html=True)
+            tmrw_html = ""
+            for s in tomorrow_sch:
+                t = f' {s["due_time"]}' if s.get("due_time") else ""
+                tmrw_html += (
+                    f'<div style="display:flex;align-items:center;gap:8px;padding:8px 0;'
+                    f'border-bottom:1px solid rgba(255,255,255,0.06);">'
+                    f'<div style="font-size:1rem;">⚠️</div>'
+                    f'<div><div style="font-size:0.62rem;color:#475569;font-weight:700;">'
+                    f'내일{t}</div>'
+                    f'<div style="font-size:0.82rem;font-weight:700;color:#FCD34D;">'
+                    f'{html.escape(s["title"])}</div></div></div>'
+                )
+            st.markdown(
+                '<div style="padding:12px 14px;border-radius:14px;min-height:90px;'
+                'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">'
+                '<div style="font-size:0.62rem;color:#475569;font-weight:700;'
+                'letter-spacing:0.05em;margin-bottom:6px;">내일</div>'
+                + (tmrw_html or '<div style="font-size:0.75rem;color:#334155;">일정 없음</div>')
+                + '</div>',
+                unsafe_allow_html=True,
+            )
 
         st.markdown("---")
 
@@ -3708,6 +4173,19 @@ elif active_tab == "schedule":
             raw = quick_input.strip()
             if not raw:
                 st.warning("일정을 입력해주세요.")
+            elif not is_premium and len(week_sch) >= FREE_SCHEDULE_LIMIT:
+                st.markdown("""
+<div style="padding:12px 14px;border-radius:12px;
+            background:rgba(99,102,241,0.10);border:1px solid rgba(99,102,241,0.30);
+            font-size:0.8rem;color:#A5B4FC;text-align:center;">
+    🔒 무료는 일정 3개까지예요<br>
+    <span style="font-size:0.72rem;color:#475569;">Premium → 일정 무제한</span>
+</div>
+""", unsafe_allow_html=True)
+                if st.button("⚡ Premium 보기", key="btn_sch_premium",
+                             use_container_width=True):
+                    st.session_state["_active_tab"] = "premium"
+                    st.rerun()
             else:
                 # 간단 파싱 — "내일 발표" / "4/25 미팅" / "금요일 마감"
                 import re as _re
@@ -3874,6 +4352,22 @@ elif active_tab == "analysis":
             wa = "가장 중요한 작업을 2분짜리 시작 블록으로 먼저 시작해라."
         # Premium 인사이트는 is_premium 블록에서 별도 호출
 
+    # 기록 열람 제한 안내 (무료 7일)
+    if not is_premium:
+        import datetime as _dt
+        cutoff = (_dt.date.today() - _dt.timedelta(days=FREE_RECORD_DAYS)).strftime("%Y-%m-%d")
+        old_count = sum(1 for r in records if str(r.get("date","")) < cutoff)
+        if old_count > 0:
+            st.markdown(
+                f'<div style="padding:10px 14px;border-radius:12px;margin-bottom:10px;'
+                f'background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);'
+                f'font-size:0.78rem;color:#A5B4FC;text-align:center;">'
+                f'🔒 <b>{old_count}개</b>의 기록이 잠겨 있어요 (7일 이전)<br>'
+                f'<span style="color:#475569;font-size:0.72rem;">Premium → 전체 기록 열람</span></div>',
+                unsafe_allow_html=True,
+            )
+
+
     st.markdown(f"""
 <div class="card">
     <div class="section-label">최근 7일 리포트</div>
@@ -3887,8 +4381,48 @@ elif active_tab == "analysis":
     </div>
     <div class="body-small" style="margin-top:10px;"><b>패턴:</b> {html.escape(wf)}</div>
     <div class="body-small"><b>추천:</b> {html.escape(wa)}</div>
+    {"" if is_premium else '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);font-size:0.72rem;color:#475569;">🔒 상세 원인 분석 · 위험 시간대 · 실패 예측 → <b style=\"color:#A5B4FC;\">Premium</b></div>'}
 </div>
 """, unsafe_allow_html=True)
+
+    # ── 컨디션 vs 실패율 패턴 ──
+    if not is_guest and nickname:
+        analytics_rows = load_analytics_rows(nickname)
+        cond_pattern   = get_condition_pattern(records, analytics_rows)
+        if cond_pattern:
+            worst = max(cond_pattern.items(), key=lambda x: x[1]["fail_rate"])
+            best  = min(cond_pattern.items(), key=lambda x: x[1]["fail_rate"])
+            cond_html = ""
+            for cond, data in cond_pattern.items():
+                bar_w = data["fail_rate"]
+                bar_c = "#FCA5A5" if data["fail_rate"] >= 60 else (
+                        "#FCD34D" if data["fail_rate"] >= 30 else "#86EFAC")
+                cond_html += (
+                    f'<div style="margin-bottom:8px;">'
+                    f'<div style="display:flex;justify-content:space-between;'
+                    f'font-size:0.72rem;margin-bottom:3px;">'
+                    f'<span style="color:#94A3B8;">{data["label"]}</span>'
+                    f'<span style="color:{bar_c};font-weight:700;">'
+                    f'실패율 {data["fail_rate"]}%</span></div>'
+                    f'<div style="height:4px;border-radius:2px;'
+                    f'background:rgba(255,255,255,0.06);">'
+                    f'<div style="width:{bar_w}%;height:100%;border-radius:2px;'
+                    f'background:{bar_c};"></div></div></div>'
+                )
+            st.markdown(
+                '<div style="padding:14px 16px;border-radius:16px;margin-bottom:12px;'
+                'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">'
+                '<div style="font-size:0.65rem;color:#475569;font-weight:700;'
+                'letter-spacing:0.06em;margin-bottom:10px;">🧠 컨디션 × 실패율</div>'
+                + cond_html +
+                f'<div style="margin-top:8px;padding-top:8px;'
+                f'border-top:1px solid rgba(255,255,255,0.06);'
+                f'font-size:0.72rem;color:#94A3B8;">'
+                f'💀 {worst[1]["label"]} 때 실패율 {worst[1]["fail_rate"]}% · '
+                f'⚡ {best[1]["label"]} 때 실패율 {best[1]["fail_rate"]}%'
+                f'</div></div>',
+                unsafe_allow_html=True,
+            )
 
     if len(records) >= 3:
         if is_premium:
@@ -3969,6 +4503,41 @@ elif active_tab == "analysis":
 
 # ──────────────────────── Premium ────────────────────────
 elif active_tab == "premium":
+
+    # ── 무료 vs Premium 비교표 ──
+    st.markdown("""
+<div style="padding:16px;border-radius:16px;margin-bottom:14px;
+            background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);">
+    <div style="font-size:0.65rem;color:#475569;font-weight:700;
+                letter-spacing:0.06em;margin-bottom:10px;">무료 vs Premium</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;
+                font-size:0.72rem;text-align:center;">
+        <div style="color:#475569;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">기능</div>
+        <div style="color:#475569;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">무료</div>
+        <div style="color:#A5B4FC;font-weight:700;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">⚡ Premium</div>
+
+        <div style="color:#94A3B8;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">AI 명령</div>
+        <div style="color:#475569;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">하루 3회</div>
+        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">무제한</div>
+
+        <div style="color:#94A3B8;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">기록 열람</div>
+        <div style="color:#475569;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">최근 7일</div>
+        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">전체 기간</div>
+
+        <div style="color:#94A3B8;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">일정 등록</div>
+        <div style="color:#475569;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">3개</div>
+        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">무제한</div>
+
+        <div style="color:#94A3B8;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">패턴 분석</div>
+        <div style="color:#475569;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">미리보기</div>
+        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">심층 분석</div>
+
+        <div style="color:#94A3B8;padding:8px 4px;">주간 리포트</div>
+        <div style="color:#475569;padding:8px 4px;">❌</div>
+        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;">✅</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
     # ── 게스트 — 닉네임 먼저 설정하도록 유도 ──
     if is_guest:
