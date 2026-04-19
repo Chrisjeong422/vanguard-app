@@ -2677,49 +2677,65 @@ def render_tab_nav(active: str) -> None:
 # 미션 화면 렌더 함수
 # =========================================================
 def render_mission_input_screen() -> None:
-    """미션 입력 화면 — 위험도 먼저 보여주고 행동 유도"""
-    hour = korea_now().hour
-    if hour >= 20:
-        urgency = "오늘 얼마 안 남았다."
+    """
+    첫 화면 — 충격 → 행동 구조
+    설명 없음. 선택 없음. 버튼 1개.
+    """
+    hour    = korea_now().hour
+    records = st.session_state.get("records", [])
+    fail_c  = sum(1 for r in records if str(r.get("done","")).lower() not in {"true","1","yes"})
+
+    # ── 헤드라인 (현실 직면) ──
+    if fail_c >= 3:
+        headline = f"이번 달 {fail_c}번 실패했습니다."
+        sub      = "같은 패턴이 반복되고 있습니다. 지금 끊지 않으면 오늘도 같습니다."
+    elif hour >= 20:
+        headline = "오늘 거의 끝났습니다."
+        sub      = "지금 시작하지 않으면 오늘도 그냥 지나갑니다."
     elif hour >= 16:
-        urgency = "오후가 가고 있다."
+        headline = "오후가 가고 있습니다."
+        sub      = "지금이 오늘 마지막 타임입니다."
     elif hour >= 12:
-        urgency = "오전은 갔다."
+        headline = "오전은 갔습니다."
+        sub      = "지금 시작하면 오늘 살릴 수 있습니다."
     else:
-        urgency = "지금이 오늘 최고의 타임이다."
+        headline = "지금이 오늘 최고의 타임입니다."
+        sub      = "지금 시작하면 하루가 달라집니다."
 
     st.markdown(
-        f'<div style="text-align:center;padding:28px 0 16px;">'
-        f'<div style="font-size:2rem;margin-bottom:8px;">⚡</div>'
-        f'<div style="font-size:1.35rem;font-weight:900;color:#F8FAFC;line-height:1.3;">'
-        f'오늘 뭘 끝낼 거야?</div>'
-        f'<div style="font-size:0.78rem;color:#FCA5A5;margin-top:6px;font-weight:700;">'
-        f'{urgency}</div>'
-        f'<div style="font-size:0.74rem;color:#475569;margin-top:4px;">'
-        f'1개만. 지금 바로 써라.</div>'
+        f'<div style="padding:24px 0 16px;">'
+        # 헤드라인
+        f'<div style="font-size:1.4rem;font-weight:900;color:#FCA5A5;'
+        f'line-height:1.3;margin-bottom:8px;">{headline}</div>'
+        # 서브
+        f'<div style="font-size:0.82rem;color:#94A3B8;line-height:1.6;">{sub}</div>'
         f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        '<div style="font-size:0.72rem;color:#475569;font-weight:700;'
+        'letter-spacing:0.05em;margin-bottom:6px;">지금 해야 할 1개</div>',
         unsafe_allow_html=True,
     )
 
     mission_input = st.text_input(
         "미션",
-        placeholder="예: 앱 로그인 기능 구현",
+        placeholder="지금 당장 할 수 있는 것 1개",
         label_visibility="collapsed",
     )
 
-    if st.button("🚀 이것이 오늘의 미션이다",
+    if st.button("🚀 지금 시작",
                  use_container_width=True, type="primary", key="btn_set_mission"):
         mission = mission_input.strip()
         if not mission:
-            st.warning("미션을 입력해주세요.")
+            st.warning("뭘 할지 써라.")
         elif len(mission) < 3:
-            st.warning("좀 더 구체적으로 입력해주세요.")
+            st.warning("좀 더 구체적으로.")
         else:
             log_event(st.session_state.get("nickname", "guest"), "start_mission")
             set_today_mission(mission)
             st.rerun()
-
-    st.caption("미션을 정하는 것 자체가 이미 시작이다.")
 
     # 이번 달 목표 — 입력 + 확인 버튼
     goal_val = st.text_input(
@@ -3478,6 +3494,27 @@ if active_tab == "home":
     if home_mode == "completion":
         insight = get_completion_insight(records, streak, today_mission)
         render_completion_screen(today_mission, insight, streak)
+
+        # 완료 후 즉시 다음 행동 유도
+        st.markdown(
+            '<div style="font-size:0.82rem;color:#86EFAC;font-weight:700;'
+            'text-align:center;margin:8px 0 4px;">오늘 흐름 살렸습니다.</div>',
+            unsafe_allow_html=True,
+        )
+        col_next, col_done = st.columns(2)
+        with col_next:
+            if st.button("다음 1개 이어서 →", key="btn_next_mission",
+                         use_container_width=True, type="primary"):
+                st.session_state["today_mission"]            = ""
+                st.session_state["today_mission_date"]       = ""
+                st.session_state["_show_completion_insight"] = False
+                st.rerun()
+        with col_done:
+            if st.button("오늘 마무리", key="btn_done_today",
+                         use_container_width=True):
+                st.session_state["_show_completion_insight"] = False
+                st.rerun()
+
         render_streak_share(streak, st.session_state.goal, success_rate)
 
         # streak별 인센티브 메시지
