@@ -308,6 +308,24 @@ html, body, [class*="css"] {
 
 hr { border-color:rgba(255,255,255,0.05) !important; }
 
+/* ── 탭 버튼 최소화 ── */
+div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] > div > div > div[data-testid="stButton"] > button {
+    min-height: 32px !important;
+    height: 32px !important;
+    font-size: 0.74rem !important;
+    border-radius: 8px !important;
+    padding: 0 2px !important;
+}
+
+/* ── Streamlit 배너 핵 ── */
+[data-testid="stStatusWidget"] { display:none !important; }
+[data-testid="stToolbar"]      { display:none !important; }
+footer                         { display:none !important; }
+.viewerBadge_container__r5tak  { display:none !important; }
+a[href*="streamlit.io"]        { display:none !important; }
+div[class*="StatusWidget"]     { display:none !important; }
+.st-emotion-cache-ffhzg2       { display:none !important; }
+
 /* ── 탭 버튼 — compact pill 스타일 ── */
 [data-testid="stHorizontalBlock"] .stButton > button {
     min-height: 36px !important;
@@ -2715,20 +2733,8 @@ def render_mission_input_screen() -> None:
     # 하단 여백 (네비게이션 가리지 않게)
     st.markdown('<div style="height:80px;"></div>', unsafe_allow_html=True)
 
-    # 목표 입력 — 목표 없을 때만 작게 표시 (첫 화면 집중도 유지)
-    if not st.session_state.goal:
-        goal_val = st.text_input(
-            "이번 달 목표 (선택)",
-            value="",
-            placeholder="예: 4월 앱 출시",
-            key="_goal_input_val",
-        )
-        if st.button("목표 저장", key="btn_goal_confirm",
-                     use_container_width=False):
-            if goal_val.strip():
-                st.session_state.goal = goal_val.strip()
-                st.session_state.lazy_command = ""
-                st.rerun()
+    # 목표 입력 완전 제거 — 첫 화면 복잡도 0
+    # 목표는 설정 후 헤더/분석 탭에서 관리
 
     # ── 오늘 우선순위 자동 제안 (일정 + 목표 기반) — 닉네임 있을 때만 ──
     if not st.session_state.get("_guest_mode") and st.session_state.get("nickname_confirmed"):
@@ -3346,41 +3352,31 @@ flame = '<span class="flame">🔥</span>' if streak >= 3 else "🔥"
 nick_display = "게스트" if is_guest else html.escape(nickname)
 nick_color = "#FCD34D" if is_guest else "#94A3B8"
 
-# ── 헤더 (로그인/로그아웃 버튼 제거 — 탭으로 처리) ──
-st.markdown(f"""
-<div style="display:flex;align-items:center;justify-content:space-between;
-            padding:12px 2px 10px;
-            border-bottom:1px solid rgba(255,255,255,0.05);
-            margin-bottom:8px;">
-    <div>
-        <div style="font-size:1.05rem;font-weight:900;color:#F8FAFC;
-                    letter-spacing:-0.03em;">⚡ Vanguard</div>
-        <div style="font-size:0.62rem;color:#38BDF8;font-weight:700;
-                    letter-spacing:0.08em;margin-top:1px;">BREAK THE LOOP</div>
-    </div>
-    <div style="text-align:right;font-size:0.72rem;color:#475569;line-height:1.5;">
-        {flame} {streak}일&nbsp;&nbsp;<span style="color:{nick_color};">{nick_display}</span>
-    </div>
+# ── 헤더 ──
+h_col, btn_col = st.columns([5, 2])
+with h_col:
+    st.markdown(f"""
+<div style="padding:10px 2px 8px;">
+    <div style="font-size:1.05rem;font-weight:900;color:#F8FAFC;letter-spacing:-0.03em;">⚡ Vanguard</div>
+    <div style="font-size:0.62rem;color:#38BDF8;font-weight:700;letter-spacing:0.08em;margin-top:1px;">BREAK THE LOOP</div>
 </div>
 """, unsafe_allow_html=True)
-
-# 로그인/로그아웃 처리 (세션 상태로만)
-if is_guest and st.session_state.get("_force_login"):
-    st.session_state["_guest_mode"] = False
-    st.session_state.nickname_confirmed = False
-    st.session_state.pop("_force_login", None)
-    st.rerun()
+with btn_col:
+    st.markdown("<div style='padding-top:8px;'></div>", unsafe_allow_html=True)
+    if is_guest:
+        if st.button("로그인", key="hdr_login_btn", use_container_width=True):
+            st.session_state["_guest_mode"] = False
+            st.session_state.nickname_confirmed = False
+            st.rerun()
+    else:
+        st.markdown(
+            f'<div style="text-align:right;font-size:0.72rem;color:#475569;padding-top:4px;">'
+            f'{flame} {streak}일<br><span style="color:{nick_color};">{nick_display}</span></div>',
+            unsafe_allow_html=True,
+        )
 
 # ── 탭 네비게이션 ──
 render_tab_nav(active_tab)
-
-# 로그인 버튼 — 탭 바로 아래 (게스트일 때만, 작게)
-if is_guest:
-    if st.button("로그인 / 닉네임 설정", key="btn_login_under_tab",
-                 use_container_width=True):
-        st.session_state["_guest_mode"] = False
-        st.session_state.nickname_confirmed = False
-        st.rerun()
 
 # =========================================================
 # 탭 콘텐츠
