@@ -125,245 +125,193 @@ PREMIUM_PAYMENT_URL = get_secret(
 # =========================================================
 st.markdown("""
 <style>
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
-footer {visibility: hidden;}
+#MainMenu, header, footer { visibility: hidden; }
 
 html, body, [class*="css"] {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display",
-                 "Helvetica Neue", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+                 "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
 }
 
-.stApp { background: #080E1C; color: #F8FAFC; }
+.stApp { background: #050A12; color: #F1F5F9; }
 
 .block-container {
-    max-width: 480px !important;
-    padding-top: 0.5rem !important;
-    padding-bottom: 1rem !important;
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
+    max-width: 420px !important;
+    padding-top: 0 !important;
+    padding-bottom: 80px !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
 }
 
-/* ── 카드 ── */
 .card {
-    padding: 16px; border-radius: 20px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.07);
-    margin-bottom: 10px;
+    padding: 16px; border-radius: 18px;
+    background: #0D1520;
+    border: 1px solid rgba(255,255,255,0.06);
+    margin-bottom: 8px;
 }
 .command-card {
-    padding: 20px; border-radius: 22px;
-    background: linear-gradient(145deg,rgba(14,165,233,0.18),rgba(59,130,246,0.08));
-    border: 1px solid rgba(56,189,248,0.28);
-    margin-bottom: 10px;
+    padding: 20px; border-radius: 20px;
+    background: #0D1A2E;
+    border: 1px solid rgba(56,189,248,0.18);
+    margin-bottom: 8px;
 }
 .warning-card {
     padding: 16px; border-radius: 18px;
-    background: rgba(239,68,68,0.09);
-    border: 1px solid rgba(239,68,68,0.28);
-    margin-bottom: 10px;
+    background: #160A0A;
+    border: 1px solid rgba(239,68,68,0.20);
+    margin-bottom: 8px;
 }
 .success-card {
     padding: 16px; border-radius: 18px;
-    background: rgba(34,197,94,0.09);
-    border: 1px solid rgba(34,197,94,0.26);
-    margin-bottom: 10px;
+    background: #0A160D;
+    border: 1px solid rgba(34,197,94,0.18);
+    margin-bottom: 8px;
 }
 
-/* ── streak 위기 ── */
 .streak-crisis {
     padding: 20px 16px; border-radius: 20px; text-align: center;
-    background: linear-gradient(145deg,rgba(239,68,68,0.14),rgba(220,38,38,0.07));
-    border: 1.5px solid rgba(239,68,68,0.42);
-    margin-bottom: 12px;
-}
-.streak-crisis-num  { font-size:2.4rem; font-weight:900; color:#FCA5A5; line-height:1; }
-.streak-crisis-title{ font-size:0.95rem; font-weight:900; color:#FCA5A5; margin-top:4px; }
-.streak-crisis-sub  { font-size:0.78rem; color:#94A3B8; margin-top:4px; line-height:1.5; }
-
-/* ── 어제 vs 오늘 ── */
-.compare-card {
-    padding: 13px 15px; border-radius: 17px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.05);
+    background: #160808;
+    border: 1px solid rgba(239,68,68,0.28);
     margin-bottom: 10px;
 }
-.compare-row {
-    display:flex; align-items:center; gap:9px;
-    padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04);
-}
-.compare-row:last-of-type { border-bottom:none; }
-.compare-day  { font-size:0.7rem; color:#475569; width:26px; flex-shrink:0; }
-.compare-emoji{ font-size:0.9rem; flex-shrink:0; width:18px; }
-.compare-text { font-size:0.8rem; color:#94A3B8; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.compare-time { font-size:0.68rem; color:#334155; flex-shrink:0; }
-.compare-msg  { font-size:0.8rem; margin-top:9px; font-weight:700; }
+.streak-crisis-num   { font-size:2.6rem; font-weight:900; color:#FCA5A5; line-height:1; letter-spacing:-0.02em; }
+.streak-crisis-title { font-size:0.95rem; font-weight:700; color:#FCA5A5; margin-top:6px; }
+.streak-crisis-sub   { font-size:0.76rem; color:#64748B; margin-top:4px; line-height:1.5; }
 
-/* ── 공유 배너 ── */
+.compare-card {
+    padding: 13px 15px; border-radius: 16px;
+    background: #0D1520;
+    border: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 8px;
+}
+.compare-row { display:flex; align-items:center; gap:9px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+.compare-row:last-of-type { border-bottom:none; }
+.compare-day   { font-size:0.68rem; color:#334155; width:26px; flex-shrink:0; }
+.compare-emoji { font-size:0.88rem; flex-shrink:0; width:18px; }
+.compare-text  { font-size:0.78rem; color:#64748B; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.compare-time  { font-size:0.66rem; color:#1E293B; flex-shrink:0; }
+.compare-msg   { font-size:0.8rem; margin-top:9px; font-weight:700; }
+
 .share-banner {
     padding: 16px; border-radius: 18px; text-align: center;
-    background: linear-gradient(145deg,rgba(99,102,241,0.16),rgba(59,130,246,0.09));
-    border: 1.5px solid rgba(99,102,241,0.35);
-    margin-bottom: 10px;
+    background: #0D1020;
+    border: 1px solid rgba(99,102,241,0.25);
+    margin-bottom: 8px;
 }
-.share-milestone{ font-size:1.4rem; font-weight:900; color:#FFFFFF; }
-.share-sub      { font-size:0.78rem; color:#A5B4FC; margin-top:3px; }
+.share-milestone { font-size:1.4rem; font-weight:900; color:#F1F5F9; letter-spacing:-0.02em; }
+.share-sub       { font-size:0.76rem; color:#818CF8; margin-top:3px; }
 
-/* ── 사회적 증거 ── */
 .social-proof {
-    padding: 8px 13px; border-radius: 11px;
-    background: rgba(56,189,248,0.07);
-    border: 1px solid rgba(56,189,248,0.13);
-    margin-bottom: 10px;
-    font-size:0.77rem; color:#7DD3FC; text-align:center;
+    padding: 8px 13px; border-radius: 10px;
+    background: rgba(56,189,248,0.05);
+    border: 1px solid rgba(56,189,248,0.10);
+    margin-bottom: 8px;
+    font-size:0.75rem; color:#38BDF8; text-align:center;
 }
 
-/* ── 집중 중 카드 ── */
 .focus-card {
-    padding: 20px 16px; border-radius: 20px;
-    background: linear-gradient(145deg,rgba(34,197,94,0.12),rgba(16,185,129,0.07));
-    border: 1.5px solid rgba(34,197,94,0.30);
+    padding: 28px 16px; border-radius: 24px;
+    background: #0A160D;
+    border: 1px solid rgba(34,197,94,0.20);
     margin-bottom: 10px; text-align: center;
 }
-.focus-elapsed {
-    font-size: 2.4rem; font-weight: 900; color: #86EFAC;
-    font-variant-numeric: tabular-nums; line-height: 1;
-}
-.focus-label { font-size: 0.78rem; color: #6EE7B7; margin-top: 4px; }
-.focus-task  { font-size: 0.86rem; color: #94A3B8; margin-top: 10px; line-height: 1.5; }
-.focus-phase { font-size: 0.78rem; color: #6EE7B7; font-weight: 700; margin-top: 6px; }
+.focus-elapsed { font-size:3rem; font-weight:900; color:#4ADE80; font-variant-numeric:tabular-nums; line-height:1; letter-spacing:-0.03em; }
+.focus-label   { font-size:0.72rem; color:#166534; margin-top:6px; letter-spacing:0.08em; text-transform:uppercase; }
+.focus-task    { font-size:0.88rem; color:#64748B; margin-top:14px; line-height:1.5; }
+.focus-phase   { font-size:0.72rem; color:#15803D; font-weight:700; margin-top:10px; letter-spacing:0.05em; }
 
-/* ── 타이포 ── */
-.muted { color:#475569; font-size:0.76rem; }
-.section-label {
-    font-size:0.7rem; font-weight:700; color:#475569;
-    letter-spacing:0.06em; text-transform:uppercase; margin-bottom:5px;
-}
-.strong-title { font-size:1.08rem; font-weight:900; line-height:1.35; color:#FFFFFF; margin-top:7px; }
-.body-small   { color:#94A3B8; font-size:0.82rem; line-height:1.55; margin-top:5px; }
+.muted { color:#334155; font-size:0.74rem; }
+.section-label { font-size:0.65rem; font-weight:700; color:#334155; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:6px; }
+.strong-title  { font-size:1.1rem; font-weight:900; line-height:1.3; color:#F1F5F9; letter-spacing:-0.01em; }
+.body-small    { color:#64748B; font-size:0.8rem; line-height:1.6; margin-bottom:5px; }
 
-/* ── 상태 메트릭 ── */
-.metric-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; }
-.metric {
-    padding:11px 7px; border-radius:13px;
-    background:rgba(255,255,255,0.04);
-    border:1px solid rgba(255,255,255,0.06);
-    text-align:center;
-}
-.metric-label { color:#475569; font-size:0.68rem; }
-.metric-value { color:#FFFFFF; font-size:1.02rem; font-weight:900; margin-top:3px; }
+.metric-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:8px; }
+.metric { padding:12px 6px; border-radius:14px; background:#0D1520; border:1px solid rgba(255,255,255,0.05); text-align:center; }
+.metric-label { color:#334155; font-size:0.64rem; letter-spacing:0.04em; }
+.metric-value { color:#F1F5F9; font-size:1.1rem; font-weight:900; margin-top:4px; letter-spacing:-0.01em; }
 
-/* ── 월간 캘린더 ── */
-.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-top:7px; }
-.cal-day { aspect-ratio:1; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:0.63rem; font-weight:700; }
-.cal-success { background:rgba(34,197,94,0.26); color:#86EFAC; }
-.cal-fail    { background:rgba(239,68,68,0.17); color:#FCA5A5; }
-.cal-empty   { background:rgba(255,255,255,0.04); color:#334155; }
+.cal-grid    { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:8px; }
+.cal-day     { aspect-ratio:1; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:0.62rem; font-weight:700; }
+.cal-success { background:rgba(74,222,128,0.16); color:#4ADE80; }
+.cal-fail    { background:rgba(248,113,113,0.13); color:#F87171; }
+.cal-empty   { background:#0D1520; color:#1E293B; }
 .cal-future  { background:transparent; }
-.cal-locked  { background:rgba(99,102,241,0.12); color:#6366F1; font-size:0.55rem; }
-.cal-header  { color:#334155; font-size:0.62rem; text-align:center; padding-bottom:2px; }
+.cal-locked  { background:rgba(99,102,241,0.10); color:#4F46E5; font-size:0.52rem; }
+.cal-header  { color:#1E293B; font-size:0.60rem; text-align:center; padding-bottom:3px; }
 
-/* ── 프리미엄 pill ── */
-.premium-pill {
-    display:inline-block; padding:4px 8px; border-radius:999px;
-    background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.07);
-    font-size:0.71rem; color:#CBD5E1; margin-right:4px; margin-bottom:4px;
-}
+.premium-pill { display:inline-block; padding:3px 8px; border-radius:999px; background:#0D1520; border:1px solid rgba(255,255,255,0.07); font-size:0.68rem; color:#94A3B8; margin-right:4px; margin-bottom:4px; }
 
-/* ── Premium 잠금 카드 ── */
-.lock-card {
-    padding: 20px 16px; border-radius: 20px; text-align: center;
-    background: linear-gradient(145deg,rgba(99,102,241,0.14),rgba(59,130,246,0.08));
-    border: 1.5px solid rgba(99,102,241,0.32);
-    margin-bottom: 10px;
-}
-.lock-icon  { font-size:2rem; margin-bottom:8px; }
-.lock-title { font-size:1rem; font-weight:900; color:#C7D2FE; }
-.lock-sub   { font-size:0.8rem; color:#6B7280; margin-top:5px; line-height:1.55; }
+.lock-card { padding:20px 16px; border-radius:20px; text-align:center; background:#0D1020; border:1px solid rgba(99,102,241,0.22); margin-bottom:8px; }
+.lock-icon  { font-size:1.8rem; margin-bottom:8px; }
+.lock-title { font-size:1rem; font-weight:900; color:#A5B4FC; }
+.lock-sub   { font-size:0.76rem; color:#374151; margin-top:5px; line-height:1.5; }
 
-/* 계좌 안내 카드 제거됨 — 결제 링크 방식으로 전환 */
-
-/* ── Premium 혜택 비교표 ── */
 .compare-table { width:100%; margin-top:8px; border-collapse:collapse; }
-.compare-table td { padding:7px 4px; font-size:0.8rem; vertical-align:middle; }
+.compare-table td { padding:8px 4px; font-size:0.78rem; vertical-align:middle; }
 .compare-table tr { border-bottom:1px solid rgba(255,255,255,0.04); }
 .compare-table tr:last-child { border-bottom:none; }
-.ct-label { color:#94A3B8; width:55%; }
-.ct-free  { text-align:center; color:#475569; width:22%; font-size:0.75rem; }
-.ct-prem  { text-align:center; color:#86EFAC; width:23%; font-size:0.75rem; font-weight:700; }
+.ct-label { color:#64748B; width:55%; }
+.ct-free  { text-align:center; color:#334155; width:22%; font-size:0.73rem; }
+.ct-prem  { text-align:center; color:#4ADE80; width:23%; font-size:0.73rem; font-weight:700; }
 
-/* ── 버튼 — Streamlit 기본 클래스만 사용 (버전 안전) ── */
 .stButton > button {
-    width:100%; min-height:50px; border-radius:15px;
-    font-size:0.93rem; font-weight:800;
-    border: 1px solid rgba(255,255,255,0.15) !important;
-    background: rgba(255,255,255,0.07) !important;
-    color: #F8FAFC !important;
+    width:100%; min-height:52px; border-radius:14px;
+    font-size:0.92rem; font-weight:700; letter-spacing:-0.01em;
+    border:1px solid rgba(255,255,255,0.08) !important;
+    background:#111827 !important;
+    color:#F1F5F9 !important;
 }
 .stButton > button:hover {
-    background: rgba(255,255,255,0.13) !important;
-    border-color: rgba(255,255,255,0.25) !important;
+    background:#1F2937 !important;
+    border-color:rgba(255,255,255,0.15) !important;
 }
-/* link_button — stLinkButton은 비교적 안정적인 클래스 */
+.stButton > button[kind="primary"] {
+    background:#2563EB !important;
+    border-color:#2563EB !important;
+    color:#ffffff !important;
+}
+.stButton > button[kind="primary"]:hover { background:#1D4ED8 !important; }
+
 .stLinkButton > a {
-    width:100%; min-height:50px; border-radius:15px;
-    font-size:0.93rem; font-weight:800;
+    width:100%; min-height:52px; border-radius:14px;
+    font-size:0.92rem; font-weight:700;
     display:flex; align-items:center; justify-content:center;
-    background: rgba(59,130,246,0.85) !important;
-    color: #ffffff !important;
-    border: none !important;
-    text-decoration: none !important;
+    background:#2563EB !important; color:#ffffff !important;
+    border:none !important; text-decoration:none !important;
 }
-.stLinkButton > a:hover {
-    background: rgba(59,130,246,1) !important;
-}
+.stLinkButton > a:hover { background:#1D4ED8 !important; }
 
-/* ── 탭 버튼은 Streamlit 기본 스타일 사용 — 추가 CSS 없음 ── */
+.stTextInput input, input[type="text"], input[type="password"], input[type="email"] {
+    background:#0D1520 !important;
+    border:1px solid rgba(255,255,255,0.08) !important;
+    border-radius:12px !important;
+    color:#F1F5F9 !important;
+    -webkit-text-fill-color:#F1F5F9 !important;
+    font-size:0.92rem !important;
+    padding:12px 14px !important;
+    caret-color:#3B82F6 !important;
+}
+.stTextInput input::placeholder, input[type="text"]::placeholder {
+    color:rgba(241,245,249,0.22) !important;
+    -webkit-text-fill-color:rgba(241,245,249,0.22) !important;
+}
+.stTextInput input:focus, input[type="text"]:focus {
+    border-color:rgba(59,130,246,0.50) !important;
+    box-shadow:0 0 0 3px rgba(59,130,246,0.08) !important;
+    background:#0D1520 !important;
+}
+.stTextInput label, .stTextInput p { color:#334155 !important; }
+.stCaption, .stMarkdown small { color:#334155 !important; }
 
-/* ── 입력 필드 — 안정적인 선택자만 사용 ── */
-.stTextInput input,
-input[type="text"],
-input[type="password"],
-input[type="email"] {
-    background: #1E293B !important;
-    border: 1px solid rgba(255,255,255,0.20) !important;
-    border-radius: 13px !important;
-    color: #F8FAFC !important;
-    -webkit-text-fill-color: #F8FAFC !important;
-    font-size: 0.93rem !important;
-    padding: 11px 15px !important;
-    caret-color: #38BDF8 !important;
-}
-.stTextInput input::placeholder,
-input[type="text"]::placeholder,
-input[type="password"]::placeholder {
-    color: rgba(248,250,252,0.40) !important;
-    -webkit-text-fill-color: rgba(248,250,252,0.40) !important;
-}
-.stTextInput input:focus,
-input[type="text"]:focus {
-    border-color: #38BDF8 !important;
-    box-shadow: 0 0 0 3px rgba(56,189,248,0.15) !important;
-    background: #1E293B !important;
-    -webkit-text-fill-color: #F8FAFC !important;
-}
-.stTextInput label, .stTextInput p {
-    color: #94A3B8 !important;
-}
-/* 셀렉트박스 — data-baseweb은 Streamlit 내부 구현에 의존하므로 제거
-   Streamlit 기본 스타일로 fallback */
-.stCaption, .stMarkdown small {
-    color: #475569 !important;
-}
+@keyframes flicker { 0%,100%{opacity:1;} 50%{opacity:0.70;} }
+.flame { display:inline-block; animation:flicker 1.8s ease-in-out infinite; }
 
-/* streak 불꽃 */
-@keyframes flicker { 0%,100%{opacity:1;} 50%{opacity:0.72;} }
-.flame { display:inline-block; animation:flicker 1.5s ease-in-out infinite; }
+hr { border-color:rgba(255,255,255,0.05) !important; }
 
 @media (max-width:480px) {
-    .block-container { padding-left:0.7rem !important; padding-right:0.7rem !important; }
-    .focus-elapsed { font-size:2rem; }
+    .block-container { padding-left:12px !important; padding-right:12px !important; }
+    .focus-elapsed { font-size:2.6rem; }
+    .stButton > button { min-height:48px; }
 }
 </style>
 """, unsafe_allow_html=True)
