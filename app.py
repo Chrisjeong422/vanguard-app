@@ -308,6 +308,16 @@ html, body, [class*="css"] {
 
 hr { border-color:rgba(255,255,255,0.05) !important; }
 
+/* ── 탭 버튼 — compact pill 스타일 ── */
+[data-testid="stHorizontalBlock"] .stButton > button {
+    min-height: 36px !important;
+    height: 36px !important;
+    font-size: 0.78rem !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    padding: 0 6px !important;
+}
+
 /* Streamlit 시스템 UI 완전 제거 */
 [data-testid="stStatusWidget"] { display: none !important; }
 [data-testid="stToolbar"] { display: none !important; }
@@ -2602,47 +2612,27 @@ def render_nickname_collect() -> None:
 # - 비활성 탭: type="secondary" (Streamlit 기본 스타일)
 # =========================================================
 def render_tab_nav(active: str) -> None:
-    # ── 탭 네비게이션 — 아이콘 + 텍스트 버튼 (Streamlit 네이티브) ──
-    icons  = {"home": "⚡", "schedule": "📅", "analysis": "📊", "premium": "👑"}
-    labels = {"home": "홈", "schedule": "일정", "analysis": "분석", "premium": "Pro"}
+    """
+    탭 네비게이션 — 헤더에 통합된 작은 pill 형태
+    세로 나열 없음, 한 줄로 처리
+    """
+    labels  = {"home": "홈", "schedule": "일정", "analysis": "분석", "premium": "Pro"}
     tab_ids = ["home", "schedule", "analysis", "premium"]
 
     cols = st.columns(4)
     for col, tab_id in zip(cols, tab_ids):
         with col:
             is_active = active == tab_id
-            icon  = icons[tab_id]
-            label = labels[tab_id]
-            display = f"{icon} {label}" if is_active else f"{icon}"
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(display, key=f"tab_{tab_id}",
-                         use_container_width=True,
-                         type=btn_type):
+            if st.button(
+                labels[tab_id],
+                key=f"tab_{tab_id}",
+                use_container_width=True,
+                type="primary" if is_active else "secondary",
+            ):
                 if tab_id == "premium":
                     log_event(st.session_state.get("nickname", "guest"), "click_premium")
                 st.session_state["_active_tab"] = tab_id
                 st.rerun()
-
-    # 탭 버튼 스타일 — 앱 하단탭 느낌
-    st.markdown("""
-<style>
-/* Streamlit 하단 배너 완전 숨김 */
-[data-testid="stStatusWidget"] { display: none !important; }
-iframe[title="streamlit_analytics2.components.count_widget"] { display: none !important; }
-.viewerBadge_container__r5tak { display: none !important; }
-#stDecoration { display: none !important; }
-a[href*="streamlit.io"] { display: none !important; }
-footer { display: none !important; }
-
-/* 탭 버튼 높이 줄이기 */
-[data-testid="stHorizontalBlock"] .stButton > button {
-    min-height: 44px !important;
-    font-size: 0.85rem !important;
-    border-radius: 12px !important;
-    padding: 6px 4px !important;
-}
-</style>
-""", unsafe_allow_html=True)
 
 # =========================================================
 # 컴포넌트: 집중 상태 카드
@@ -3356,44 +3346,41 @@ flame = '<span class="flame">🔥</span>' if streak >= 3 else "🔥"
 nick_display = "게스트" if is_guest else html.escape(nickname)
 nick_color = "#FCD34D" if is_guest else "#94A3B8"
 
-# 헤더 + 로그아웃
-header_col, logout_col = st.columns([4, 1])
-with header_col:
-    st.markdown(f"""
-<div style="display:flex; align-items:center; justify-content:space-between;
-            padding:10px 2px 12px;
+# ── 헤더 (로그인/로그아웃 버튼 제거 — 탭으로 처리) ──
+st.markdown(f"""
+<div style="display:flex;align-items:center;justify-content:space-between;
+            padding:12px 2px 10px;
             border-bottom:1px solid rgba(255,255,255,0.05);
-            margin-bottom:4px;">
+            margin-bottom:8px;">
     <div>
-        <div style="font-size:1.08rem; font-weight:900; color:#F8FAFC;
+        <div style="font-size:1.05rem;font-weight:900;color:#F8FAFC;
                     letter-spacing:-0.03em;">⚡ Vanguard</div>
-        <div style="font-size:0.67rem; color:#38BDF8; font-weight:700;
-                    letter-spacing:0.08em; margin-top:1px;">BREAK THE LOOP</div>
+        <div style="font-size:0.62rem;color:#38BDF8;font-weight:700;
+                    letter-spacing:0.08em;margin-top:1px;">BREAK THE LOOP</div>
     </div>
-    <div style="text-align:right; font-size:0.73rem; color:#475569; line-height:1.5;">
-        {flame} {streak}일<br>
-        <span style="color:{nick_color};">{nick_display}</span>
+    <div style="text-align:right;font-size:0.72rem;color:#475569;line-height:1.5;">
+        {flame} {streak}일&nbsp;&nbsp;<span style="color:{nick_color};">{nick_display}</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
-with logout_col:
-    st.markdown("<div style='padding-top:10px;'></div>", unsafe_allow_html=True)
-    if is_guest:
-        # 게스트 → 로그인 버튼
-        if st.button("로그인", key="btn_login_header", use_container_width=True):
-            st.session_state["_guest_mode"] = False
-            st.session_state.nickname_confirmed = False
-            st.rerun()
-    else:
-        # 로그인 상태 → 로그아웃 버튼
-        if st.button("로그아웃", key="btn_logout", use_container_width=True):
-            for k in list(st.session_state.keys()):
-                del st.session_state[k]
-            st.query_params.clear()
-            st.rerun()
 
-# ── 탭 네비게이션 (단일 레이어) ──
+# 로그인/로그아웃 처리 (세션 상태로만)
+if is_guest and st.session_state.get("_force_login"):
+    st.session_state["_guest_mode"] = False
+    st.session_state.nickname_confirmed = False
+    st.session_state.pop("_force_login", None)
+    st.rerun()
+
+# ── 탭 네비게이션 ──
 render_tab_nav(active_tab)
+
+# 로그인 버튼 — 탭 바로 아래 (게스트일 때만, 작게)
+if is_guest:
+    if st.button("로그인 / 닉네임 설정", key="btn_login_under_tab",
+                 use_container_width=True):
+        st.session_state["_guest_mode"] = False
+        st.session_state.nickname_confirmed = False
+        st.rerun()
 
 # =========================================================
 # 탭 콘텐츠
