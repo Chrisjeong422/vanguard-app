@@ -2686,21 +2686,28 @@ def render_mission_input_screen() -> None:
     fail_c  = sum(1 for r in records if str(r.get("done","")).lower() not in {"true","1","yes"})
 
     # ── 헤드라인 (현실 직면) ──
+    # 목표 달성 확률 계산 — 실패 횟수 + 시간대 기반
+    base_prob = 80
+    base_prob -= fail_c * 8          # 실패 1회당 -8%
+    base_prob -= max(0, hour - 9) * 2 # 9시 이후 시간당 -2%
+    base_prob = max(15, min(85, base_prob))
+    drop_prob = max(5, base_prob - 21)  # 지금 안 하면 더 떨어지는 수치
+
     if fail_c >= 3:
-        headline = f"이번 달 {fail_c}번 실패했습니다."
-        sub      = "같은 패턴이 반복되고 있습니다. 지금 끊지 않으면 오늘도 같습니다."
+        headline = f"이번 달 {fail_c}번 같은 패턴으로 무너졌습니다."
+        sub      = f"지금 시작 안 하면 목표 달성 확률 {base_prob}% → {drop_prob}%로 떨어집니다."
     elif hour >= 20:
-        headline = "오늘 거의 끝났습니다."
-        sub      = "지금 시작하지 않으면 오늘도 그냥 지나갑니다."
+        headline = "오늘 2시간도 안 남았습니다."
+        sub      = f"지금 시작 안 하면 오늘 목표 달성 확률 {drop_prob}%입니다."
     elif hour >= 16:
-        headline = "오후가 가고 있습니다."
-        sub      = "지금이 오늘 마지막 타임입니다."
+        headline = "오후 집중력이 무너지는 시간입니다."
+        sub      = f"지금 시작하면 달성 확률 {base_prob}%. 30분 후면 {drop_prob}%."
     elif hour >= 12:
-        headline = "오전은 갔습니다."
-        sub      = "지금 시작하면 오늘 살릴 수 있습니다."
+        headline = "오전은 갔습니다. 지금이 마지막 골든타임입니다."
+        sub      = f"지금 시작하면 오늘 목표 달성 확률 {base_prob}%입니다."
     else:
         headline = "지금이 오늘 최고의 타임입니다."
-        sub      = "지금 시작하면 하루가 달라집니다."
+        sub      = f"지금 시작하면 목표 달성 확률 {base_prob}%. 미루면 {drop_prob}%로 떨어집니다."
 
     st.markdown(
         f'<div style="padding:24px 0 16px;">'
@@ -2813,6 +2820,11 @@ def render_mission_input_screen() -> None:
 
     # ── 게스트 로그인 유도 ──
     if st.session_state.get("_guest_mode"):
+        st.markdown(
+            '<div style="font-size:0.7rem;color:#475569;text-align:center;margin:4px 0;">'
+            '닉네임 없이도 지금 바로 시작 가능합니다. 기록 저장은 닉네임 설정 후.</div>',
+            unsafe_allow_html=True,
+        )
         st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
         st.markdown(
             '<div style="padding:10px 14px;border-radius:12px;'
@@ -3496,9 +3508,19 @@ if active_tab == "home":
         render_completion_screen(today_mission, insight, streak)
 
         # 완료 후 즉시 다음 행동 유도
+        # 내일 재방문 이유 계산
+        _hour_now  = korea_now().hour
+        _fail_hour = _hour_now  # 오늘 완료한 시간 = 내일 위험 시간대
+        _tomorrow_risk = 65 if _fail_hour >= 16 else (45 if _fail_hour >= 12 else 30)
+
         st.markdown(
-            '<div style="font-size:0.82rem;color:#86EFAC;font-weight:700;'
-            'text-align:center;margin:8px 0 4px;">오늘 흐름 살렸습니다.</div>',
+            '<div style="padding:12px 14px;border-radius:14px;margin-bottom:8px;'
+            'background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.20);">'
+            '<div style="font-size:0.82rem;color:#86EFAC;font-weight:900;margin-bottom:4px;">'
+            '오늘 흐름 살렸습니다.</div>'
+            f'<div style="font-size:0.72rem;color:#475569;">'
+            f'내일 이 시간 실패 확률 {_tomorrow_risk}% — 내일도 지금 켜야 합니다.'
+            f'</div></div>',
             unsafe_allow_html=True,
         )
         col_next, col_done = st.columns(2)
@@ -3585,14 +3607,21 @@ if active_tab == "home":
 
         # 실패 직후 복구 버튼
         current_fc = get_success_fail_counts(records)[1]
+        # 실패 직후 — 선택지 없음, 즉시 행동 1개만
+        st.markdown(
+            '<div style="font-size:0.72rem;color:#FCA5A5;font-weight:700;'
+            'text-align:center;margin-bottom:6px;">'
+            '생각하지 마라. 지금 3분만 시작하면 된다.</div>',
+            unsafe_allow_html=True,
+        )
         col_r1, col_r2 = st.columns(2)
         with col_r1:
-            if st.button("⚡ 지금 시작",
+            if st.button("⚡ 3분만 지금 시작",
                          use_container_width=True,
                          key="btn_recovery_mission", type="primary"):
                 st.session_state.running      = True
                 st.session_state.start_time   = time.time()
-                st.session_state.current_task = "3분만 해라. 딱 3분. 그것만 하면 오늘은 살아난다."
+                st.session_state.current_task = "3분만. 딱 3분. 지금 당장."
                 st.session_state["_show_fail_select"]  = False
                 st.session_state["_crisis_dismissed"]  = True
                 st.rerun()
@@ -4539,6 +4568,19 @@ elif active_tab == "analysis":
 
 # ──────────────────────── Premium ────────────────────────
 elif active_tab == "premium":
+
+    # ── Premium 압박 헤드라인 ──
+    st.markdown(
+        '<div style="padding:16px;border-radius:16px;margin-bottom:14px;'
+        'background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.20);">'
+        '<div style="font-size:1.1rem;font-weight:900;color:#FCA5A5;margin-bottom:6px;">'
+        '무료로는 시작만 됩니다.</div>'
+        '<div style="font-size:0.8rem;color:#475569;line-height:1.7;">'
+        '계속 하게 만드는 건 다릅니다.<br>'
+        'Premium은 무너질 때 잡아주는 감독 시스템입니다.'
+        '</div></div>',
+        unsafe_allow_html=True,
+    )
 
     # ── 무료 vs Premium 비교표 ──
     rows = [
