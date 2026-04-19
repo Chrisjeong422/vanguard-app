@@ -308,6 +308,15 @@ html, body, [class*="css"] {
 
 hr { border-color:rgba(255,255,255,0.05) !important; }
 
+/* Streamlit 시스템 UI 완전 제거 */
+[data-testid="stStatusWidget"] { display: none !important; }
+[data-testid="stToolbar"] { display: none !important; }
+.viewerBadge_container__r5tak { display: none !important; }
+#stDecoration { display: none !important; }
+footer { display: none !important; }
+.st-emotion-cache-zq5wmm { display: none !important; }
+a[href*="streamlit.io"] { display: none !important; }
+
 @media (max-width:480px) {
     .block-container { padding-left:12px !important; padding-right:12px !important; }
     .focus-elapsed { font-size:2.6rem; }
@@ -2593,60 +2602,44 @@ def render_nickname_collect() -> None:
 # - 비활성 탭: type="secondary" (Streamlit 기본 스타일)
 # =========================================================
 def render_tab_nav(active: str) -> None:
-    # ── 하단 고정 네비게이션 (앱 느낌) ──
-    icons = {"home": "⚡", "schedule": "📅", "analysis": "📊", "premium": "👑"}
-    labels = {"home": "홈", "schedule": "일정", "analysis": "분석", "premium": "Premium"}
-
-    # HTML 하단 탭바
-    tabs_html = ""
-    for tab_id in ["home", "schedule", "analysis", "premium"]:
-        is_active = active == tab_id
-        color = "#3B82F6" if is_active else "#334155"
-        weight = "700" if is_active else "400"
-        tabs_html += (
-            f'<div style="flex:1;text-align:center;cursor:pointer;" '
-            f'onclick="void(0)">'
-            f'<div style="font-size:1.1rem;">{icons[tab_id]}</div>'
-            f'<div style="font-size:0.6rem;color:{color};font-weight:{weight};'
-            f'margin-top:2px;">{labels[tab_id]}</div>'
-            f'</div>'
-        )
-
-    st.markdown(
-        '<div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);'
-        'width:420px;max-width:100vw;background:#080F1A;'
-        'border-top:1px solid rgba(255,255,255,0.06);'
-        'padding:8px 0 20px;z-index:999;display:flex;">'
-        + tabs_html + '</div>',
-        unsafe_allow_html=True,
-    )
-
-    # 실제 탭 전환 버튼 (숨김 — HTML 위에 Streamlit 버튼으로 처리)
-    cols = st.columns(4)
+    # ── 탭 네비게이션 — 아이콘 + 텍스트 버튼 (Streamlit 네이티브) ──
+    icons  = {"home": "⚡", "schedule": "📅", "analysis": "📊", "premium": "👑"}
+    labels = {"home": "홈", "schedule": "일정", "analysis": "분석", "premium": "Pro"}
     tab_ids = ["home", "schedule", "analysis", "premium"]
+
+    cols = st.columns(4)
     for col, tab_id in zip(cols, tab_ids):
         with col:
-            if st.button("‎", key=f"tab_{tab_id}",
+            is_active = active == tab_id
+            icon  = icons[tab_id]
+            label = labels[tab_id]
+            display = f"{icon} {label}" if is_active else f"{icon}"
+            btn_type = "primary" if is_active else "secondary"
+            if st.button(display, key=f"tab_{tab_id}",
                          use_container_width=True,
-                         help=labels[tab_id]):
+                         type=btn_type):
                 if tab_id == "premium":
                     log_event(st.session_state.get("nickname", "guest"), "click_premium")
                 st.session_state["_active_tab"] = tab_id
                 st.rerun()
 
-    # 하단 버튼 숨김 CSS
+    # 탭 버튼 스타일 — 앱 하단탭 느낌
     st.markdown("""
 <style>
-/* 탭 전환용 빈 버튼 숨김 */
-[data-testid="stHorizontalBlock"] > div:has(> [data-testid="stButton"] > button[title="홈"]),
-[data-testid="stHorizontalBlock"] > div:has(> [data-testid="stButton"] > button[title="일정"]),
-[data-testid="stHorizontalBlock"] > div:has(> [data-testid="stButton"] > button[title="분석"]),
-[data-testid="stHorizontalBlock"] > div:has(> [data-testid="stButton"] > button[title="Premium"]) {
-    opacity: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
-    margin: 0 !important;
-    padding: 0 !important;
+/* Streamlit 하단 배너 완전 숨김 */
+[data-testid="stStatusWidget"] { display: none !important; }
+iframe[title="streamlit_analytics2.components.count_widget"] { display: none !important; }
+.viewerBadge_container__r5tak { display: none !important; }
+#stDecoration { display: none !important; }
+a[href*="streamlit.io"] { display: none !important; }
+footer { display: none !important; }
+
+/* 탭 버튼 높이 줄이기 */
+[data-testid="stHorizontalBlock"] .stButton > button {
+    min-height: 44px !important;
+    font-size: 0.85rem !important;
+    border-radius: 12px !important;
+    padding: 6px 4px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -3159,6 +3152,15 @@ def render_monthly_calendar(
 # ENTRY POINT
 # =========================================================
 reset_error()
+
+# ── Streamlit 배너 제거 — embed_options URL 파라미터 자동 적용 ──
+try:
+    _params = st.query_params
+    _eo = _params.get("embed_options", "")
+    if "hide_footer" not in str(_eo):
+        st.query_params["embed_options"] = "hide_toolbar,hide_footer,hide_padding,hide_colored_line"
+except Exception:
+    pass
 
 # ── 저장 실패 레코드 재시도 — 홈 진입 시 자동 복구 ──
 def retry_unsynced_records() -> None:
