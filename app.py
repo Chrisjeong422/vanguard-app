@@ -4541,39 +4541,39 @@ elif active_tab == "analysis":
 elif active_tab == "premium":
 
     # ── 무료 vs Premium 비교표 ──
-    st.markdown("""
-<div style="padding:16px;border-radius:16px;margin-bottom:14px;
-            background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);">
-    <div style="font-size:0.65rem;color:#475569;font-weight:700;
-                letter-spacing:0.06em;margin-bottom:10px;">무료 vs Premium</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;
-                font-size:0.72rem;text-align:center;">
-        <div style="color:#475569;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">기능</div>
-        <div style="color:#475569;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">무료</div>
-        <div style="color:#A5B4FC;font-weight:700;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.05);">⚡ Premium</div>
-
-        <div style="color:#94A3B8;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">AI 명령</div>
-        <div style="color:#475569;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">하루 3회</div>
-        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">무제한</div>
-
-        <div style="color:#94A3B8;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">기록 열람</div>
-        <div style="color:#475569;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">최근 7일</div>
-        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">전체 기간</div>
-
-        <div style="color:#94A3B8;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">일정 등록</div>
-        <div style="color:#475569;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">3개</div>
-        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">무제한</div>
-
-        <div style="color:#94A3B8;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">패턴 분석</div>
-        <div style="color:#475569;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">미리보기</div>
-        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;border-bottom:1px solid rgba(255,255,255,0.04);">심층 분석</div>
-
-        <div style="color:#94A3B8;padding:8px 4px;">주간 리포트</div>
-        <div style="color:#475569;padding:8px 4px;">❌</div>
-        <div style="color:#86EFAC;font-weight:700;padding:8px 4px;">✅</div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    rows = [
+        ("AI 명령",   "하루 3회",  "무제한"),
+        ("기록 열람", "최근 7일",  "전체 기간"),
+        ("일정 등록", "3개",       "무제한"),
+        ("패턴 분석", "미리보기",  "심층 분석"),
+        ("복귀 프로토콜", "❌",    "✅"),
+        ("주간 리포트",   "❌",    "✅"),
+    ]
+    row_html = ""
+    for feat, free, paid in rows:
+        row_html += (
+            f'<div style="display:grid;grid-template-columns:2fr 1fr 1fr;'
+            f'padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);'
+            f'font-size:0.75rem;">'
+            f'<div style="color:#94A3B8;">{feat}</div>'
+            f'<div style="color:#475569;text-align:center;">{free}</div>'
+            f'<div style="color:#86EFAC;font-weight:700;text-align:center;">{paid}</div>'
+            f'</div>'
+        )
+    st.markdown(
+        '<div style="padding:16px;border-radius:16px;margin-bottom:14px;'
+        'background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.07);">'
+        '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;'
+        'padding:6px 0 10px;border-bottom:2px solid rgba(255,255,255,0.08);'
+        'font-size:0.68rem;font-weight:700;">'
+        '<div style="color:#475569;">기능</div>'
+        '<div style="color:#475569;text-align:center;">무료</div>'
+        '<div style="color:#A5B4FC;text-align:center;">⚡ Premium</div>'
+        '</div>'
+        + row_html +
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
     # ── 게스트 — 닉네임 먼저 설정하도록 유도 ──
     if is_guest:
