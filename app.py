@@ -2593,26 +2593,63 @@ def render_nickname_collect() -> None:
 # - 비활성 탭: type="secondary" (Streamlit 기본 스타일)
 # =========================================================
 def render_tab_nav(active: str) -> None:
-    tabs = [
-        ("home",     "홈"),
-        ("schedule", "일정"),
-        ("analysis", "분석"),
-        ("premium",  "Premium"),
-    ]
+    # ── 하단 고정 네비게이션 (앱 느낌) ──
+    icons = {"home": "⚡", "schedule": "📅", "analysis": "📊", "premium": "👑"}
+    labels = {"home": "홈", "schedule": "일정", "analysis": "분석", "premium": "Premium"}
+
+    # HTML 하단 탭바
+    tabs_html = ""
+    for tab_id in ["home", "schedule", "analysis", "premium"]:
+        is_active = active == tab_id
+        color = "#3B82F6" if is_active else "#334155"
+        weight = "700" if is_active else "400"
+        tabs_html += (
+            f'<div style="flex:1;text-align:center;cursor:pointer;" '
+            f'onclick="void(0)">'
+            f'<div style="font-size:1.1rem;">{icons[tab_id]}</div>'
+            f'<div style="font-size:0.6rem;color:{color};font-weight:{weight};'
+            f'margin-top:2px;">{labels[tab_id]}</div>'
+            f'</div>'
+        )
+
+    st.markdown(
+        '<div style="position:fixed;bottom:0;left:50%;transform:translateX(-50%);'
+        'width:420px;max-width:100vw;background:#080F1A;'
+        'border-top:1px solid rgba(255,255,255,0.06);'
+        'padding:8px 0 20px;z-index:999;display:flex;">'
+        + tabs_html + '</div>',
+        unsafe_allow_html=True,
+    )
+
+    # 실제 탭 전환 버튼 (숨김 — HTML 위에 Streamlit 버튼으로 처리)
     cols = st.columns(4)
-    for col, (tab_id, label) in zip(cols, tabs):
+    tab_ids = ["home", "schedule", "analysis", "premium"]
+    for col, tab_id in zip(cols, tab_ids):
         with col:
-            is_active = active == tab_id
-            display = f"· {label}" if is_active else label
-            btn_type = "primary" if is_active else "secondary"
-            if st.button(display, key=f"tab_{tab_id}",
+            if st.button("‎", key=f"tab_{tab_id}",
                          use_container_width=True,
-                         type=btn_type):
-                # Premium 탭 실제 클릭 시에만 기록 (렌더 시마다 ❌)
+                         help=labels[tab_id]):
                 if tab_id == "premium":
                     log_event(st.session_state.get("nickname", "guest"), "click_premium")
                 st.session_state["_active_tab"] = tab_id
                 st.rerun()
+
+    # 하단 버튼 숨김 CSS
+    st.markdown("""
+<style>
+/* 탭 전환용 빈 버튼 숨김 */
+[data-testid="stHorizontalBlock"] > div:has(> [data-testid="stButton"] > button[title="홈"]),
+[data-testid="stHorizontalBlock"] > div:has(> [data-testid="stButton"] > button[title="일정"]),
+[data-testid="stHorizontalBlock"] > div:has(> [data-testid="stButton"] > button[title="분석"]),
+[data-testid="stHorizontalBlock"] > div:has(> [data-testid="stButton"] > button[title="Premium"]) {
+    opacity: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =========================================================
 # 컴포넌트: 집중 상태 카드
@@ -2692,21 +2729,25 @@ def render_mission_input_screen() -> None:
             set_today_mission(mission)
             st.rerun()
 
-    # 이번 달 목표 — 입력 + 확인 버튼
-    goal_val = st.text_input(
-        "이번 달 목표도 있나요? (선택)",
-        value=st.session_state.goal,
-        placeholder="예: 4월 안에 앱 출시",
-        key="_goal_input_val",
-    )
-    if st.button("목표 확인 ✓", key="btn_goal_confirm",
-                 use_container_width=True, type="secondary"):
-        if goal_val.strip() != st.session_state.goal:
-            st.session_state.goal = goal_val.strip()
-            st.session_state.lazy_command = ""
-        st.rerun()
+    # 하단 여백 (네비게이션 가리지 않게)
+    st.markdown('<div style="height:80px;"></div>', unsafe_allow_html=True)
 
-    # ── 오늘 우선순위 자동 제안 (일정 + 목표 기반) ──
+    # 목표 입력 — 목표 없을 때만 작게 표시 (첫 화면 집중도 유지)
+    if not st.session_state.goal:
+        goal_val = st.text_input(
+            "이번 달 목표 (선택)",
+            value="",
+            placeholder="예: 4월 앱 출시",
+            key="_goal_input_val",
+        )
+        if st.button("목표 저장", key="btn_goal_confirm",
+                     use_container_width=False):
+            if goal_val.strip():
+                st.session_state.goal = goal_val.strip()
+                st.session_state.lazy_command = ""
+                st.rerun()
+
+    # ── 오늘 우선순위 자동 제안 (일정 + 목표 기반) — 닉네임 있을 때만 ──
     if not st.session_state.get("_guest_mode") and st.session_state.get("nickname_confirmed"):
         _nick = st.session_state.get("nickname", "")
         _goal = st.session_state.get("goal", "")
@@ -2739,30 +2780,14 @@ def render_mission_input_screen() -> None:
                     set_today_mission(_priority["mission"])
                     st.rerun()
 
-    # ── 오늘 컨디션 입력 (3초) ──
+    # ── 컨디션 — 미션 입력 후 물어봄 (첫 화면 복잡도 제거) ──
     cond_date  = st.session_state.get("_condition_date", "")
     cond_today = st.session_state.get("_condition_today", "")
-    if cond_date != today_str() or not cond_today:
-        st.markdown(
-            '<div style="font-size:0.7rem;color:#475569;font-weight:700;'
-            'letter-spacing:0.05em;margin:12px 0 6px;">오늘 컨디션은?</div>',
-            unsafe_allow_html=True,
-        )
-        cond_cols = st.columns(4)
-        for ci, (label, val) in enumerate(CONDITION_OPTIONS.items()):
-            with cond_cols[ci]:
-                if st.button(label, key=f"cond_{val}", use_container_width=True):
-                    st.session_state["_condition_today"] = val
-                    st.session_state["_condition_date"]  = today_str()
-                    if st.session_state.get("nickname_confirmed"):
-                        save_condition(st.session_state.nickname, val)
-                    st.rerun()
-    else:
+    if cond_today and cond_date == today_str():
         label_map = {v: k for k, v in CONDITION_OPTIONS.items()}
         st.markdown(
-            f'<div style="font-size:0.72rem;color:#475569;margin:8px 0 4px;">'
-            f'오늘 컨디션: <b style="color:#F8FAFC;">'
-            f'{label_map.get(cond_today, cond_today)}</b></div>',
+            f'<div style="font-size:0.68rem;color:#334155;margin:6px 0 2px;">'
+            f'컨디션: {label_map.get(cond_today, cond_today)}</div>',
             unsafe_allow_html=True,
         )
 
