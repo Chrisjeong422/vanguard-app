@@ -2721,20 +2721,19 @@ def render_mission_input_screen() -> None:
 
     st.caption("미션을 정하는 것 자체가 이미 시작이다.")
 
-    # 이번 달 목표 — 입력 즉시 저장 (버튼 없이)
-    def _save_goal():
-        val = st.session_state.get("_goal_input_val", "").strip()
-        if val != st.session_state.goal:
-            st.session_state.goal = val
-            st.session_state.lazy_command = ""
-
-    st.text_input(
+    # 이번 달 목표 — 입력 + 확인 버튼
+    goal_val = st.text_input(
         "이번 달 목표도 있나요? (선택)",
         value=st.session_state.goal,
         placeholder="예: 4월 안에 앱 출시",
         key="_goal_input_val",
-        on_change=_save_goal,
     )
+    if st.button("목표 확인 ✓", key="btn_goal_confirm",
+                 use_container_width=True, type="secondary"):
+        if goal_val.strip() != st.session_state.goal:
+            st.session_state.goal = goal_val.strip()
+            st.session_state.lazy_command = ""
+        st.rerun()
 
     # ── 오늘 우선순위 자동 제안 (일정 + 목표 기반) ──
     if not st.session_state.get("_guest_mode") and st.session_state.get("nickname_confirmed"):
