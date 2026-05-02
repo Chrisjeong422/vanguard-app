@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+:root {
+  --background: #050A12;
+  --foreground: #F8FAFC;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior-y: none;
+  user-select: none;
+}
+
+/* 스크롤바 숨김 */
+::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
+/* 하단 네비 safe area */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+
+/* 탭 전환 애니메이션 */
+.tab-content {
+  animation: tabFadeIn 0.25s ease-out;
+}
+
+@keyframes tabFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* pull-to-refresh 스타일 */
+.pull-indicator {
+  transition: transform 0.2s ease;
+}
+
+/* 버튼 터치 피드백 */
+button, a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
+}
+
+/* 입력 필드 네이티브 느낌 */
+input, textarea {
+  -webkit-appearance: none;
+  border-radius: 12px;
+}
+
+/* 스플래시 애니메이션 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 카드 등장 애니메이션 */
+.card-enter {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* haptic-like 피드백 */
+.press-effect {
+  transition: transform 0.1s ease, opacity 0.1s ease;
+}
+.press-effect:active {
+  transform: scale(0.95);
+  opacity: 0.8;
+}
+
+/* 완료 축하 애니메이션 */
+@keyframes celebrate {
+  0% { transform: scale(0.5); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.celebrate {
+  animation: celebrate 0.5s ease-out;
+}
+@keyframes confetti {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(-80px) rotate(360deg); opacity: 0; }
+}
+.confetti-piece {
+  animation: confetti 1s ease-out forwards;
+}
