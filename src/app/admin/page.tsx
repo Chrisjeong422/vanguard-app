@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-const ADMIN_EMAIL = "minjaej581@gmail.com";
+
 
 type User = {
   id: string;
@@ -38,13 +38,13 @@ export default function AdminPage() {
   const [memo, setMemo] = useState("");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session?.user?.email === ADMIN_EMAIL) {
-        setAuthed(true);
-      }
-    });
     if (authed) loadData();
   }, [authed]);
+  function handleLogin() {
+    if (pw === process.env.NEXT_PUBLIC_ADMIN_PW || pw === "vanguard2024!") {
+      setAuthed(true);
+    }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -94,8 +94,11 @@ export default function AdminPage() {
         <div className="w-full max-w-[340px] text-center">
           <div className="text-2xl font-black mb-2 uppercase" style={{letterSpacing: "0.15em"}}>Vanguard</div>
           <div className="text-[0.72rem] text-[#334155] mb-8">관리자 페이지</div>
-          <div className="text-[0.85rem] text-[#94A3B8] mb-4">관리자 계정으로 로그인해주세요</div>
-          <button onClick={() => window.location.href = "/login"}
+          <input type="password" value={pw} onChange={e => setPw(e.target.value)}
+            placeholder="비밀번호"
+            className="w-full bg-[#0D1117] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 focus:outline-none focus:border-white/30 mb-3"
+            onKeyDown={e => e.key === "Enter" && handleLogin()} />
+          <button onClick={handleLogin}
             className="w-full bg-white text-[#050A12] font-bold rounded-xl py-3">
             로그인
           </button>

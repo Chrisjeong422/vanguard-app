@@ -16,15 +16,7 @@ export function middleware(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
 
-  // /admin 보호 — 쿠키에서 인증 확인
-  if (path.startsWith("/admin")) {
-    const adminEmail = process.env.ADMIN_EMAIL || "minjaej581@gmail.com";
-    const authCookie = request.cookies.get("sb-access-token")?.value ||
-                       request.cookies.get("sb-zanktsamayaxvbaknqyp-auth-token")?.value;
-    if (!authCookie) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-  }
+  // /admin은 페이지 내 비밀번호로 보호
 
   // API Rate Limiting
   if (path.startsWith("/api/")) {
