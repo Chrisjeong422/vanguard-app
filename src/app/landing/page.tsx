@@ -27,7 +27,14 @@ export default function LandingPage() {
             style={{letterSpacing: "0.15em"}}>
             지금 시작하기
           </button>
-          <div className="text-[0.68rem] text-[#334155] mt-3">무료로 시작 · 카드 등록 없음</div>
+          <button onClick={() => {
+            localStorage.setItem("vanguard_guest_trial", "true");
+            router.push("/");
+          }}
+            className="block mx-auto mt-3 text-[0.78rem] text-[#94A3B8] underline underline-offset-4 press-effect">
+            회원가입 없이 바로 체험하기
+          </button>
+          <div className="text-[0.68rem] text-[#334155] mt-2">무료 · 3초면 시작</div>
         </div>
 
         {/* 문제 */}

@@ -372,7 +372,7 @@ export default function VanguardHome() {
       if (!data.session) {
         const trial = localStorage.getItem("vanguard_guest_trial");
         if (!trial) {
-          router.replace("/login");
+          router.replace("/landing");
         } else {
           setIsGuest(true);
           setNickname("게스트");
@@ -614,6 +614,28 @@ export default function VanguardHome() {
       { title: "3분 — 첫 단계만 시작", duration: "3분" },
       { title: "10분 — 핵심만 끝내기", duration: "10분" },
     ]);
+
+    // Pro AI 맞춤 복귀 메시지 생성
+    if (userPlan !== "free" && nickname) {
+      try {
+        const failHistory = records.filter(r => !r.done && r.fail_reason).slice(0, 5).map(r => r.fail_reason).join(", ");
+        const prompt = `너는 실행 코치다. 유저가 방금 실패했다. 실패 이유: "${reason}". 과거 실패 이유: ${failHistory || "없음"}. 현재 시간: ${hour}시. 이 유저한테 딱 맞는 복귀 방법을 1줄로 알려줘. "~해라" 체로 끝내. 구체적인 행동 1개만. 예: "지금 일어나서 30초 스트레칭하고 다시 앉아라." 절대 이모지, 시스템, 프로토콜 같은 단어 쓰지 마.`;
+        fetch("/api/gemini", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt }),
+        }).then(res => res.json()).then(data => {
+          if (data.text) {
+            setRecoverySchedule([
+              { title: data.text, duration: "AI 추천" },
+              { title: "30초 — 파일만 열기", duration: "30초" },
+              { title: "3분 — 첫 단계만 시작", duration: "3분" },
+              { title: "10분 — 핵심만 끝내기", duration: "10분" },
+            ]);
+          }
+        }).catch(() => {});
+      } catch {}
+    }
 
     setHomeMode("fail");
   }
@@ -1010,6 +1032,19 @@ export default function VanguardHome() {
                         </div>
                       )}
 
+                      {/* 스트릭 복구권 (Pro) */}
+                      {userPlan !== "free" && streak === 0 && userState.consecutiveFails === 1 && (
+                        <div className="bg-[#16130A] border border-[#FCD34D]/20 rounded-xl p-4 mb-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="text-[0.82rem] font-black text-[#FCD34D] mb-1">스트릭이 끊어졌다</div>
+                              <div className="text-[0.68rem] text-[#94A3B8]">지금 미션 1개를 완료하면 스트릭을 복구할 수 있습니다</div>
+                            </div>
+                            <div className="text-[0.6rem] text-[#FCD34D] font-bold px-2 py-1 bg-[#FCD34D]/10 rounded-lg">복구 가능</div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* 상태 한 줄 */}
                       <div className="text-[0.82rem] text-[#94A3B8] text-center mb-4 leading-relaxed font-medium">
                         {statusLine}
@@ -1040,6 +1075,33 @@ export default function VanguardHome() {
                           <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-xl p-3 mb-4">
                             <div className="text-[0.82rem] text-[#FCA5A5] font-bold mb-1">{pb.message}</div>
                             <div className="text-[0.72rem] text-[#94A3B8]">{pb.sub}</div>
+                          </div>
+                        );
+                        return null;
+                      })()}
+
+                      {/* Ultra 선제 개입 — 내일 위험 예측 */}
+                      {userPlan === "ultra" && (() => {
+                        const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
+                        if (failsByHour.length < 3) return null;
+                        const hourCounts: Record<number, number> = {};
+                        failsByHour.forEach(r => { hourCounts[r.hour_of_day!] = (hourCounts[r.hour_of_day!] || 0) + 1; });
+                        const sorted = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]));
+                        const peakHour = Number(sorted[0][0]);
+                        const peakCount = Number(sorted[0][1]);
+                        const hoursUntil = peakHour - hour;
+                        if (hoursUntil > 0 && hoursUntil <= 3) return (
+                          <div className="bg-[#0D0818] border border-[#8B5CF6]/30 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
+                            <div className="text-[0.6rem] text-[#A78BFA] font-bold tracking-wider mb-1">ULTRA 선제 개입</div>
+                            <div className="text-[0.88rem] font-black text-white mb-1">오늘 {peakHour}시에 무너질 확률이 높습니다.</div>
+                            <div className="text-[0.72rem] text-[#94A3B8]">{peakCount}번 같은 시간에 실패했습니다. 지금 미리 3분 시작하면 오늘은 버틸 수 있습니다.</div>
+                          </div>
+                        );
+                        if (hoursUntil === 0) return (
+                          <div className="bg-[#1A0808] border border-[#FCA5A5]/30 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
+                            <div className="text-[0.6rem] text-[#FCA5A5] font-bold tracking-wider mb-1">ULTRA 긴급 개입</div>
+                            <div className="text-[0.88rem] font-black text-[#FCA5A5] mb-1">지금이 당신이 항상 무너지는 시간입니다.</div>
+                            <div className="text-[0.72rem] text-[#94A3B8]">이 시간을 버텨내면 오늘은 이깁니다. 지금 바로 시작하세요.</div>
                           </div>
                         );
                         return null;
@@ -1216,6 +1278,20 @@ export default function VanguardHome() {
                 <div className="text-[0.85rem] text-[#94A3B8] mb-6">
                   {streak > 0 ? `${streak}일 연속 실행 중` : "오늘 첫 실행 완료"}
                 </div>
+
+                {/* SNS 공유 */}
+                <button onClick={() => {
+                  const text = `오늘 Vanguard로 ${Math.floor(elapsedSeconds / 60)}분 집중했다. ${streak > 0 ? streak + "일 연속 실행 중." : ""} 계획은 AI가 세운다. 실행만 하면 된다.`;
+                  const url = "https://vanguard-five-ecru.vercel.app/landing";
+                  if (navigator.share) {
+                    navigator.share({ title: "Vanguard", text, url }).catch(() => {});
+                  } else {
+                    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + " " + url)}`, "_blank");
+                  }
+                }}
+                  className="w-full bg-[#0D1117] border border-white/10 rounded-xl py-3 text-[0.78rem] text-[#94A3B8] press-effect mb-3">
+                  오늘 실행 공유하기
+                </button>
 
                 {/* 내일의 편지 */}
                 {!tomorrowLetter && (
