@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
       await supabaseAdmin.from("users").insert([{
         nickname,
         plan: "ultra",
-        goal: "창업 대회 우승",
+        goal: "이번 달 목표 달성",
       }]);
     }
 
