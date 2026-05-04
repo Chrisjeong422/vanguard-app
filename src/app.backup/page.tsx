@@ -994,26 +994,13 @@ export default function VanguardHome() {
 
                   return (
                     <div>
-                      {/* 미접속 경고 */}
-                      {userState.consecutiveFails >= 2 && (
-                        <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
-                          <div className="text-[0.92rem] font-black text-[#FCA5A5] mb-1">{userState.consecutiveFails}일째 안 왔다.</div>
-                          <div className="text-[0.75rem] text-[#94A3B8]">이건 의지가 아니라 반복 패턴이다. 지금 3분만 해라.</div>
-                        </div>
-                      )}
-
                       {/* 어제 편지 */}
-                      {yesterdayLetter && !userState.consecutiveFails && (
+                      {yesterdayLetter && (
                         <div className="bg-[#0D1117] border border-white/10 rounded-xl p-4 mb-4">
                           <div className="text-[0.6rem] text-[#475569] font-bold mb-2">어제의 나로부터</div>
                           <div className="text-[0.78rem] text-[#F1F5F9] leading-relaxed">{yesterdayLetter}</div>
                         </div>
                       )}
-
-                      {/* 상태 한 줄 */}
-                      <div className="text-[0.82rem] text-[#94A3B8] text-center mb-4 leading-relaxed font-medium">
-                        {statusLine}
-                      </div>
 
                       {/* 원형 진행률 */}
                       <div className="flex flex-col items-center mb-6">
@@ -1029,6 +1016,9 @@ export default function VanguardHome() {
                             <span className="text-[1.5rem] font-black text-white">{totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0}%</span>
                             <span className="text-[0.6rem] text-[#475569]">{completedCount}/{totalCount}</span>
                           </div>
+                        </div>
+                        <div className="text-[0.78rem] text-[#94A3B8] text-center leading-relaxed">
+                          {statusLine}
                         </div>
                       </div>
 
@@ -1274,41 +1264,15 @@ export default function VanguardHome() {
                   </div>
                 )}
 
-                {/* 패턴 감지 문장 */}
-                <div className="text-center mb-4">
-                  {(() => {
-                    const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
-                    const sameHourFails = failsByHour.filter(r => r.hour_of_day === hour).length;
-                    const timeLabel = hour >= 20 ? "밤" : hour >= 16 ? "저녁" : hour >= 12 ? "오후" : "오전";
-                    if (sameHourFails >= 3) return (
-                      <div className="bg-[#1A0808] border border-[#FCA5A5]/30 rounded-2xl p-5 mb-4">
-                        <div className="text-[1.2rem] font-black text-[#FCA5A5] mb-2">이번 주 {sameHourFails}번째 같은 시간 실패입니다.</div>
-                        <div className="text-[0.88rem] text-white font-bold mb-2">이건 의지가 아니라 반복 패턴입니다.</div>
-                        <div className="text-[0.75rem] text-[#94A3B8]">매번 {timeLabel}에 무너지고 있습니다. 원래 미션을 3분짜리로 줄였습니다.</div>
-                      </div>
-                    );
-                    if (sameHourFails >= 1) return (
-                      <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-2xl p-5 mb-4">
-                        <div className="text-[1.1rem] font-black text-[#FCA5A5] mb-2">{getFailMessage(getABMessage(nickname || "guest"), failCount, hour)}</div>
-                        <div className="text-[0.82rem] text-white font-bold mb-2">이 시간에 또 멈췄습니다.</div>
-                        <div className="text-[0.75rem] text-[#94A3B8]">아직 오늘은 끝나지 않았습니다.</div>
-                      </div>
-                    );
-                    return (
-                      <div className="mb-4">
-                        <div className="text-[1.1rem] font-black text-[#FCA5A5] mb-2">{getFailMessage(getABMessage(nickname || "guest"), failCount, hour)}</div>
-                        <div className="text-[0.78rem] text-[#4ADE80] font-bold mb-2">근데 이건 끊을 수 있다.</div>
-                      </div>
-                    );
-                  })()}
+                <div className="text-center mb-6">
+                  <div className="text-[1.1rem] font-black text-[#FCA5A5] mb-2">
+                    {getFailMessage(getABMessage(nickname || "guest"), failCount, hour)}
+                  </div>
+                  <div className="text-[0.78rem] text-[#4ADE80] font-bold mb-3">근데 이건 끊을 수 있다.</div>
+                  <div className="text-[0.85rem] font-black text-white">{getRecoveryProtocol(failReason)}</div>
                 </div>
 
-                {/* AI 맞춤 복귀 (Pro) 또는 기본 복귀 */}
-                <div className="mb-2">
-                  <div className="text-[0.88rem] font-black text-white text-center mb-4">{getRecoveryProtocol(failReason)}</div>
-                </div>
-
-                {/* 복구 스케줄 */}
+                {/* 복구 스케줄 (업그레이드) */}
                 <div className="space-y-2 mb-4">
                   {recoverySchedule.map((item, idx) => (
                     <button key={idx} onClick={() => {
@@ -1663,109 +1627,6 @@ export default function VanguardHome() {
                 <div className="text-[0.62rem] text-[#A78BFA] font-bold tracking-wider mb-1">주간 방향 조정</div>
                 <div className="text-[0.82rem] text-white font-bold mb-1">AI가 이번 주 왜 무너졌는지 알려준다</div>
                 <div className="text-[0.68rem] text-[#475569]">Pro에서 사용 가능 →</div>
-              </div>
-            )}
-
-            {/* 주간 실행률 그래프 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-4 mb-3">
-              <div className="text-[0.65rem] text-[#334155] font-bold tracking-widest uppercase mb-3">최근 7일 실행률</div>
-              <div className="flex items-end justify-between gap-1" style={{height: "100px"}}>
-                {(() => {
-                  const days = [];
-                  const dayNames = ["일","월","화","수","목","금","토"];
-                  for (let i = 6; i >= 0; i--) {
-                    const d = new Date(Date.now() - 86400000 * i);
-                    const dateStr = d.toISOString().split("T")[0];
-                    const dayRecs = records.filter(r => r.date === dateStr);
-                    const success = dayRecs.filter(r => r.done).length;
-                    const fail = dayRecs.filter(r => !r.done).length;
-                    const total = success + fail;
-                    const rate = total > 0 ? Math.round((success / total) * 100) : 0;
-                    const isToday = i === 0;
-                    days.push(
-                      <div key={i} className="flex flex-col items-center flex-1">
-                        <div className="w-full flex flex-col items-center justify-end" style={{height: "70px"}}>
-                          {total > 0 ? (
-                            <div className={`w-full max-w-[28px] rounded-t-md ${rate >= 70 ? "bg-[#4ADE80]" : rate >= 40 ? "bg-[#FCD34D]" : "bg-[#FCA5A5]"}`}
-                              style={{height: `${Math.max(8, rate * 0.7)}px`, transition: "height 0.5s ease"}} />
-                          ) : (
-                            <div className="w-full max-w-[28px] h-[4px] rounded bg-[#1E293B]" />
-                          )}
-                        </div>
-                        <div className={`text-[0.55rem] mt-1.5 ${isToday ? "text-white font-bold" : "text-[#475569]"}`}>
-                          {dayNames[d.getDay()]}
-                        </div>
-                        {total > 0 && (
-                          <div className={`text-[0.5rem] ${rate >= 70 ? "text-[#4ADE80]" : rate >= 40 ? "text-[#FCD34D]" : "text-[#FCA5A5]"}`}>
-                            {rate}%
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-                  return days;
-                })()}
-              </div>
-            </div>
-
-            {/* 실패 시간대 히트맵 */}
-            {records.filter(r => !r.done && r.hour_of_day !== undefined).length >= 3 && (
-              <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-4 mb-3">
-                <div className="text-[0.65rem] text-[#334155] font-bold tracking-widest uppercase mb-3">실패가 많은 시간대</div>
-                <div className="grid grid-cols-6 gap-1">
-                  {(() => {
-                    const hourCounts: Record<number, number> = {};
-                    records.filter(r => !r.done && r.hour_of_day !== undefined).forEach(r => {
-                      const h = r.hour_of_day!;
-                      hourCounts[h] = (hourCounts[h] || 0) + 1;
-                    });
-                    const maxCount = Math.max(...Object.values(hourCounts), 1);
-                    const slots = [
-                      { label: "오전", hours: [6,7,8,9,10,11] },
-                      { label: "오후", hours: [12,13,14,15,16,17] },
-                      { label: "저녁", hours: [18,19,20,21,22,23] },
-                    ];
-                    return slots.flatMap(slot =>
-                      slot.hours.map(h => {
-                        const count = hourCounts[h] || 0;
-                        const intensity = count / maxCount;
-                        return (
-                          <div key={h} className="flex flex-col items-center">
-                            <div className="w-full aspect-square rounded-md flex items-center justify-center text-[0.5rem]"
-                              style={{
-                                background: count > 0 ? `rgba(252, 165, 165, ${0.15 + intensity * 0.65})` : "#1E293B",
-                                color: count > 0 ? "#FCA5A5" : "#334155",
-                              }}>
-                              {h}
-                            </div>
-                          </div>
-                        );
-                      })
-                    );
-                  })()}
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-[0.5rem] text-[#334155]">오전</span>
-                  <span className="text-[0.5rem] text-[#334155]">오후</span>
-                  <span className="text-[0.5rem] text-[#334155]">저녁</span>
-                </div>
-                {(() => {
-                  const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
-                  if (failsByHour.length === 0) return null;
-                  const hourCounts: Record<number, number> = {};
-                  failsByHour.forEach(r => { hourCounts[r.hour_of_day!] = (hourCounts[r.hour_of_day!] || 0) + 1; });
-                  const sorted = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]));
-                  const peakHour = Number(sorted[0][0]);
-                  const timeLabel = peakHour >= 20 ? "밤" : peakHour >= 16 ? "저녁" : peakHour >= 12 ? "오후" : "오전";
-                  return (
-                    <div className="bg-[#1A0808] border border-[#FCA5A5]/15 rounded-xl p-3 mt-3">
-                      <div className="text-[0.78rem] font-bold text-white">당신은 {timeLabel} {peakHour}시에 가장 자주 무너집니다.</div>
-                      {userPlan !== "free" && (
-                        <div className="text-[0.68rem] text-[#94A3B8] mt-1">다음부터 {peakHour > 0 ? peakHour - 1 : 23}시에 미리 개입합니다.</div>
-                      )}
-                    </div>
-                  );
-                })()}
               </div>
             )}
 

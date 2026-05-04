@@ -1,0 +1,151 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+
+type Mode = "splash" | "login" | "signup" | "verify";
+
+export default function LoginPage() {
+  const [mode, setMode] = useState<Mode>("splash");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const router = useRouter();
+
+  useEffect(() => {
+    const timer = setTimeout(() => setMode("login"), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) router.replace("/");
+    });
+  }, [router]);
+
+  async function handleLogin() {
+    if (!email || !password) { setError("이메일과 비밀번호를 입력하세요."); return; }
+    setLoading(true);
+    setError("");
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      if (error.message.includes("Email not confirmed")) {
+        setError("이메일 인증을 완료해주세요. 받은 편지함을 확인하세요.");
+      } else {
+        setError("이메일 또는 비밀번호가 틀렸습니다.");
+      }
+    } else {
+      router.replace("/");
+    }
+    setLoading(false);
+  }
+
+  async function handleSignup() {
+    if (!email || !password || !name) { setError("모든 항목을 입력하세요."); return; }
+    if (password.length < 6) { setError("비밀번호는 6자 이상이어야 합니다."); return; }
+    setLoading(true);
+    setError("");
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { nickname: name } }
+    });
+    if (error) {
+      setError("회원가입 실패. 이미 사용 중인 이메일일 수 있습니다.");
+      setLoading(false);
+      return;
+    }
+    if (data.user) {
+      await supabase.from("users").upsert([{ nickname: name, goal: "", plan: "free" }], { onConflict: "nickname" });
+      localStorage.setItem("vanguard_nickname", name);
+    }
+    setMode("verify");
+    setLoading(false);
+  }
+
+  if (mode === "splash") {
+    return (
+      <div className="min-h-screen bg-[#050A12] flex flex-col items-center justify-center">
+        <div className="text-[3.5rem] font-black uppercase text-white" style={{letterSpacing: "0.2em", animation: "fadeIn 0.8s ease-in"}}>
+          VANGUARD
+        </div>
+        <div className="text-[0.5rem] text-[#888888] mt-0.5" style={{letterSpacing: "0.35em", fontWeight: 300, animation: "fadeIn 1.2s ease-in"}}>
+          Life OS
+        </div>
+        <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+      </div>
+    );
+  }
+
+  if (mode === "verify") {
+    return (
+      <div className="min-h-screen bg-[#050A12] flex flex-col items-center justify-center px-6">
+        <div className="w-full max-w-[380px]">
+          <div className="text-center mb-10">
+            <div className="text-[2rem] font-black uppercase text-white" style={{letterSpacing: "0.15em"}}>VANGUARD</div>
+          </div>
+          <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-6 text-center">
+            <div className="text-3xl mb-4">📧</div>
+            <div className="text-[1rem] font-black text-white mb-2">이메일을 확인하세요</div>
+            <div className="text-[0.78rem] text-[#64748B] leading-relaxed mb-6">
+              <span className="text-white font-bold">{email}</span>으로<br />
+              인증 링크를 보냈습니다.<br />
+              링크를 클릭하면 로그인됩니다.
+            </div>
+            <button onClick={() => setMode("login")}
+              className="w-full bg-white text-[#050A12] font-black rounded-xl py-3.5 text-[0.92rem]">
+              로그인으로 돌아가기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#050A12] flex flex-col items-center justify-center px-6">
+      <div className="w-full max-w-[380px]">
+        <div className="text-center mb-10">
+          <div className="text-[2rem] font-black uppercase text-white" style={{letterSpacing: "0.15em"}}>VANGUARD</div>
+          <div className="text-[0.6rem] text-[#888888] mt-1" style={{letterSpacing: "0.35em", fontWeight: 300}}>Life OS</div>
+        </div>
+        <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-6">
+          <div className="text-[1.1rem] font-black text-white mb-1">{mode === "login" ? "로그인" : "회원가입"}</div>
+          <div className="text-[0.72rem] text-[#475569] mb-6">{mode === "login" ? "계속 실행하려면 로그인하세요" : "지금 시작하면 오늘이 달라집니다"}</div>
+          {mode === "signup" && (
+            <div className="mb-3">
+              <div className="text-[0.68rem] text-[#475569] mb-1.5 font-medium">닉네임</div>
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="닉네임 입력"
+                className="w-full bg-[#050A12] border border-white/10 rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/20 focus:outline-none focus:border-white/30" />
+            </div>
+          )}
+          <div className="mb-3">
+            <div className="text-[0.68rem] text-[#475569] mb-1.5 font-medium">이메일</div>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="example@email.com"
+              className="w-full bg-[#050A12] border border-white/10 rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/20 focus:outline-none focus:border-white/30"
+              onKeyDown={e => e.key === "Enter" && mode === "login" && handleLogin()} />
+          </div>
+          <div className="mb-5">
+            <div className="text-[0.68rem] text-[#475569] mb-1.5 font-medium">비밀번호</div>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••"
+              className="w-full bg-[#050A12] border border-white/10 rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/20 focus:outline-none focus:border-white/30"
+              onKeyDown={e => e.key === "Enter" && mode === "login" && handleLogin()} />
+          </div>
+          {error && <div className="text-[0.75rem] text-[#FCA5A5] mb-4 text-center">{error}</div>}
+          <button onClick={mode === "login" ? handleLogin : handleSignup} disabled={loading}
+            className="w-full bg-white text-[#050A12] font-black rounded-xl py-3.5 mb-3"
+            style={{fontSize: "1rem", letterSpacing: "0.4em", paddingLeft: "0.4em"}}>
+            {loading ? "..." : mode === "login" ? "로그인" : "시작하기"}
+          </button>
+          <button onClick={() => { setMode(mode === "login" ? "signup" : "login"); setError(""); }}
+            className="w-full text-[#475569] text-[0.78rem] py-2 text-center">
+            {mode === "login" ? "계정이 없으신가요? 회원가입" : "이미 계정이 있으신가요? 로그인"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
