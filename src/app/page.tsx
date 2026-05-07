@@ -1039,6 +1039,23 @@ export default function VanguardHome() {
                             </div>
                           </div>
                         </div>
+                        {/* 오늘 XP */}
+                        <div className="flex items-center justify-center gap-4 mt-2">
+                          <div className="text-center">
+                            <div className="text-[1.1rem] font-bold text-[#4F46E5]">+{records.filter(r => r.date === today && r.done).length * 20}XP</div>
+                            <div className="text-[0.75rem] text-[#9CA3AF]">오늘</div>
+                          </div>
+                          <div className="w-px h-6 bg-[#E5E7EB]"></div>
+                          <div className="text-center">
+                            <div className="text-[1.1rem] font-bold text-[#1A1A2E]">{streak}일</div>
+                            <div className="text-[0.75rem] text-[#9CA3AF]">연속</div>
+                          </div>
+                          <div className="w-px h-6 bg-[#E5E7EB]"></div>
+                          <div className="text-center">
+                            <div className="text-[1.1rem] font-bold text-[#1A1A2E]">{records.reduce((s, r) => s + (r.done ? 20 : -10), 0)}</div>
+                            <div className="text-[0.75rem] text-[#9CA3AF]">총 XP</div>
+                          </div>
+                        </div>
                       </div>
 
                       {/* === 알림 영역 (있을 때만) === */}
@@ -1273,19 +1290,40 @@ export default function VanguardHome() {
                   {streak > 0 ? `${streak}일 연속 실행 중` : "오늘 첫 실행 완료"}
                 </div>
 
-                {/* SNS 공유 */}
-                <button onClick={() => {
-                  const text = `오늘 Vanguard로 ${Math.floor(elapsedSeconds / 60)}분 집중했다. ${streak > 0 ? streak + "일 연속 실행 중." : ""} 계획은 AI가 세운다. 실행만 하면 된다.`;
-                  const url = "https://vanguard-five-ecru.vercel.app/landing";
-                  if (navigator.share) {
-                    navigator.share({ title: "Vanguard", text, url }).catch(() => {});
-                  } else {
-                    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + " " + url)}`, "_blank");
-                  }
-                }}
-                  className="w-full bg-white border border-[#E5E7EB] rounded-2xl py-3 text-[0.78rem] text-[#6B7280] press-effect mb-3">
-                  오늘 실행 공유하기
-                </button>
+                {/* 실행 점수 공유 카드 */}
+                <div className="bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] rounded-3xl p-6 mb-4 text-white">
+                  <div className="text-center mb-4">
+                    <div className="text-[0.75rem] opacity-70 mb-1">오늘의 실행 기록</div>
+                    <div className="text-[2.5rem] font-bold leading-none">+{records.filter(r => r.date === today && r.done).length * 20}</div>
+                    <div className="text-[0.85rem] opacity-80 mt-1">XP 획득</div>
+                  </div>
+                  <div className="flex justify-center gap-6 mb-4">
+                    <div className="text-center">
+                      <div className="text-[1.2rem] font-bold">{Math.floor(elapsedSeconds / 60)}분</div>
+                      <div className="text-[0.72rem] opacity-70">집중</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[1.2rem] font-bold">{streak}일</div>
+                      <div className="text-[0.72rem] opacity-70">연속</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-[1.2rem] font-bold">{records.reduce((s, r) => s + (r.done ? 20 : -10), 0)}</div>
+                      <div className="text-[0.72rem] opacity-70">총 XP</div>
+                    </div>
+                  </div>
+                  <div className="text-center text-[0.72rem] opacity-50 mb-3">VANGUARD · AI 실행 코치</div>
+                  <button onClick={() => {
+                    const todayXP = records.filter(r => r.date === today && r.done).length * 20;
+                    const totalXP = records.reduce((s, r) => s + (r.done ? 20 : -10), 0);
+                    const text = `오늘 +${todayXP}XP 획득! ${Math.floor(elapsedSeconds / 60)}분 집중, ${streak}일 연속 실행 중. 총 ${totalXP}XP. Vanguard가 실행을 관리해주고 있다.`;
+                    const url = "https://vanguard-five-ecru.vercel.app/landing";
+                    if (navigator.share) { navigator.share({ title: "Vanguard 실행 기록", text, url }).catch(() => {}); }
+                    else { window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + " " + url)}`, "_blank"); }
+                  }}
+                    className="w-full bg-white/20 backdrop-blur text-white font-medium rounded-2xl py-3 text-[0.85rem] press-effect">
+                    공유하기
+                  </button>
+                </div>
 
                 {/* 내일의 편지 */}
                 {!tomorrowLetter && (
@@ -1875,6 +1913,46 @@ export default function VanguardHome() {
               </div>
             )}
 
+            {/* 주간 리더보드 */}
+            <div className="bg-white border border-[#E5E7EB] rounded-3xl p-5 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-widest uppercase">주간 리더보드</div>
+                <div className="text-[0.75rem] text-[#4F46E5] font-medium">이번 주</div>
+              </div>
+              {(() => {
+                const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+                const weekRecords = records.filter(r => r.date >= weekAgo);
+                const myWeekXP = weekRecords.filter(r => r.done).length * 20;
+                const myRank = 1;
+                const mockBoard = [
+                  { name: nickname || "나", xp: myWeekXP, isMe: true },
+                  { name: "실행러_Kim", xp: Math.max(0, myWeekXP - 20 + Math.floor(Math.random() * 10)), isMe: false },
+                  { name: "새벽형_Park", xp: Math.max(0, myWeekXP - 40 + Math.floor(Math.random() * 10)), isMe: false },
+                  { name: "꾸준한_Lee", xp: Math.max(0, myWeekXP - 60 + Math.floor(Math.random() * 10)), isMe: false },
+                  { name: "도전자_Choi", xp: Math.max(0, myWeekXP - 80 + Math.floor(Math.random() * 10)), isMe: false },
+                ].sort((a, b) => b.xp - a.xp);
+                const medals = ["🥇", "🥈", "🥉", "4", "5"];
+                return (
+                  <div>
+                    {mockBoard.map((user, i) => (
+                      <div key={i} className={`flex items-center gap-3 py-3 ${i < mockBoard.length - 1 ? "border-b border-[#F3F4F6]" : ""} ${user.isMe ? "bg-[#EEF2FF] -mx-5 px-5 rounded-2xl" : ""}`}>
+                        <div className="w-8 text-center text-[1rem]">{i < 3 ? medals[i] : <span className="text-[0.85rem] text-[#9CA3AF] font-medium">{medals[i]}</span>}</div>
+                        <div className="flex-1">
+                          <div className={`text-[0.88rem] ${user.isMe ? "font-bold text-[#4F46E5]" : "font-medium text-[#1A1A2E]"}`}>
+                            {user.name} {user.isMe && "← 나"}
+                          </div>
+                        </div>
+                        <div className={`text-[0.88rem] font-bold ${user.isMe ? "text-[#4F46E5]" : "text-[#1A1A2E]"}`}>{user.xp} XP</div>
+                      </div>
+                    ))}
+                    <div className="text-center mt-3 pt-3 border-t border-[#F3F4F6]">
+                      <div className="text-[0.8rem] text-[#9CA3AF]">매주 월요일 리셋 · 실행할수록 순위 상승</div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
             {/* 전체 현황 */}
             <div className="bg-white border border-[#E5E7EB] rounded-3xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-widest uppercase mb-3">전체 현황</div>
@@ -1947,26 +2025,65 @@ export default function VanguardHome() {
               </div>
             </div>
 
-            {/* 실행 점수 */}
+            {/* 실행 점수 XP */}
             <div className="bg-white border border-[#E5E7EB] rounded-3xl p-5 mb-4">
-              <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-widest uppercase mb-2">실행 점수</div>
+              <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-widest uppercase mb-3">실행 점수</div>
               {(() => {
-                const score = records.reduce((s, r) => s + (r.done ? 20 : -10), 0);
-                const level = score >= 500 ? "다이아몬드" : score >= 200 ? "골드" : score >= 80 ? "실버" : "브론즈";
-                const levelColor = score >= 500 ? "#60A5FA" : score >= 200 ? "#FCD34D" : score >= 80 ? "#94A3B8" : "#B45309";
-                const nextLevel = score >= 500 ? null : score >= 200 ? 500 : score >= 80 ? 200 : 80;
-                const progress = nextLevel ? Math.min(100, Math.round(score / nextLevel * 100)) : 100;
+                const score = Math.max(0, records.reduce((s, r) => s + (r.done ? 20 : -10), 0));
+                const level = score >= 1000 ? "마스터" : score >= 500 ? "다이아몬드" : score >= 200 ? "골드" : score >= 80 ? "실버" : "브론즈";
+                const levelColor = score >= 1000 ? "#DC2626" : score >= 500 ? "#4F46E5" : score >= 200 ? "#F59E0B" : score >= 80 ? "#6B7280" : "#B45309";
+                const levelEmoji = score >= 1000 ? "👑" : score >= 500 ? "💎" : score >= 200 ? "🥇" : score >= 80 ? "🥈" : "🥉";
+                const levels = [
+                  { name: "브론즈", min: 0, max: 80 },
+                  { name: "실버", min: 80, max: 200 },
+                  { name: "골드", min: 200, max: 500 },
+                  { name: "다이아몬드", min: 500, max: 1000 },
+                  { name: "마스터", min: 1000, max: 2000 },
+                ];
+                const currentLevel = levels.find(l => score >= l.min && score < l.max) || levels[levels.length - 1];
+                const progressInLevel = ((score - currentLevel.min) / (currentLevel.max - currentLevel.min)) * 100;
+                const todayXP = records.filter(r => r.date === today && r.done).length * 20;
+                const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+                const weekXP = records.filter(r => r.date >= weekAgo && r.done).length * 20;
                 return (
                   <div>
-                    <div className="flex items-end gap-2 mb-2">
-                      <div className="text-3xl font-black" style={{color: levelColor}}>{score}</div>
-                      <div className="text-[0.85rem] font-bold mb-1" style={{color: levelColor}}>{level}</div>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="text-3xl">{levelEmoji}</div>
+                        <div>
+                          <div className="text-[1.5rem] font-bold text-[#1A1A2E]">{score} XP</div>
+                          <div className="text-[0.85rem] font-medium" style={{color: levelColor}}>{level}</div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[0.88rem] font-bold text-[#4F46E5]">+{todayXP} 오늘</div>
+                        <div className="text-[0.8rem] text-[#9CA3AF]">+{weekXP} 이번주</div>
+                      </div>
                     </div>
-                    <div className="w-full bg-[#F3F4F6] rounded-full h-2 mb-1">
-                      <div className="h-2 rounded-full" style={{width: `${progress}%`, background: levelColor}}></div>
+                    <div className="mb-3">
+                      <div className="flex justify-between text-[0.75rem] text-[#9CA3AF] mb-1">
+                        <span>{currentLevel.name}</span>
+                        <span>{Math.round(progressInLevel)}%</span>
+                      </div>
+                      <div className="w-full bg-[#F3F4F6] rounded-full h-3">
+                        <div className="h-3 rounded-full transition-all" style={{width: `${Math.min(100, progressInLevel)}%`, background: `linear-gradient(90deg, ${levelColor}, ${levelColor}dd)`}}></div>
+                      </div>
+                      <div className="text-[0.75rem] text-[#9CA3AF] mt-1">다음 등급까지 {currentLevel.max - score} XP</div>
                     </div>
-                    {nextLevel && <div className="text-[0.75rem] text-[#9CA3AF]">다음 등급까지 {nextLevel - score}점</div>}
-                    <div className="text-[0.85rem] text-[#9CA3AF] mt-2">완료 +20 · 실패 -10</div>
+                    <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#F3F4F6]">
+                      <div className="text-center">
+                        <div className="text-[1rem] font-bold text-[#22C55E]">{records.filter(r => r.done).length}</div>
+                        <div className="text-[0.72rem] text-[#9CA3AF]">총 성공</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[1rem] font-bold text-[#1A1A2E]">{streak}일</div>
+                        <div className="text-[0.72rem] text-[#9CA3AF]">연속</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-[1rem] font-bold text-[#1A1A2E]">{successRate}%</div>
+                        <div className="text-[0.72rem] text-[#9CA3AF]">성공률</div>
+                      </div>
+                    </div>
                   </div>
                 );
               })()}
@@ -2004,33 +2121,75 @@ export default function VanguardHome() {
               })()}
             </div>
 
-            {/* 패턴 분석 - Pro/Ultra */}
-            {records.length >= 3 && userPlan === "free" && (
-              <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-3xl p-4 mb-3 opacity-60">
-                <div className="text-[0.8rem] text-[#FCA5A5] font-bold tracking-widest uppercase mb-2">내가 왜 망하는지</div>
-                <div className="text-[0.82rem] text-[#9CA3AF]">Pro 이상에서 확인할 수 있습니다.</div>
-                <button onClick={() => setActiveTab("settings")} className="mt-2 text-[0.85rem] text-[#1A1A2E] font-bold">Pro 시작하기 →</button>
-              </div>
-            )}
-            {records.length >= 3 && userPlan !== "free" && (
-              <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-3xl p-5 mb-4">
-                <div className="text-[0.8rem] text-[#FCA5A5] font-bold tracking-widest uppercase mb-2">내가 왜 망하는지</div>
-                <div className="text-[0.92rem] font-black text-[#1A1A2E]">
-                  {(() => {
-                    const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
-                    if (failsByHour.length === 0) return "데이터가 쌓이면 패턴을 분석합니다";
-                    const avgHour = Math.round(failsByHour.reduce((s, r) => s + (r.hour_of_day || 0), 0) / failsByHour.length);
-                    const topReason = Object.entries(
-                      records.filter(r => !r.done && r.fail_reason).reduce((acc, r) => {
-                        const k = r.fail_reason || "기타"; acc[k] = (acc[k] || 0) + 1; return acc;
-                      }, {} as Record<string, number>)
-                    ).sort((a, b) => b[1] - a[1])[0];
-                    const timeLabel = avgHour >= 20 ? "밤" : avgHour >= 16 ? "오후 늦게" : avgHour >= 12 ? "오후" : "오전";
-                    return topReason
-                      ? `너는 ${timeLabel}에 "${topReason[0]}" 때문에 항상 무너진다.`
-                      : `너는 ${timeLabel}에 항상 무너진다.`;
-                  })()}
-                </div>
+            {/* 실패 유형 카드 */}
+            {records.filter(r => !r.done).length >= 2 && (
+              <div className="mb-4">
+                <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-widest uppercase mb-3">나의 실패 패턴</div>
+                {(() => {
+                  const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
+                  const failReasons = records.filter(r => !r.done && r.fail_reason).reduce((acc, r) => {
+                    const k = r.fail_reason || "기타"; acc[k] = (acc[k] || 0) + 1; return acc;
+                  }, {} as Record<string, number>);
+                  const topReasons = Object.entries(failReasons).sort((a, b) => b[1] - a[1]).slice(0, 3);
+                  const avgHour = failsByHour.length > 0 ? Math.round(failsByHour.reduce((s, r) => s + (r.hour_of_day || 0), 0) / failsByHour.length) : 0;
+                  const timeLabel = avgHour >= 20 ? "밤" : avgHour >= 16 ? "저녁" : avgHour >= 12 ? "오후" : "오전";
+                  const totalFails = records.filter(r => !r.done).length;
+                  const isLocked = userPlan === "free";
+
+                  const cards = [
+                    { title: `${timeLabel} ${avgHour}시`, sub: "가장 자주 무너지는 시간", icon: "⏰", color: "#DC2626" },
+                    ...(topReasons.length > 0 ? [{ title: topReasons[0][0], sub: `${topReasons[0][1]}번 반복된 원인`, icon: "🔥", color: "#F59E0B" }] : []),
+                    { title: `${totalFails}회`, sub: "이번 달 총 실패", icon: "📊", color: "#6B7280" },
+                  ];
+
+                  return (
+                    <div>
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        {cards.map((card, i) => (
+                          <div key={i} className="relative">
+                            <div className={`bg-white border border-[#E5E7EB] rounded-3xl p-4 text-center ${isLocked ? "blur-[4px]" : ""}`}>
+                              <div className="text-2xl mb-2">{card.icon}</div>
+                              <div className="text-[1rem] font-bold text-[#1A1A2E]">{card.title}</div>
+                              <div className="text-[0.72rem] text-[#9CA3AF] mt-1">{card.sub}</div>
+                            </div>
+                            {isLocked && i > 0 && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="bg-white/90 rounded-2xl px-3 py-1.5 shadow-sm">
+                                  <div className="text-[0.72rem] text-[#4F46E5] font-bold">Pro</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {!isLocked && failsByHour.length >= 3 && (
+                        <div className="bg-[#FEF2F2] rounded-3xl p-5 mb-3">
+                          <div className="text-[0.95rem] font-bold text-[#1A1A2E] mb-2">
+                            {topReasons.length > 0
+                              ? `당신은 ${timeLabel}에 "${topReasons[0][0]}" 때문에 무너집니다.`
+                              : `당신은 ${timeLabel}에 무너집니다.`}
+                          </div>
+                          <div className="text-[0.85rem] text-[#6B7280] mb-3">이건 의지가 아니라 반복되는 패턴입니다.</div>
+                          <button onClick={() => {
+                            const text = `나의 실패 패턴: ${timeLabel} ${avgHour}시에 "${topReasons[0]?.[0] || "집중력 부족"}" 때문에 무너짐. Vanguard가 패턴을 잡아주고 있다.`;
+                            const url = "https://vanguard-five-ecru.vercel.app/landing";
+                            if (navigator.share) { navigator.share({ title: "Vanguard 실패 패턴", text, url }).catch(() => {}); }
+                            else { window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + " " + url)}`, "_blank"); }
+                          }}
+                            className="w-full bg-[#F3F4F6] text-[#6B7280] font-medium rounded-2xl py-2.5 text-[0.82rem] press-effect">
+                            패턴 카드 공유하기
+                          </button>
+                        </div>
+                      )}
+                      {isLocked && (
+                        <button onClick={() => setActiveTab("settings")}
+                          className="w-full bg-[#4F46E5] text-white font-bold rounded-3xl py-3.5 text-[0.88rem] press-effect shadow-lg shadow-[#4F46E5]/20">
+                          패턴 전체 분석 보기 — Pro
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
