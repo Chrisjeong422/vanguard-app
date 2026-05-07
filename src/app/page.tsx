@@ -1016,68 +1016,52 @@ export default function VanguardHome() {
 
                   return (
                     <div>
-                      {/* 미접속 경고 + Pro 유도 */}
-                      {userState.consecutiveFails >= 2 && (
-                        <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-2xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
-                          <div className="text-[0.92rem] font-black text-[#FCA5A5] mb-1">{userState.consecutiveFails}일째 안 왔다.</div>
-                          <div className="text-[0.75rem] text-[#6B7280] mb-2">이건 의지가 아니라 반복 패턴이다. 지금 3분만 해라.</div>
-                          {userPlan === "free" && userState.consecutiveFails >= 3 && (
-                            <button onClick={() => { setActiveTab("settings"); }}
-                              className="w-full bg-[#FCA5A5]/10 border border-[#FECACA] text-[#FCA5A5] font-bold rounded-2xl py-2.5 text-[0.75rem] press-effect mt-2">
-                              {userState.consecutiveFails}일 연속 무너지고 있다 — Pro가 패턴을 잡아준다
-                            </button>
-                          )}
+                      {/* === 핵심 영역: 할 것 + 진행률 + 시작 === */}
+                      <div className="pt-4 pb-2">
+                        {/* 상태 한 줄 */}
+                        <div className="text-[0.88rem] text-[#6B7280] text-center mb-8 leading-relaxed">
+                          {statusLine}
                         </div>
-                      )}
-                      {/* 1일 미접속 + 무료 유저 */}
-                      {userState.consecutiveFails === 1 && userPlan === "free" && (
-                        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-4 mb-5">
-                          <div className="text-[0.78rem] text-[#6B7280]">어제 멈췄다. 오늘까지 놓치면 패턴이 된다.</div>
-                        </div>
-                      )}
 
-                      {/* 어제 편지 */}
-                      {yesterdayLetter && !userState.consecutiveFails && (
-                        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-4 mb-4">
-                          <div className="text-[0.75rem] text-[#9CA3AF] font-bold mb-2">어제의 나로부터</div>
-                          <div className="text-[0.78rem] text-[#1A1A2E] leading-relaxed">{yesterdayLetter}</div>
-                        </div>
-                      )}
-
-                      {/* 스트릭 복구권 (Pro) */}
-                      {userPlan !== "free" && streak === 0 && userState.consecutiveFails === 1 && (
-                        <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-2xl p-4 mb-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="text-[0.82rem] font-bold text-[#1A1A2E] mb-1">스트릭이 끊어졌다</div>
-                              <div className="text-[0.8rem] text-[#6B7280]">지금 미션 1개를 완료하면 스트릭을 복구할 수 있습니다</div>
+                        {/* 원형 진행률 — 화면 중앙, 크게 */}
+                        <div className="flex flex-col items-center mb-8">
+                          <div className="relative">
+                            <svg width="140" height="140" viewBox="0 0 140 140">
+                              <circle cx="70" cy="70" r="58" fill="none" stroke="#F3F4F6" strokeWidth="8" />
+                              <circle cx="70" cy="70" r="58" fill="none" stroke={completedCount === totalCount && totalCount > 0 ? "#22C55E" : "#4F46E5"} strokeWidth="8"
+                                strokeLinecap="round"
+                                strokeDasharray={`${(totalCount > 0 ? completedCount / totalCount : 0) * 2 * Math.PI * 58} ${2 * Math.PI * 58}`}
+                                transform="rotate(-90 70 70)" style={{ transition: "stroke-dasharray 0.6s ease" }} />
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <span className="text-[2rem] font-bold text-[#1A1A2E]">{totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0}%</span>
+                              <span className="text-[0.8rem] text-[#9CA3AF]">{completedCount}/{totalCount} 완료</span>
                             </div>
-                            <div className="text-[0.75rem] text-[#1A1A2E] font-bold px-2 py-1 bg-[#FCD34D]/10 rounded-lg">복구 가능</div>
                           </div>
+                        </div>
+                      </div>
+
+                      {/* === 알림 영역 (있을 때만) === */}
+                      {userState.consecutiveFails >= 2 && (
+                        <div className="bg-[#FEF2F2] rounded-3xl p-5 mb-5" style={{animation: "fadeIn 0.3s ease-out"}}>
+                          <div className="text-[0.95rem] font-bold text-[#DC2626] mb-1">{userState.consecutiveFails}일째 멈춰있습니다</div>
+                          <div className="text-[0.85rem] text-[#6B7280]">지금 3분만 시작하면 흐름이 돌아옵니다.</div>
                         </div>
                       )}
 
-                      {/* 상태 한 줄 */}
-                      <div className="text-[0.82rem] text-[#6B7280] text-center mb-4 leading-relaxed font-medium">
-                        {statusLine}
-                      </div>
-
-                      {/* 원형 진행률 */}
-                      <div className="flex flex-col items-center mb-6">
-                        <div className="relative mb-3">
-                          <svg width="120" height="120" viewBox="0 0 120 120">
-                            <circle cx="60" cy="60" r="48" fill="none" stroke="#E5E7EB" strokeWidth="7" />
-                            <circle cx="60" cy="60" r="48" fill="none" stroke={completedCount === totalCount && totalCount > 0 ? "#4ADE80" : "#FFFFFF"} strokeWidth="7"
-                              strokeLinecap="round"
-                              strokeDasharray={`${(totalCount > 0 ? completedCount / totalCount : 0) * 2 * Math.PI * 48} ${2 * Math.PI * 48}`}
-                              transform="rotate(-90 60 60)" style={{ transition: "stroke-dasharray 0.5s ease" }} />
-                          </svg>
-                          <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-[1.5rem] font-black text-[#1A1A2E]">{totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0}%</span>
-                            <span className="text-[0.75rem] text-[#9CA3AF]">{completedCount}/{totalCount}</span>
-                          </div>
+                      {yesterdayLetter && !userState.consecutiveFails && (
+                        <div className="bg-[#F9FAFB] rounded-3xl p-5 mb-5">
+                          <div className="text-[0.8rem] text-[#9CA3AF] mb-2">어제의 나로부터</div>
+                          <div className="text-[0.88rem] text-[#1A1A2E] leading-relaxed">{yesterdayLetter}</div>
                         </div>
-                      </div>
+                      )}
+
+                      {userPlan !== "free" && streak === 0 && userState.consecutiveFails === 1 && (
+                        <div className="bg-[#FFFBEB] rounded-3xl p-5 mb-5">
+                          <div className="text-[0.88rem] font-bold text-[#1A1A2E] mb-1">스트릭이 끊어졌습니다</div>
+                          <div className="text-[0.85rem] text-[#6B7280]">미션 1개를 완료하면 복구할 수 있습니다</div>
+                        </div>
+                      )}
 
                       {/* 패턴 브레이커 경고 (Pro/Ultra) */}
                       {userPlan !== "free" && (() => {
@@ -1146,9 +1130,8 @@ export default function VanguardHome() {
                           setShowRunningMessage(false);
                           setHomeMode("running");
                         }}
-                          className="w-full bg-white text-[#050A12] font-black rounded-3xl py-5 text-[1.1rem] press-effect mb-4"
-                          style={{letterSpacing: "0.2em", paddingLeft: "0.2em"}}>
-                          시작
+                          className="w-full bg-[#4F46E5] text-white font-bold rounded-3xl py-5 text-[1.1rem] press-effect mb-4 shadow-lg shadow-[#4F46E5]/20">
+                          시작하기
                         </button>
                       )}
 
@@ -1156,7 +1139,7 @@ export default function VanguardHome() {
                       <div className="mt-4">
                         <input type="text" value={mission} onChange={e => setMission(e.target.value)}
                           placeholder="또는 직접 입력"
-                          className="w-full bg-white border border-[#E5E7EB] rounded-2xl px-4 py-3 text-[0.85rem] text-[#1A1A2E] placeholder-[#334155] focus:outline-none focus:border-[#D1D5DB]"
+                          className="w-full bg-white border border-[#E5E7EB] rounded-2xl px-4 py-3 text-[0.85rem] text-[#1A1A2E] placeholder-[#9CA3AF] focus:outline-none focus:border-[#D1D5DB]"
                           onKeyDown={e => e.key === "Enter" && handleStart()} />
                         {mission && (
                           <button onClick={handleStart}
@@ -1171,14 +1154,13 @@ export default function VanguardHome() {
                   <div className="text-center">
                     <div className="text-[0.78rem] text-[#6B7280] mb-8">{urgency.headline}</div>
                     <button onClick={generateDailySchedule} disabled={scheduleGenerating}
-                      className="w-full bg-white text-[#050A12] font-black rounded-3xl py-5 text-[1.1rem] press-effect mb-4"
-                      style={{letterSpacing: "0.2em", paddingLeft: "0.2em"}}>
+                      className="w-full bg-[#4F46E5] text-white font-bold rounded-3xl py-5 text-[1.1rem] press-effect mb-4 shadow-lg shadow-[#4F46E5]/20">
                       {scheduleGenerating ? "AI가 설계 중..." : "오늘 시작하기"}
                     </button>
                     <div className="mt-4">
                       <input type="text" value={mission} onChange={e => setMission(e.target.value)}
                         placeholder="또는 직접 입력"
-                        className="w-full bg-white border border-[#E5E7EB] rounded-2xl px-4 py-3 text-[0.85rem] text-[#1A1A2E] placeholder-[#334155] focus:outline-none focus:border-[#D1D5DB]"
+                        className="w-full bg-white border border-[#E5E7EB] rounded-2xl px-4 py-3 text-[0.85rem] text-[#1A1A2E] placeholder-[#9CA3AF] focus:outline-none focus:border-[#D1D5DB]"
                         onKeyDown={e => e.key === "Enter" && handleStart()} />
                       {mission && (
                         <button onClick={handleStart}
@@ -1550,7 +1532,7 @@ export default function VanguardHome() {
                       <div className="bg-[#FAFAFA] border border-[#E5E7EB] rounded-2xl p-3 mt-3 space-y-2">
                         <input type="text" value={newBlockTitle} onChange={e => setNewBlockTitle(e.target.value)}
                           placeholder="할 일"
-                          className="w-full bg-white border border-[#E5E7EB] rounded-lg px-3 py-2 text-[0.82rem] text-[#1A1A2E] placeholder-[#334155] focus:outline-none focus:border-[#D1D5DB]" />
+                          className="w-full bg-white border border-[#E5E7EB] rounded-lg px-3 py-2 text-[0.82rem] text-[#1A1A2E] placeholder-[#9CA3AF] focus:outline-none focus:border-[#D1D5DB]" />
                         <div className="grid grid-cols-2 gap-2">
                           <input type="time" value={newBlockStart} onChange={e => setNewBlockStart(e.target.value)}
                             className="bg-white border border-[#E5E7EB] rounded-lg px-3 py-2 text-[0.82rem] text-[#1A1A2E] focus:outline-none" />
