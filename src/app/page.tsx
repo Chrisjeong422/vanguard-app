@@ -826,9 +826,9 @@ export default function VanguardHome() {
   const userState = calcUserState(records, hour);
 
   return (
-    <div className="min-h-screen bg-[#050A12] text-white flex justify-center">
+    <div className="min-h-screen bg-[#0F1419] text-white flex justify-center">
       {showSplash && (
-        <div className="fixed inset-0 bg-[#050A12] flex flex-col items-center justify-center z-50">
+        <div className="fixed inset-0 bg-[#0F1419] flex flex-col items-center justify-center z-50">
           <div className="text-[3.5rem] font-black uppercase text-white" style={{letterSpacing: "0.2em", animation: "fadeIn 0.8s ease-in"}}>VANGUARD</div>
           <div className="text-[0.8rem] text-[#999999] mt-0" style={{letterSpacing: "0.35em", fontWeight: 700}}>Life OS</div>
           <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
@@ -839,12 +839,12 @@ export default function VanguardHome() {
         {/* 닉네임 모달 */}
         {showNicknameModal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-6">
-            <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-6 w-full max-w-[340px]">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-6 w-full max-w-[340px]">
               <div className="text-[1rem] font-black mb-1">닉네임 설정</div>
               <div className="text-[0.85rem] text-[#64748B] mb-4">기록 저장과 패턴 분석에 사용돼요</div>
               <input type="text" value={nicknameInput} onChange={e => setNicknameInput(e.target.value)}
                 placeholder="닉네임 입력 (2자 이상)"
-                className="w-full bg-[#050A12] border border-white/10 rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/25 focus:outline-none focus:border-white/30 mb-3"
+                className="w-full bg-[#0F1419] border border-[#2D333B] rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/25 focus:outline-none focus:border-[#3D444D] mb-3"
                 onKeyDown={e => e.key === "Enter" && handleSetNickname()} />
               <button onClick={handleSetNickname} disabled={loading}
                 className="w-full bg-white text-[#050A12] font-bold rounded-xl py-3 text-[0.88rem] mb-2">
@@ -858,12 +858,12 @@ export default function VanguardHome() {
         {/* 목표 모달 */}
         {showGoalModal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-6">
-            <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-6 w-full max-w-[340px]">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-6 w-full max-w-[340px]">
               <div className="text-[1rem] font-black mb-1">이번 달 목표</div>
               <div className="text-[0.85rem] text-[#64748B] mb-4">목표가 있어야 AI가 맞춤 압박을 줍니다</div>
               <input type="text" value={goalInput} onChange={e => setGoalInput(e.target.value)}
                 placeholder="예: 앱 출시, 운동 20회, 매출 100만원"
-                className="w-full bg-[#050A12] border border-white/10 rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/25 focus:outline-none focus:border-white/30 mb-3"
+                className="w-full bg-[#0F1419] border border-[#2D333B] rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/25 focus:outline-none focus:border-[#3D444D] mb-3"
                 onKeyDown={e => e.key === "Enter" && handleSaveGoal()} />
               <button onClick={handleSaveGoal} disabled={goalSaving}
                 className="w-full bg-white text-[#050A12] font-bold rounded-xl py-3 text-[0.88rem] mb-2">
@@ -877,7 +877,7 @@ export default function VanguardHome() {
         {/* 문의 모달 */}
         {showInquiry && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-6">
-            <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-6 w-full max-w-[340px]">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-6 w-full max-w-[340px]">
               <div className="text-[1rem] font-black mb-1">문의하기</div>
               <div className="text-[0.85rem] text-[#64748B] mb-4">궁금한 점이나 불편한 점을 알려주세요</div>
               {inquirySent ? (
@@ -892,7 +892,7 @@ export default function VanguardHome() {
                   <textarea value={inquiryMsg} onChange={e => setInquiryMsg(e.target.value)}
                     placeholder="메시지를 입력하세요"
                     rows={4}
-                    className="w-full bg-[#050A12] border border-white/10 rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/20 focus:outline-none focus:border-white/30 mb-3 resize-none" />
+                    className="w-full bg-[#0F1419] border border-[#2D333B] rounded-xl px-4 py-3 text-[0.92rem] text-white placeholder-white/20 focus:outline-none focus:border-[#3D444D] mb-3 resize-none" />
                   <button onClick={async () => {
                     if (!inquiryMsg.trim()) return;
                     await supabase.from("inquiries").insert([{ nickname, message: inquiryMsg.trim() }]);
@@ -908,7 +908,7 @@ export default function VanguardHome() {
         )}
 
         {/* 헤더 */}
-        <div className="pt-12 pb-4 border-b border-white/5 mb-3">
+        <div className="pt-12 pb-4 border-b border-[#2D333B] mb-3">
           <div className="text-center mb-3">
             <div className="text-[2rem] font-black leading-none uppercase" style={{letterSpacing: "0.15em"}}>VANGUARD</div>
             <div className="text-[0.8rem] text-[#999999] mt-0" style={{letterSpacing: "0.35em", fontWeight: 700}}>Life OS</div>
@@ -919,10 +919,10 @@ export default function VanguardHome() {
             </div>
             {isGuest ? (
               <button onClick={() => setShowNicknameModal(true)}
-                className="text-[0.7rem] border border-white/20 rounded-lg px-2 py-1 text-[#64748B]">로그인</button>
+                className="text-[0.7rem] border border-[#3D444D] rounded-lg px-2 py-1 text-[#64748B]">로그인</button>
             ) : (
               <button onClick={() => setShowGoalModal(true)}
-                className="text-[0.7rem] border border-white/20 rounded-lg px-2 py-1 text-[#64748B]">목표</button>
+                className="text-[0.7rem] border border-[#3D444D] rounded-lg px-2 py-1 text-[#64748B]">목표</button>
             )}
           </div>
         </div>
@@ -946,7 +946,7 @@ export default function VanguardHome() {
                     { type: "repeater" as const, title: "시작은 하는데 계속 포기해", desc: "작심삼일이 반복된다. 끝까지 가본 적이 없다." },
                   ].map(opt => (
                     <button key={opt.type} onClick={() => { setUserType(opt.type); localStorage.setItem("vanguard_user_type", opt.type); }}
-                      className="w-full bg-[#0D1117] border border-white/10 rounded-2xl p-5 text-left press-effect">
+                      className="w-full bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 text-left press-effect">
                       <div className="text-[1rem] font-black text-white mb-1">{opt.title}</div>
                       <div className="text-[0.75rem] text-[#475569]">{opt.desc}</div>
                     </button>
@@ -1018,7 +1018,7 @@ export default function VanguardHome() {
                     <div>
                       {/* 미접속 경고 + Pro 유도 */}
                       {userState.consecutiveFails >= 2 && (
-                        <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
+                        <div className="bg-[#2A1F1F] border border-[#FCA5A5]/20 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
                           <div className="text-[0.92rem] font-black text-[#FCA5A5] mb-1">{userState.consecutiveFails}일째 안 왔다.</div>
                           <div className="text-[0.75rem] text-[#94A3B8] mb-2">이건 의지가 아니라 반복 패턴이다. 지금 3분만 해라.</div>
                           {userPlan === "free" && userState.consecutiveFails >= 3 && (
@@ -1031,14 +1031,14 @@ export default function VanguardHome() {
                       )}
                       {/* 1일 미접속 + 무료 유저 */}
                       {userState.consecutiveFails === 1 && userPlan === "free" && (
-                        <div className="bg-[#0D1117] border border-white/10 rounded-xl p-4 mb-5">
+                        <div className="bg-[#1A1F26] border border-[#2D333B] rounded-xl p-4 mb-5">
                           <div className="text-[0.78rem] text-[#94A3B8]">어제 멈췄다. 오늘까지 놓치면 패턴이 된다.</div>
                         </div>
                       )}
 
                       {/* 어제 편지 */}
                       {yesterdayLetter && !userState.consecutiveFails && (
-                        <div className="bg-[#0D1117] border border-white/10 rounded-xl p-4 mb-4">
+                        <div className="bg-[#1A1F26] border border-[#2D333B] rounded-xl p-4 mb-4">
                           <div className="text-[0.75rem] text-[#475569] font-bold mb-2">어제의 나로부터</div>
                           <div className="text-[0.78rem] text-[#F1F5F9] leading-relaxed">{yesterdayLetter}</div>
                         </div>
@@ -1046,10 +1046,10 @@ export default function VanguardHome() {
 
                       {/* 스트릭 복구권 (Pro) */}
                       {userPlan !== "free" && streak === 0 && userState.consecutiveFails === 1 && (
-                        <div className="bg-[#16130A] border border-[#FCD34D]/20 rounded-xl p-4 mb-4">
+                        <div className="bg-[#2A2720] border border-[#FCD34D]/20 rounded-xl p-4 mb-4">
                           <div className="flex items-center justify-between">
                             <div>
-                              <div className="text-[0.82rem] font-black text-white mb-1">스트릭이 끊어졌다</div>
+                              <div className="text-[0.82rem] font-bold text-white mb-1">스트릭이 끊어졌다</div>
                               <div className="text-[0.8rem] text-[#94A3B8]">지금 미션 1개를 완료하면 스트릭을 복구할 수 있습니다</div>
                             </div>
                             <div className="text-[0.75rem] text-white font-bold px-2 py-1 bg-[#FCD34D]/10 rounded-lg">복구 가능</div>
@@ -1084,7 +1084,7 @@ export default function VanguardHome() {
                         const riskyHour = getRiskyHour(records);
                         const pb = getPatternBreakerMessage(hour, riskyHour, userPlan);
                         if (pb.show) return (
-                          <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-xl p-4 mb-5">
+                          <div className="bg-[#2A1F1F] border border-[#FCA5A5]/20 rounded-xl p-4 mb-5">
                             <div className="text-[0.82rem] text-[#FCA5A5] font-bold mb-1">{pb.message}</div>
                             <div className="text-[0.85rem] text-[#94A3B8]">{pb.sub}</div>
                           </div>
@@ -1103,14 +1103,14 @@ export default function VanguardHome() {
                         const peakCount = Number(sorted[0][1]);
                         const hoursUntil = peakHour - hour;
                         if (hoursUntil > 0 && hoursUntil <= 3) return (
-                          <div className="bg-[#0D0818] border border-[#8B5CF6]/30 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
+                          <div className="bg-[#1F1A2A] border border-[#8B5CF6]/30 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
                             <div className="text-[0.75rem] text-[#A78BFA] font-bold tracking-wider mb-1">ULTRA 선제 개입</div>
                             <div className="text-[0.88rem] font-black text-white mb-1">오늘 {peakHour}시에 무너질 확률이 높습니다.</div>
                             <div className="text-[0.85rem] text-[#94A3B8]">{peakCount}번 같은 시간에 실패했습니다. 지금 미리 3분 시작하면 오늘은 버틸 수 있습니다.</div>
                           </div>
                         );
                         if (hoursUntil === 0) return (
-                          <div className="bg-[#1A0808] border border-[#FCA5A5]/30 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
+                          <div className="bg-[#2A1F1F] border border-[#FCA5A5]/30 rounded-xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
                             <div className="text-[0.75rem] text-[#FCA5A5] font-bold tracking-wider mb-1">ULTRA 긴급 개입</div>
                             <div className="text-[0.88rem] font-black text-[#FCA5A5] mb-1">지금이 당신이 항상 무너지는 시간입니다.</div>
                             <div className="text-[0.85rem] text-[#94A3B8]">이 시간을 버텨내면 오늘은 이깁니다. 지금 바로 시작하세요.</div>
@@ -1156,11 +1156,11 @@ export default function VanguardHome() {
                       <div className="mt-4">
                         <input type="text" value={mission} onChange={e => setMission(e.target.value)}
                           placeholder="또는 직접 입력"
-                          className="w-full bg-[#0D1117] border border-white/10 rounded-xl px-4 py-3 text-[0.85rem] text-white placeholder-[#334155] focus:outline-none focus:border-white/20"
+                          className="w-full bg-[#1A1F26] border border-[#2D333B] rounded-xl px-4 py-3 text-[0.85rem] text-white placeholder-[#334155] focus:outline-none focus:border-[#3D444D]"
                           onKeyDown={e => e.key === "Enter" && handleStart()} />
                         {mission && (
                           <button onClick={handleStart}
-                            className="w-full bg-[#0D1117] border border-white/10 text-[#94A3B8] font-bold rounded-xl py-3 text-[0.82rem] press-effect mt-2">
+                            className="w-full bg-[#1A1F26] border border-[#2D333B] text-[#94A3B8] font-bold rounded-xl py-3 text-[0.82rem] press-effect mt-2">
                             직접 미션 시작
                           </button>
                         )}
@@ -1178,11 +1178,11 @@ export default function VanguardHome() {
                     <div className="mt-4">
                       <input type="text" value={mission} onChange={e => setMission(e.target.value)}
                         placeholder="또는 직접 입력"
-                        className="w-full bg-[#0D1117] border border-white/10 rounded-xl px-4 py-3 text-[0.85rem] text-white placeholder-[#334155] focus:outline-none focus:border-white/20"
+                        className="w-full bg-[#1A1F26] border border-[#2D333B] rounded-xl px-4 py-3 text-[0.85rem] text-white placeholder-[#334155] focus:outline-none focus:border-[#3D444D]"
                         onKeyDown={e => e.key === "Enter" && handleStart()} />
                       {mission && (
                         <button onClick={handleStart}
-                          className="w-full bg-[#0D1117] border border-white/10 text-[#94A3B8] font-bold rounded-xl py-3 text-[0.82rem] press-effect mt-2">
+                          className="w-full bg-[#1A1F26] border border-[#2D333B] text-[#94A3B8] font-bold rounded-xl py-3 text-[0.82rem] press-effect mt-2">
                           직접 미션 시작
                         </button>
                       )}
@@ -1218,9 +1218,9 @@ export default function VanguardHome() {
                   {/* 실시간 개입 메시지 */}
                   {showRunningMessage && (
                     <div className={`rounded-xl p-4 mb-5 transition-all ${
-                      runningMessageType === "celebrate" ? "bg-[#0A160D] border border-[#4ADE80]/20" :
-                      runningMessageType === "push" ? "bg-[#1A0808] border border-[#FCA5A5]/20" :
-                      "bg-[#0D1117] border border-white/10"
+                      runningMessageType === "celebrate" ? "bg-[#1F2A22] border border-[#4ADE80]/20" :
+                      runningMessageType === "push" ? "bg-[#2A1F1F] border border-[#FCA5A5]/20" :
+                      "bg-[#1A1F26] border border-[#2D333B]"
                     }`} style={{animation: "fadeIn 0.5s ease-in"}}>
                       <div className={`text-[0.82rem] font-bold ${
                         runningMessageType === "celebrate" ? "text-[#4ADE80]" :
@@ -1235,7 +1235,7 @@ export default function VanguardHome() {
                     {[5, 10, 15, 30].map(min => (
                       <div key={min} className={`text-center ${elapsedSeconds >= min * 60 ? "opacity-100" : "opacity-20"}`}>
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[0.75rem] font-bold mx-auto mb-1 ${
-                          elapsedSeconds >= min * 60 ? "bg-[#4ADE80] text-[#050A12]" : "bg-[#1E293B] text-[#475569]"
+                          elapsedSeconds >= min * 60 ? "bg-[#4ADE80] text-[#050A12]" : "bg-[#272D36] text-[#475569]"
                         }`}>{elapsedSeconds >= min * 60 ? "✓" : min}</div>
                         <div className="text-[0.7rem] text-[#64748B]">{min}분</div>
                       </div>
@@ -1256,16 +1256,16 @@ export default function VanguardHome() {
                     완료
                   </button>
                   <button onClick={() => setShowFailSelect(true)}
-                    className="bg-[#0D1117] border border-white/10 text-[#FCA5A5] font-bold rounded-xl py-4 text-[0.92rem] press-effect">
+                    className="bg-[#1A1F26] border border-[#2D333B] text-[#FCA5A5] font-bold rounded-xl py-4 text-[0.92rem] press-effect">
                     실패
                   </button>
                 </div>
                 {showFailSelect && (
-                  <div className="mt-4 bg-[#0D1117] border border-white/10 rounded-2xl p-4">
+                  <div className="mt-4 bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4">
                     <div className="text-[0.85rem] text-[#475569] font-bold mb-3">왜 멈췄어?</div>
                     {["집중력 부족", "시간 없음", "피곤", "의욕 없음", "기타"].map(reason => (
                       <button key={reason} onClick={() => handleFail(reason)}
-                        className="w-full text-left text-[0.82rem] text-[#94A3B8] py-2.5 border-b border-white/5 last:border-0 press-effect">
+                        className="w-full text-left text-[0.82rem] text-[#94A3B8] py-2.5 border-b border-[#2D333B] last:border-0 press-effect">
                         {reason}
                       </button>
                     ))}
@@ -1301,7 +1301,7 @@ export default function VanguardHome() {
                     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + " " + url)}`, "_blank");
                   }
                 }}
-                  className="w-full bg-[#0D1117] border border-white/10 rounded-xl py-3 text-[0.78rem] text-[#94A3B8] press-effect mb-3">
+                  className="w-full bg-[#1A1F26] border border-[#2D333B] rounded-xl py-3 text-[0.78rem] text-[#94A3B8] press-effect mb-3">
                   오늘 실행 공유하기
                 </button>
 
@@ -1317,12 +1317,12 @@ export default function VanguardHome() {
                       localStorage.setItem("vanguard_letter_date", new Date().toISOString().split("T")[0]);
                     } catch {}
                   }}
-                    className="w-full bg-[#0D1117] border border-white/10 rounded-xl py-3 text-[0.78rem] text-[#94A3B8] press-effect mb-3">
+                    className="w-full bg-[#1A1F26] border border-[#2D333B] rounded-xl py-3 text-[0.78rem] text-[#94A3B8] press-effect mb-3">
                     내일의 나한테 편지 쓰기
                   </button>
                 )}
                 {tomorrowLetter && (
-                  <div className="bg-[#0D1117] border border-white/10 rounded-xl p-4 mb-4 text-left">
+                  <div className="bg-[#1A1F26] border border-[#2D333B] rounded-xl p-4 mb-4 text-left">
                     <div className="text-[0.75rem] text-[#475569] font-bold mb-2">내일의 나한테</div>
                     <div className="text-[0.78rem] text-[#F1F5F9] leading-relaxed">{tomorrowLetter}</div>
                   </div>
@@ -1334,15 +1334,15 @@ export default function VanguardHome() {
                     다음 미션
                   </button>
                   <button onClick={() => { setMission(""); setCurrentMission(""); setStartTime(null); setActiveTab("analysis"); }}
-                    className="bg-[#0D1117] border border-white/10 text-[#475569] font-bold rounded-xl py-3.5 text-[0.85rem] press-effect">
+                    className="bg-[#1A1F26] border border-[#2D333B] text-[#475569] font-bold rounded-xl py-3.5 text-[0.85rem] press-effect">
                     마무리
                   </button>
                 </div>
 
                 {/* Pro 업셀 (완료 후) */}
                 {userPlan === "free" && records.filter(r => r.done).length >= 3 && (
-                  <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-4 mt-4">
-                    <div className="text-[0.82rem] font-black text-white mb-1">실행력이 생기고 있다</div>
+                  <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4 mt-4">
+                    <div className="text-[0.82rem] font-bold text-white mb-1">실행력이 생기고 있다</div>
                     <div className="text-[0.85rem] text-[#475569] mb-3">Pro에서 이 흐름을 데이터로 만들어라. 언제 무너지는지, 왜 무너지는지 AI가 분석한다.</div>
                     <button onClick={() => setActiveTab("settings")}
                       className="w-full bg-white text-[#050A12] font-bold rounded-xl py-2.5 text-[0.82rem] press-effect">
@@ -1357,7 +1357,7 @@ export default function VanguardHome() {
             {homeMode === "fail" && (
               <div className="card-enter">
                 {interventionMsg && (
-                  <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-xl p-4 mb-4">
+                  <div className="bg-[#2A1F1F] border border-[#FCA5A5]/20 rounded-xl p-4 mb-4">
                     <div className="text-[0.78rem] text-[#FCA5A5] font-bold">{interventionMsg}</div>
                   </div>
                 )}
@@ -1369,14 +1369,14 @@ export default function VanguardHome() {
                     const sameHourFails = failsByHour.filter(r => r.hour_of_day === hour).length;
                     const timeLabel = hour >= 20 ? "밤" : hour >= 16 ? "저녁" : hour >= 12 ? "오후" : "오전";
                     if (sameHourFails >= 3) return (
-                      <div className="bg-[#1A0808] border border-[#FCA5A5]/30 rounded-2xl p-5 mb-4">
+                      <div className="bg-[#2A1F1F] border border-[#FCA5A5]/30 rounded-2xl p-5 mb-4">
                         <div className="text-[1.2rem] font-black text-[#FCA5A5] mb-2">이번 주 {sameHourFails}번째 같은 시간 실패입니다.</div>
                         <div className="text-[0.88rem] text-white font-bold mb-2">이건 의지가 아니라 반복 패턴입니다.</div>
                         <div className="text-[0.75rem] text-[#94A3B8]">매번 {timeLabel}에 무너지고 있습니다. 원래 미션을 3분짜리로 줄였습니다.</div>
                       </div>
                     );
                     if (sameHourFails >= 1) return (
-                      <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-2xl p-5 mb-4">
+                      <div className="bg-[#2A1F1F] border border-[#FCA5A5]/20 rounded-2xl p-5 mb-4">
                         <div className="text-[1.1rem] font-black text-[#FCA5A5] mb-2">{getFailMessage(getABMessage(nickname || "guest"), failCount, hour)}</div>
                         <div className="text-[0.82rem] text-white font-bold mb-2">이 시간에 또 멈췄습니다.</div>
                         <div className="text-[0.75rem] text-[#94A3B8]">아직 오늘은 끝나지 않았습니다.</div>
@@ -1409,7 +1409,7 @@ export default function VanguardHome() {
                       setShowRunningMessage(false);
                       setHomeMode("running");
                     }}
-                      className={`w-full ${idx === 0 ? "bg-white text-[#050A12]" : "bg-[#0D1117] border border-white/10 text-white"} font-bold rounded-xl py-3.5 text-[0.88rem] press-effect`}>
+                      className={`w-full ${idx === 0 ? "bg-white text-[#050A12]" : "bg-[#1A1F26] border border-[#2D333B] text-white"} font-bold rounded-xl py-3.5 text-[0.88rem] press-effect`}>
                       {item.duration} 복귀 — {item.title}
                     </button>
                   ))}
@@ -1421,21 +1421,21 @@ export default function VanguardHome() {
 
                 {/* Pro 업셀 (실패 후) — 패턴 데이터 흐림 처리 */}
                 {userPlan === "free" && (
-                  <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-4">
+                  <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4">
                     {/* 흐림 처리된 패턴 분석 미리보기 */}
                     <div className="relative mb-3">
                       <div className="blur-[6px] pointer-events-none">
                         <div className="text-[0.75rem] text-[#FCA5A5] font-bold tracking-wider mb-2">실패 패턴 분석</div>
                         <div className="grid grid-cols-3 gap-2 mb-2">
-                          <div className="bg-[#050A12] rounded-lg p-2 text-center">
+                          <div className="bg-[#0F1419] rounded-lg p-2 text-center">
                             <div className="text-[1rem] font-black text-[#FCA5A5]">{failCount}</div>
                             <div className="text-[0.7rem] text-[#64748B]">이번 달 실패</div>
                           </div>
-                          <div className="bg-[#050A12] rounded-lg p-2 text-center">
+                          <div className="bg-[#0F1419] rounded-lg p-2 text-center">
                             <div className="text-[1rem] font-black text-white">{hour >= 18 ? "저녁" : hour >= 12 ? "오후" : "오전"}</div>
                             <div className="text-[0.7rem] text-[#64748B]">위험 시간대</div>
                           </div>
-                          <div className="bg-[#050A12] rounded-lg p-2 text-center">
+                          <div className="bg-[#0F1419] rounded-lg p-2 text-center">
                             <div className="text-[1rem] font-black text-white">{failReason}</div>
                             <div className="text-[0.7rem] text-[#64748B]">주요 원인</div>
                           </div>
@@ -1443,12 +1443,12 @@ export default function VanguardHome() {
                         <div className="text-[0.85rem] text-[#94A3B8]">다음 실패 예측: 내일 {hour >= 18 ? "20" : hour >= 12 ? "18" : "15"}시에 같은 패턴 반복 가능성 높음</div>
                       </div>
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="bg-[#050A12]/80 rounded-xl px-4 py-2">
+                        <div className="bg-[#0F1419]/80 rounded-xl px-4 py-2">
                           <div className="text-[0.85rem] text-white font-bold text-center">Pro에서 잠금 해제</div>
                         </div>
                       </div>
                     </div>
-                    <div className="text-[0.82rem] font-black text-white mb-1">
+                    <div className="text-[0.82rem] font-bold text-white mb-1">
                       {failCount >= 3 ? "같은 패턴이 반복되고 있다. 혼자서는 안 끊긴다." :
                        failCount >= 2 ? "이 패턴, 혼자서 끊기 어렵다." :
                        "왜 무너졌는지 알면 다음엔 안 무너진다."}
@@ -1477,7 +1477,7 @@ export default function VanguardHome() {
             {/* AI 브리핑 */}
             <div className="mb-4">
               {aiBriefing ? (
-                <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-4">
+                <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-[0.75rem] text-[#94A3B8] font-bold tracking-wider">오늘의 브리핑</div>
                     <button onClick={generateBriefing} disabled={briefingLoading}
@@ -1487,7 +1487,7 @@ export default function VanguardHome() {
                 </div>
               ) : (
                 <button onClick={generateBriefing} disabled={briefingLoading}
-                  className="w-full bg-[#0D1117] border border-white/10 rounded-2xl p-3 text-left">
+                  className="w-full bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-3 text-left">
                   <div className="text-[0.75rem] text-[#94A3B8] font-bold tracking-wider mb-1">오늘의 브리핑</div>
                   <div className="text-[0.8rem] text-[#475569]">
                     {briefingLoading ? "AI 분석 중..." : "일정 기반 오늘 반드시 해야 할 것 →"}
@@ -1498,7 +1498,7 @@ export default function VanguardHome() {
 
             {/* 오늘의 스케줄 타임라인 */}
             {dailySchedule?.blocks?.length > 0 && (
-              <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-4 mb-4">
+              <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4 mb-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase">오늘의 스케줄</div>
                   <button onClick={generateDailySchedule} disabled={scheduleGenerating}
@@ -1509,7 +1509,7 @@ export default function VanguardHome() {
                   <span className="text-[0.7rem] text-[#475569]">{dailySchedule.blocks.filter((b: any) => b.is_completed).length}/{dailySchedule.blocks.length} 완료</span>
                   <span className="text-[0.7rem] text-[#475569]">{dailySchedule.total_blocks > 0 ? Math.round((dailySchedule.completed_blocks / dailySchedule.total_blocks) * 100) : 0}%</span>
                 </div>
-                <div className="w-full bg-[#1E293B] rounded-full h-1.5 mb-3">
+                <div className="w-full bg-[#272D36] rounded-full h-1.5 mb-3">
                   <div className="bg-white h-1.5 rounded-full transition-all" style={{ width: `${dailySchedule.total_blocks > 0 ? (dailySchedule.completed_blocks / dailySchedule.total_blocks) * 100 : 0}%` }} />
                 </div>
                 <div className="space-y-1.5">
@@ -1517,11 +1517,11 @@ export default function VanguardHome() {
                   {dailySchedule.blocks.map((block: any, idx: number) => (
                     <div key={idx} className={`flex items-center gap-2 rounded-xl p-2.5 ${
                       block.is_completed ? "bg-[#4ADE80]/10 opacity-60" :
-                      block.skipped ? "bg-zinc-900/30 opacity-40" : "bg-[#050A12]"
+                      block.skipped ? "bg-zinc-900/30 opacity-40" : "bg-[#0F1419]"
                     }`}>
                       <button onClick={() => toggleScheduleBlock(block.id, block.is_completed ? "skip" : "complete")}
                         className={`w-5 h-5 rounded-md border flex items-center justify-center text-[0.85rem] shrink-0 ${
-                          block.is_completed ? "bg-[#4ADE80] border-[#4ADE80] text-[#050A12]" : "border-white/20"
+                          block.is_completed ? "bg-[#4ADE80] border-[#4ADE80] text-[#050A12]" : "border-[#3D444D]"
                         }`}>
                         {block.is_completed ? "✓" : ""}
                       </button>
@@ -1543,25 +1543,25 @@ export default function VanguardHome() {
                   <>
                     {!showAddBlock ? (
                       <button onClick={() => setShowAddBlock(true)}
-                        className="w-full bg-[#050A12] border border-dashed border-white/10 rounded-xl py-2.5 text-[0.75rem] text-[#475569] press-effect mt-3">
+                        className="w-full bg-[#0F1419] border border-dashed border-[#2D333B] rounded-xl py-2.5 text-[0.75rem] text-[#475569] press-effect mt-3">
                         + 블록 추가
                       </button>
                     ) : (
-                      <div className="bg-[#050A12] border border-white/10 rounded-xl p-3 mt-3 space-y-2">
+                      <div className="bg-[#0F1419] border border-[#2D333B] rounded-xl p-3 mt-3 space-y-2">
                         <input type="text" value={newBlockTitle} onChange={e => setNewBlockTitle(e.target.value)}
                           placeholder="할 일"
-                          className="w-full bg-[#0D1117] border border-white/10 rounded-lg px-3 py-2 text-[0.82rem] text-white placeholder-[#334155] focus:outline-none focus:border-white/20" />
+                          className="w-full bg-[#1A1F26] border border-[#2D333B] rounded-lg px-3 py-2 text-[0.82rem] text-white placeholder-[#334155] focus:outline-none focus:border-[#3D444D]" />
                         <div className="grid grid-cols-2 gap-2">
                           <input type="time" value={newBlockStart} onChange={e => setNewBlockStart(e.target.value)}
-                            className="bg-[#0D1117] border border-white/10 rounded-lg px-3 py-2 text-[0.82rem] text-white focus:outline-none" />
+                            className="bg-[#1A1F26] border border-[#2D333B] rounded-lg px-3 py-2 text-[0.82rem] text-white focus:outline-none" />
                           <input type="time" value={newBlockEnd} onChange={e => setNewBlockEnd(e.target.value)}
-                            className="bg-[#0D1117] border border-white/10 rounded-lg px-3 py-2 text-[0.82rem] text-white focus:outline-none" />
+                            className="bg-[#1A1F26] border border-[#2D333B] rounded-lg px-3 py-2 text-[0.82rem] text-white focus:outline-none" />
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <button onClick={addScheduleBlock}
                             className="bg-white text-[#050A12] font-bold rounded-lg py-2 text-[0.78rem] press-effect">추가</button>
                           <button onClick={() => { setShowAddBlock(false); setNewBlockTitle(""); setNewBlockStart(""); setNewBlockEnd(""); }}
-                            className="bg-[#0D1117] border border-white/10 text-[#475569] font-bold rounded-lg py-2 text-[0.78rem] press-effect">취소</button>
+                            className="bg-[#1A1F26] border border-[#2D333B] text-[#475569] font-bold rounded-lg py-2 text-[0.78rem] press-effect">취소</button>
                         </div>
                       </div>
                     )}
@@ -1572,13 +1572,13 @@ export default function VanguardHome() {
 
             {/* 위험도 + 실패 카드 */}
             <div className="grid grid-cols-2 gap-2 mb-4">
-              <div className={`border rounded-2xl p-3 ${urgency.dangerLevel >= 70 ? "bg-[#160A0A] border-[#FCA5A5]/20" : urgency.dangerLevel >= 40 ? "bg-[#16130A] border-[#FCD34D]/20" : "bg-[#0A160D] border-[#4ADE80]/20"}`}>
+              <div className={`border rounded-2xl p-3 ${urgency.dangerLevel >= 70 ? "bg-[#2A1F1F] border-[#FCA5A5]/20" : urgency.dangerLevel >= 40 ? "bg-[#2A2720] border-[#FCD34D]/20" : "bg-[#1F2A22] border-[#4ADE80]/20"}`}>
                 <div className="text-[0.75rem] text-[#64748B] font-bold tracking-wider mb-1">오늘 망함 위험도</div>
                 <div className={`text-2xl font-black ${urgency.dangerLevel >= 70 ? "text-[#FCA5A5]" : urgency.dangerLevel >= 40 ? "text-white" : "text-[#4ADE80]"}`}>
                   {urgency.dangerLevel}%
                 </div>
               </div>
-              <div className="bg-[#160A0A] border border-[#FCA5A5]/15 rounded-2xl p-3">
+              <div className="bg-[#2A1F1F] border border-[#FCA5A5]/15 rounded-2xl p-3">
                 <div className="text-[0.75rem] text-[#64748B] font-bold tracking-wider mb-1">이번 달 실패</div>
                 <div className="text-2xl font-black text-[#FCA5A5]">{failCount}회</div>
               </div>
@@ -1587,28 +1587,28 @@ export default function VanguardHome() {
             {/* AI 명령 */}
             <div className="mb-4">
               {aiCommand && (
-                <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-4 mb-2">
+                <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4 mb-2">
                   <div className="text-[0.75rem] text-[#94A3B8] font-bold tracking-wider mb-2">AI 명령</div>
                   <div className="text-[0.82rem] text-[#F1F5F9] leading-relaxed whitespace-pre-line break-all">{aiCommand}</div>
                 </div>
               )}
               <button onClick={generateAICommand} disabled={aiLoading}
-                className="w-full bg-[#0D1117] border border-white/10 text-[#94A3B8] font-bold rounded-xl py-2.5 text-[0.82rem]">
+                className="w-full bg-[#1A1F26] border border-[#2D333B] text-[#94A3B8] font-bold rounded-xl py-2.5 text-[0.82rem]">
                 {aiLoading ? "AI 분석 중..." : aiCommand ? "AI 명령 다시 받기" : "AI 명령 받기"}
               </button>
             </div>
 
             {/* 일정 추가 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-4 mb-4">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4 mb-4">
               <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-3">일정 추가</div>
               <input type="text" value={scheduleTitle} onChange={e => setScheduleTitle(e.target.value)}
                 placeholder="일정 내용"
-                className="w-full bg-[#050A12] border border-white/10 rounded-xl px-3 py-2.5 text-[0.85rem] text-white placeholder-white/25 focus:outline-none focus:border-white/30 mb-2" />
+                className="w-full bg-[#0F1419] border border-[#2D333B] rounded-xl px-3 py-2.5 text-[0.85rem] text-white placeholder-white/25 focus:outline-none focus:border-[#3D444D] mb-2" />
               <div className="grid grid-cols-2 gap-2 mb-3">
                 <input type="date" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
-                  className="bg-[#050A12] border border-white/10 rounded-xl px-3 py-2.5 text-[0.82rem] text-white focus:outline-none focus:border-white/30" />
+                  className="bg-[#0F1419] border border-[#2D333B] rounded-xl px-3 py-2.5 text-[0.82rem] text-white focus:outline-none focus:border-[#3D444D]" />
                 <input type="time" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)}
-                  className="bg-[#050A12] border border-white/10 rounded-xl px-3 py-2.5 text-[0.82rem] text-white focus:outline-none focus:border-white/30" />
+                  className="bg-[#0F1419] border border-[#2D333B] rounded-xl px-3 py-2.5 text-[0.82rem] text-white focus:outline-none focus:border-[#3D444D]" />
               </div>
               <button onClick={handleAddSchedule} disabled={scheduleLoading}
                 className="w-full bg-white text-[#050A12] font-bold rounded-xl py-2.5 text-[0.85rem]">
@@ -1622,11 +1622,11 @@ export default function VanguardHome() {
               <div>
                 <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-2">다가오는 일정</div>
                 {schedules.map((s, i) => (
-                  <div key={i} className={`bg-[#0D1117] border border-white/[0.06] rounded-xl p-3 mb-2 ${s.done ? "opacity-50" : ""}`}>
+                  <div key={i} className={`bg-[#1A1F26] border border-[#2D333B] rounded-xl p-3 mb-2 ${s.done ? "opacity-50" : ""}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <button onClick={async () => { if (s.id) { await toggleScheduleDone(s.id, !s.done); await loadUserData(nickname); } }}
-                          className={`w-5 h-5 rounded-md border flex items-center justify-center text-[0.75rem] ${s.done ? "bg-[#4ADE80] border-[#4ADE80] text-[#050A12]" : "border-white/20"}`}>
+                          className={`w-5 h-5 rounded-md border flex items-center justify-center text-[0.75rem] ${s.done ? "bg-[#4ADE80] border-[#4ADE80] text-[#050A12]" : "border-[#3D444D]"}`}>
                           {s.done ? "✓" : ""}
                         </button>
                         <div className={`text-[0.85rem] font-bold ${s.done ? "line-through text-[#475569]" : "text-[#F1F5F9]"}`}>{s.title}</div>
@@ -1647,7 +1647,7 @@ export default function VanguardHome() {
 
             {/* 내일 일정 압박 */}
             {tomorrowSchedules.length > 0 && (
-              <div className="bg-[#16130A] border border-[#FCD34D]/25 rounded-2xl p-3 mb-3">
+              <div className="bg-[#2A2720] border border-[#FCD34D]/25 rounded-2xl p-3 mb-3">
                 <div className="text-[0.75rem] text-white font-bold tracking-wider mb-2">내일 일정 — 오늘 준비해야 함</div>
                 {tomorrowSchedules.map((s, i) => (
                   <div key={i} className="text-[0.82rem] text-[#F1F5F9] font-bold mb-1">{s.due_time ? `${s.due_time} ` : ""}{s.title}</div>
@@ -1658,7 +1658,7 @@ export default function VanguardHome() {
 
             {/* 내일 준비 상태 (Ultra 전용) */}
             {userPlan === "ultra" && tomorrowSchedules.length > 0 && (
-              <div className="bg-[#0D0818] border border-[#8B5CF6]/25 rounded-2xl p-5 mb-4">
+              <div className="bg-[#1F1A2A] border border-[#8B5CF6]/25 rounded-2xl p-5 mb-4">
                 <div className="text-[0.75rem] text-[#A78BFA] font-bold tracking-wider mb-2">내일 준비 상태</div>
                 {tomorrowSchedules.map((s, i) => {
                   const todayPrepped = records.some(r => r.date === today && r.done && r.task.includes(s.title));
@@ -1689,7 +1689,7 @@ export default function VanguardHome() {
               <div className="mb-4">
                 {!weeklyReview ? (
                   <button onClick={generateWeeklyReview} disabled={weeklyLoading}
-                    className="w-full bg-[#0D0818] border border-[#8B5CF6]/30 rounded-2xl p-4 text-left press-effect">
+                    className="w-full bg-[#1F1A2A] border border-[#8B5CF6]/30 rounded-2xl p-4 text-left press-effect">
                     <div className="text-[0.75rem] text-[#A78BFA] font-bold tracking-wider mb-1">주간 방향 조정</div>
                     <div className="text-[0.85rem] text-white font-bold mb-1">
                       {weeklyLoading ? "AI 분석 중..." : "이번 주 리뷰 생성하기"}
@@ -1705,40 +1705,40 @@ export default function VanguardHome() {
                     </div>
 
                     <button onClick={() => setWeeklyExpanded(!weeklyExpanded)}
-                      className="w-full bg-[#0D1117] border border-white/[0.06] rounded-xl py-2.5 text-[0.75rem] text-[#94A3B8] press-effect mb-3">
+                      className="w-full bg-[#1A1F26] border border-[#2D333B] rounded-xl py-2.5 text-[0.75rem] text-[#94A3B8] press-effect mb-3">
                       {weeklyExpanded ? "접기" : "상세 보기"}
                     </button>
 
                     {weeklyExpanded && (<>
-                      <div className="bg-[#0D0818] border border-[#8B5CF6]/20 rounded-2xl p-4">
+                      <div className="bg-[#1F1A2A] border border-[#8B5CF6]/20 rounded-2xl p-4">
                         <div className="text-[0.92rem] font-black text-white leading-relaxed">
                           {weeklyReview.ai_analysis?.summary}
                         </div>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-[#0D1117] border border-white/[0.06] rounded-xl p-3 text-center">
+                        <div className="bg-[#1A1F26] border border-[#2D333B] rounded-xl p-3 text-center">
                           <div className="text-xl font-black text-[#4ADE80]">{weeklyReview.completed_tasks as number}</div>
                           <div className="text-[0.85rem] text-[#64748B] mt-1">완료</div>
                         </div>
-                        <div className="bg-[#0D1117] border border-white/[0.06] rounded-xl p-3 text-center">
+                        <div className="bg-[#1A1F26] border border-[#2D333B] rounded-xl p-3 text-center">
                           <div className="text-xl font-black text-[#FCA5A5]">{(weeklyReview.total_tasks) - (weeklyReview.completed_tasks)}</div>
                           <div className="text-[0.85rem] text-[#64748B] mt-1">실패</div>
                         </div>
-                        <div className="bg-[#0D1117] border border-white/[0.06] rounded-xl p-3 text-center">
+                        <div className="bg-[#1A1F26] border border-[#2D333B] rounded-xl p-3 text-center">
                           <div className="text-xl font-black text-white">{weeklyReview.streak_days as number}일</div>
                           <div className="text-[0.85rem] text-[#64748B] mt-1">활동일</div>
                         </div>
                       </div>
 
-                      <div className="bg-[#0A160D] border border-[#4ADE80]/20 rounded-2xl p-4">
+                      <div className="bg-[#1F2A22] border border-[#4ADE80]/20 rounded-2xl p-4">
                         <div className="text-[0.75rem] text-[#4ADE80] font-bold tracking-wider mb-2">잘한 것</div>
                         {(weeklyReview.ai_analysis?.wins as string[])?.map((win: string, i: number) => (
                           <div key={i} className="text-[0.78rem] text-[#94A3B8] mb-1">• {win}</div>
                         ))}
                       </div>
 
-                      <div className="bg-[#160A0A] border border-[#FCA5A5]/20 rounded-2xl p-4">
+                      <div className="bg-[#2A1F1F] border border-[#FCA5A5]/20 rounded-2xl p-4">
                         <div className="text-[0.75rem] text-[#FCA5A5] font-bold tracking-wider mb-2">실패한 것</div>
                         {(weeklyReview.ai_analysis?.failures as string[])?.map((fail: string, i: number) => (
                           <div key={i} className="text-[0.78rem] text-[#94A3B8] mb-1">• {fail}</div>
@@ -1749,7 +1749,7 @@ export default function VanguardHome() {
                         </div>
                       </div>
 
-                      <div className="bg-[#16130A] border border-[#FCD34D]/20 rounded-2xl p-4">
+                      <div className="bg-[#2A2720] border border-[#FCD34D]/20 rounded-2xl p-4">
                         <div className="text-[0.75rem] text-white font-bold tracking-wider mb-2">다음 주 포커스</div>
                         <div className="text-[0.92rem] font-black text-white mb-3">{weeklyReview.ai_analysis?.next_week_focus}</div>
                         {(weeklyReview.ai_analysis?.adjustments as string[])?.map((adj: string, i: number) => (
@@ -1757,20 +1757,20 @@ export default function VanguardHome() {
                         ))}
                       </div>
 
-                      <div className="bg-[#1A0808] border border-[#FCA5A5]/30 rounded-2xl p-4 text-center">
-                        <div className="text-[0.85rem] font-black text-[#FCA5A5] leading-relaxed">{weeklyReview.ai_analysis?.pressure_message}</div>
+                      <div className="bg-[#2A1F1F] border border-[#FCA5A5]/30 rounded-2xl p-4 text-center">
+                        <div className="text-[0.85rem] font-semibold text-[#FCA5A5] leading-relaxed">{weeklyReview.ai_analysis?.pressure_message}</div>
                       </div>
                     </>)}
 
                     {/* 사용자 회고 */}
-                    <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-4">
+                    <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4">
                       <div className="text-[0.75rem] text-[#94A3B8] font-bold tracking-wider mb-2">내 회고</div>
                       <textarea value={weeklyReflection} onChange={e => setWeeklyReflection(e.target.value)}
                         placeholder="이번 주를 돌아보며..."
-                        className="w-full bg-[#050A12] border border-white/10 rounded-xl px-3 py-2.5 text-[0.82rem] text-white placeholder-white/20 focus:outline-none focus:border-white/30 mb-2 resize-none h-20" />
+                        className="w-full bg-[#0F1419] border border-[#2D333B] rounded-xl px-3 py-2.5 text-[0.82rem] text-white placeholder-white/20 focus:outline-none focus:border-[#3D444D] mb-2 resize-none h-20" />
                       <textarea value={weeklyCommitment} onChange={e => setWeeklyCommitment(e.target.value)}
                         placeholder="다음 주 나와의 약속 하나..."
-                        className="w-full bg-[#050A12] border border-white/10 rounded-xl px-3 py-2.5 text-[0.82rem] text-white placeholder-white/20 focus:outline-none focus:border-white/30 mb-3 resize-none h-14" />
+                        className="w-full bg-[#0F1419] border border-[#2D333B] rounded-xl px-3 py-2.5 text-[0.82rem] text-white placeholder-white/20 focus:outline-none focus:border-[#3D444D] mb-3 resize-none h-14" />
                       <button onClick={saveWeeklyReflection} disabled={weeklySaving || (!weeklyReflection && !weeklyCommitment)}
                         className="w-full bg-[#8B5CF6] text-white font-bold rounded-xl py-2.5 text-[0.82rem] disabled:opacity-30 press-effect">
                         {weeklySaving ? "저장 중..." : "회고 저장하기"}
@@ -1783,7 +1783,7 @@ export default function VanguardHome() {
 
             {/* 무료 유저에게 주간 리뷰 프로모션 */}
             {userPlan === "free" && records.length >= 5 && (
-              <div className="bg-[#0D0818] border border-[#8B5CF6]/20 rounded-2xl p-4 mb-4 press-effect" onClick={() => setActiveTab("settings")}>
+              <div className="bg-[#1F1A2A] border border-[#8B5CF6]/20 rounded-2xl p-4 mb-4 press-effect" onClick={() => setActiveTab("settings")}>
                 <div className="text-[0.75rem] text-[#A78BFA] font-bold tracking-wider mb-1">주간 방향 조정</div>
                 <div className="text-[0.82rem] text-white font-bold mb-1">AI가 이번 주 왜 무너졌는지 알려준다</div>
                 <div className="text-[0.8rem] text-[#475569]">Pro에서 사용 가능 →</div>
@@ -1791,7 +1791,7 @@ export default function VanguardHome() {
             )}
 
             {/* 주간 실행률 그래프 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-5 mb-4">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-3">최근 7일 실행률</div>
               <div className="flex items-end justify-between gap-1" style={{height: "100px"}}>
                 {(() => {
@@ -1813,7 +1813,7 @@ export default function VanguardHome() {
                             <div className={`w-full max-w-[28px] rounded-t-md ${rate >= 70 ? "bg-[#4ADE80]" : rate >= 40 ? "bg-[#FCD34D]" : "bg-[#FCA5A5]"}`}
                               style={{height: `${Math.max(8, rate * 0.7)}px`, transition: "height 0.5s ease"}} />
                           ) : (
-                            <div className="w-full max-w-[28px] h-[4px] rounded bg-[#1E293B]" />
+                            <div className="w-full max-w-[28px] h-[4px] rounded bg-[#272D36]" />
                           )}
                         </div>
                         <div className={`text-[0.85rem] mt-1.5 ${isToday ? "text-white font-bold" : "text-[#475569]"}`}>
@@ -1834,7 +1834,7 @@ export default function VanguardHome() {
 
             {/* 실패 시간대 히트맵 */}
             {records.filter(r => !r.done && r.hour_of_day !== undefined).length >= 3 && (
-              <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-5 mb-4">
+              <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
                 <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-3">실패가 많은 시간대</div>
                 <div className="grid grid-cols-6 gap-1">
                   {(() => {
@@ -1882,7 +1882,7 @@ export default function VanguardHome() {
                   const peakHour = Number(sorted[0][0]);
                   const timeLabel = peakHour >= 20 ? "밤" : peakHour >= 16 ? "저녁" : peakHour >= 12 ? "오후" : "오전";
                   return (
-                    <div className="bg-[#1A0808] border border-[#FCA5A5]/15 rounded-xl p-3 mt-3">
+                    <div className="bg-[#2A1F1F] border border-[#FCA5A5]/15 rounded-xl p-3 mt-3">
                       <div className="text-[0.78rem] font-bold text-white">당신은 {timeLabel} {peakHour}시에 가장 자주 무너집니다.</div>
                       {userPlan !== "free" && (
                         <div className="text-[0.8rem] text-[#94A3B8] mt-1">다음부터 {peakHour > 0 ? peakHour - 1 : 23}시에 미리 개입합니다.</div>
@@ -1894,7 +1894,7 @@ export default function VanguardHome() {
             )}
 
             {/* 전체 현황 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-5 mb-4">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-3">전체 현황</div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="text-center">
@@ -1912,16 +1912,16 @@ export default function VanguardHome() {
               </div>
             </div>
 
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-5 mb-4">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-2">성공률</div>
               <div className="text-3xl font-black text-[#F8FAFC] mb-2">{successRate}%</div>
-              <div className="w-full bg-[#1E293B] rounded-full h-2">
+              <div className="w-full bg-[#272D36] rounded-full h-2">
                 <div className="bg-white h-2 rounded-full" style={{ width: `${successRate}%` }}></div>
               </div>
             </div>
 
             {/* 달력 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-5 mb-4">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-3">이번 달 기록</div>
               <div className="grid grid-cols-7 gap-1">
                 {["월","화","수","목","금","토","일"].map(d => (
@@ -1944,10 +1944,10 @@ export default function VanguardHome() {
                     const hasFail = dayRecords.some(r => !r.done);
                     const isFuture = day > todayDate;
                     const isToday = day === todayDate;
-                    let bg = "bg-[#1E293B]";
+                    let bg = "bg-[#272D36]";
                     if (hasSuccess) bg = "bg-[#4ADE80]";
                     else if (hasFail) bg = "bg-[#FCA5A5]";
-                    else if (isFuture) bg = "bg-[#0D1117] border border-white/[0.04]";
+                    else if (isFuture) bg = "bg-[#1A1F26] border border-[#2D333B]/50";
                     else if (!isFuture && day < todayDate) bg = "bg-[#FCA5A5]/30";
                     cells.push(
                       <div key={day} className={`aspect-square rounded-md flex items-center justify-center text-[0.75rem] font-bold ${bg} ${isToday ? "ring-1 ring-white" : ""}`}>
@@ -1966,7 +1966,7 @@ export default function VanguardHome() {
             </div>
 
             {/* 실행 점수 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-5 mb-4">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-2">실행 점수</div>
               {(() => {
                 const score = records.reduce((s, r) => s + (r.done ? 20 : -10), 0);
@@ -1980,7 +1980,7 @@ export default function VanguardHome() {
                       <div className="text-3xl font-black" style={{color: levelColor}}>{score}</div>
                       <div className="text-[0.85rem] font-bold mb-1" style={{color: levelColor}}>{level}</div>
                     </div>
-                    <div className="w-full bg-[#1E293B] rounded-full h-2 mb-1">
+                    <div className="w-full bg-[#272D36] rounded-full h-2 mb-1">
                       <div className="h-2 rounded-full" style={{width: `${progress}%`, background: levelColor}}></div>
                     </div>
                     {nextLevel && <div className="text-[0.75rem] text-[#64748B]">다음 등급까지 {nextLevel - score}점</div>}
@@ -1991,7 +1991,7 @@ export default function VanguardHome() {
             </div>
 
             {/* 스트릭 등급 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-5 mb-4">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-3">스트릭 등급</div>
               {(() => {
                 const sLevel = streak >= 30 ? "골드" : streak >= 7 ? "실버" : "브론즈";
@@ -2009,7 +2009,7 @@ export default function VanguardHome() {
                         { name: "실버", days: "7일+", min: 7, color: "#94A3B8" },
                         { name: "골드", days: "30일+", min: 30, color: "#FCD34D" },
                       ].map(tier => (
-                        <div key={tier.name} className={`text-center py-2 rounded-lg ${streak >= tier.min ? `bg-[${tier.color}]/20` : "bg-[#1E293B]"}`}>
+                        <div key={tier.name} className={`text-center py-2 rounded-lg ${streak >= tier.min ? `bg-[${tier.color}]/20` : "bg-[#272D36]"}`}>
                           <div className="text-[0.85rem] font-bold" style={{color: streak >= tier.min ? tier.color : "#334155"}}>{tier.name}</div>
                           <div className="text-[0.85rem] text-[#64748B]">{tier.days}</div>
                         </div>
@@ -2024,14 +2024,14 @@ export default function VanguardHome() {
 
             {/* 패턴 분석 - Pro/Ultra */}
             {records.length >= 3 && userPlan === "free" && (
-              <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-2xl p-4 mb-3 opacity-60">
+              <div className="bg-[#2A1F1F] border border-[#FCA5A5]/20 rounded-2xl p-4 mb-3 opacity-60">
                 <div className="text-[0.8rem] text-[#FCA5A5] font-bold tracking-widest uppercase mb-2">내가 왜 망하는지</div>
                 <div className="text-[0.82rem] text-[#64748B]">Pro 이상에서 확인할 수 있습니다.</div>
                 <button onClick={() => setActiveTab("settings")} className="mt-2 text-[0.85rem] text-white font-bold">Pro 시작하기 →</button>
               </div>
             )}
             {records.length >= 3 && userPlan !== "free" && (
-              <div className="bg-[#1A0808] border border-[#FCA5A5]/20 rounded-2xl p-5 mb-4">
+              <div className="bg-[#2A1F1F] border border-[#FCA5A5]/20 rounded-2xl p-5 mb-4">
                 <div className="text-[0.8rem] text-[#FCA5A5] font-bold tracking-widest uppercase mb-2">내가 왜 망하는지</div>
                 <div className="text-[0.92rem] font-black text-white">
                   {(() => {
@@ -2053,21 +2053,21 @@ export default function VanguardHome() {
             )}
 
             {goal && (
-              <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-5 mb-4">
+              <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
                 <div className="text-[0.8rem] text-[#94A3B8] font-bold tracking-wider mb-2">이번 달 목표</div>
                 <div className="text-[0.88rem] font-bold text-[#F1F5F9]">{goal}</div>
               </div>
             )}
 
             {records.length >= 3 && userPlan !== "free" && (
-              <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl p-4">
+              <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-4">
                 <div className="text-[0.8rem] text-[#64748B] font-bold tracking-widest uppercase mb-3">주요 실패 이유</div>
                 {Object.entries(
                   records.filter(r => !r.done && r.fail_reason).reduce((acc, r) => {
                     const k = r.fail_reason || "기타"; acc[k] = (acc[k] || 0) + 1; return acc;
                   }, {} as Record<string, number>)
                 ).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([reason, count]) => (
-                  <div key={reason} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
+                  <div key={reason} className="flex items-center justify-between py-2 border-b border-[#2D333B]/50 last:border-0">
                     <div className="text-[0.78rem] text-[#94A3B8]">{reason}</div>
                     <div className="text-[0.78rem] text-[#FCA5A5] font-bold">{count}회</div>
                   </div>
@@ -2080,7 +2080,7 @@ export default function VanguardHome() {
         {/* ── 설정 탭 ── */}
         {activeTab === "settings" && (
           <div className="tab-content">
-            <div className="bg-[#0D1117] border border-white/10 rounded-2xl p-5 mb-4">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl p-5 mb-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-[1.1rem] font-black text-white">{nickname || "게스트"}</div>
@@ -2093,7 +2093,7 @@ export default function VanguardHome() {
                 }`}>{userPlan === "free" ? "FREE" : userPlan.toUpperCase()}</div>
               </div>
               {userPlan === "free" && (
-                <div className="bg-[#0D1117] border border-white/[0.06] rounded-xl p-3">
+                <div className="bg-[#1A1F26] border border-[#2D333B] rounded-xl p-3">
                   <div className="text-[0.75rem] text-[#475569] font-bold tracking-wider mb-1">무료 플랜</div>
                   <div className="text-[0.85rem] text-[#475569]">Pro로 업그레이드하면 패턴 분석이 시작됩니다.</div>
                 </div>
@@ -2105,7 +2105,7 @@ export default function VanguardHome() {
                 </div>
               )}
               {userPlan === "ultra" && (
-                <div className="bg-[#0D0818] border border-[#8B5CF6]/20 rounded-xl p-3">
+                <div className="bg-[#1F1A2A] border border-[#8B5CF6]/20 rounded-xl p-3">
                   <div className="text-[0.75rem] text-[#A78BFA] font-bold tracking-wider mb-1">Ultra 플랜 활성</div>
                   <div className="text-[0.85rem] text-[#94A3B8]">AI가 당신의 실행을 전체 관리하고 있습니다.</div>
                 </div>
@@ -2113,15 +2113,15 @@ export default function VanguardHome() {
             </div>
 
             {/* 메뉴 블록 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl mb-3">
-              <button onClick={() => setShowGoalModal(true)} className="w-full flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04]">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl mb-3">
+              <button onClick={() => setShowGoalModal(true)} className="w-full flex items-center justify-between px-4 py-3.5 border-b border-[#2D333B]/50">
                 <span className="text-[0.85rem] text-white font-medium">이번 달 목표</span>
                 <div className="flex items-center gap-2">
                   <span className="text-[0.85rem] text-[#475569]">{goal || "미설정"}</span>
                   <span className="text-[#64748B]">›</span>
                 </div>
               </button>
-              <button onClick={() => setShowNicknameModal(true)} className="w-full flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04]">
+              <button onClick={() => setShowNicknameModal(true)} className="w-full flex items-center justify-between px-4 py-3.5 border-b border-[#2D333B]/50">
                 <span className="text-[0.85rem] text-white font-medium">닉네임</span>
                 <div className="flex items-center gap-2">
                   <span className="text-[0.85rem] text-[#475569]">{nickname}</span>
@@ -2135,8 +2135,8 @@ export default function VanguardHome() {
             </div>
 
             {/* 코칭 스타일 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl mb-3">
-              <div className="px-4 py-3 border-b border-white/[0.04]">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl mb-3">
+              <div className="px-4 py-3 border-b border-[#2D333B]/50">
                 <div className="text-[0.8rem] text-[#64748B] font-bold tracking-wider uppercase">코칭 스타일</div>
               </div>
               <div className="grid grid-cols-3 gap-0">
@@ -2155,14 +2155,14 @@ export default function VanguardHome() {
             </div>
 
             {/* 플랜 관리 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl mb-3">
-              <div className="px-4 py-3 border-b border-white/[0.04]">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl mb-3">
+              <div className="px-4 py-3 border-b border-[#2D333B]/50">
                 <div className="text-[0.8rem] text-[#64748B] font-bold tracking-wider uppercase">플랜 관리</div>
               </div>
               {userPlan === "free" && (
                 <div>
                   <button onClick={() => window.open(`https://qr.kakaopay.com/FGVf0Mmo6?amount=9900&memo=Vanguard_Pro_${nickname}`, "_blank")}
-                    className="w-full flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04]">
+                    className="w-full flex items-center justify-between px-4 py-3.5 border-b border-[#2D333B]/50">
                     <span className="text-[0.85rem] text-white font-medium">Pro 시작하기</span>
                     <div className="flex items-center gap-2">
                       <span className="text-[0.85rem] text-[#475569]">₩9,900/월</span>
@@ -2197,8 +2197,8 @@ export default function VanguardHome() {
             </div>
 
             {/* 기타 */}
-            <div className="bg-[#0D1117] border border-white/[0.06] rounded-2xl mb-3">
-              <button onClick={() => setShowInquiry(true)} className="w-full flex items-center justify-between px-4 py-3.5 border-b border-white/[0.04]">
+            <div className="bg-[#1A1F26] border border-[#2D333B] rounded-2xl mb-3">
+              <button onClick={() => setShowInquiry(true)} className="w-full flex items-center justify-between px-4 py-3.5 border-b border-[#2D333B]/50">
                 <span className="text-[0.85rem] text-white font-medium">문의하기</span>
                 <span className="text-[#64748B]">›</span>
               </button>
@@ -2208,7 +2208,7 @@ export default function VanguardHome() {
               </button>
             </div>
 
-            <div className="bg-[#0D1117] border border-white/[0.04] rounded-xl p-3 mt-1">
+            <div className="bg-[#1A1F26] border border-[#2D333B]/50 rounded-xl p-3 mt-1">
               <div className="text-[0.75rem] text-[#64748B] text-center leading-relaxed">
                 결제 후 카카오톡으로 닉네임과 플랜을 알려주시면<br />
                 24시간 내 활성화됩니다. 환불은 7일 이내 전액 가능.
@@ -2220,7 +2220,7 @@ export default function VanguardHome() {
 
         {/* 하단 네비게이션 */}
         {!showSplash && (
-          <div className="fixed bottom-0 left-0 right-0 bg-[#050A12]/95 backdrop-blur-xl border-t border-white/[0.06] pb-safe z-50">
+          <div className="fixed bottom-0 left-0 right-0 bg-[#0F1419]/95 backdrop-blur-xl border-t border-[#2D333B] pb-safe z-50">
             <div className="max-w-[420px] mx-auto grid grid-cols-4 px-4 pt-3 pb-2">
               {[
                 { id: "home" as Tab, label: "홈" },
