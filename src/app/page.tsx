@@ -309,6 +309,8 @@ export default function VanguardHome() {
   const [aiCommand, setAiCommand] = useState("");
   const [aiUsedCount, setAiUsedCount] = useState(0);
   const [tomorrowLetter, setTomorrowLetter] = useState("");
+  const [missionFeedback, setMissionFeedback] = useState("");
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [showInquiry, setShowInquiry] = useState(false);
   const [inquiryMsg, setInquiryMsg] = useState("");
   const [inquirySent, setInquirySent] = useState(false);
@@ -1289,6 +1291,28 @@ export default function VanguardHome() {
                 <div className="text-[0.85rem] text-[#6B7280] mb-6">
                   {streak > 0 ? `${streak}일 연속 실행 중` : "오늘 첫 실행 완료"}
                 </div>
+
+
+                {/* AI 미션 피드백 */}
+                {feedbackLoading && (
+                  <div className="bg-[#F9FAFB] rounded-3xl p-5 mb-4">
+                    <div className="text-[0.85rem] text-[#9CA3AF] text-center">AI가 피드백을 준비하고 있습니다...</div>
+                  </div>
+                )}
+                {missionFeedback && !feedbackLoading && (
+                  <div className={`rounded-3xl p-5 mb-4 ${userPlan === "free" ? "bg-[#F9FAFB]" : userPlan === "ultra" ? "bg-[#F5F3FF] border border-[#DDD6FE]" : "bg-[#EEF2FF] border border-[#C7D2FE]"}`}>
+                    <div className="text-[0.75rem] font-bold tracking-wider mb-2" style={{color: userPlan === "ultra" ? "#7C3AED" : userPlan === "free" ? "#9CA3AF" : "#4F46E5"}}>
+                      {userPlan === "ultra" ? "ULTRA AI 코치" : userPlan === "free" ? "AI 응원" : "PRO AI 피드백"}
+                    </div>
+                    <div className="text-[0.88rem] text-[#1A1A2E] leading-relaxed whitespace-pre-line">{missionFeedback}</div>
+                  </div>
+                )}
+                {userPlan === "free" && missionFeedback && (
+                  <div className="bg-[#EEF2FF] rounded-3xl p-4 mb-4">
+                    <div className="text-[0.85rem] text-[#4F46E5] font-medium mb-1">Pro에서는 AI가 전문가급 피드백을 줍니다</div>
+                    <div className="text-[0.8rem] text-[#6B7280]">미션 내용을 분석하고, 다음에 할 행동까지 제안합니다</div>
+                  </div>
+                )}
 
                 {/* 실행 점수 공유 카드 */}
                 <div className="bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] rounded-3xl p-6 mb-4 text-white">
