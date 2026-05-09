@@ -307,6 +307,8 @@ export default function VanguardHome() {
   const [goalInput, setGoalInput] = useState("");
   const [showGoalModal, setShowGoalModal] = useState(false);
   const [goalSaving, setGoalSaving] = useState(false);
+  const [planAnalysis, setPlanAnalysis] = useState("");
+  const [planAnalyzing, setPlanAnalyzing] = useState(false);
 
   const [aiCommand, setAiCommand] = useState("");
   const [aiUsedCount, setAiUsedCount] = useState(0);
@@ -732,6 +734,35 @@ export default function VanguardHome() {
     }
   }
 
+  async function moveScheduleBlock(blockId: string, direction: "up" | "down") {
+    if (!dailySchedule) return;
+    const blocks = [...dailySchedule.blocks];
+    const idx = blocks.findIndex((b: any) => b.id === blockId);
+    if (idx < 0) return;
+    if (direction === "up" && idx > 0) {
+      const temp = blocks[idx - 1].start;
+      blocks[idx - 1].start = blocks[idx].start;
+      blocks[idx].start = temp;
+      const tempEnd = blocks[idx - 1].end;
+      blocks[idx - 1].end = blocks[idx].end;
+      blocks[idx].end = tempEnd;
+      [blocks[idx - 1], blocks[idx]] = [blocks[idx], blocks[idx - 1]];
+    } else if (direction === "down" && idx < blocks.length - 1) {
+      const temp = blocks[idx + 1].start;
+      blocks[idx + 1].start = blocks[idx].start;
+      blocks[idx].start = temp;
+      const tempEnd = blocks[idx + 1].end;
+      blocks[idx + 1].end = blocks[idx].end;
+      blocks[idx].end = tempEnd;
+      [blocks[idx], blocks[idx + 1]] = [blocks[idx + 1], blocks[idx]];
+    }
+    const updated = { ...dailySchedule, blocks };
+    setDailySchedule(updated);
+    try {
+      await supabase.from("daily_schedules").update({ schedule_data: updated }).eq("id", dailySchedule.id);
+    } catch {}
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function addScheduleBlock() {
     if (userPlan === "free") return;
@@ -912,18 +943,52 @@ export default function VanguardHome() {
         {/* 목표 모달 */}
         {showGoalModal && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-6">
-            <div className="bg-white border border-[#E5E7EB] rounded-3xl p-6 w-full max-w-[340px]">
+            <div className="bg-white border border-[#E5E7EB] rounded-3xl p-6 w-full max-w-[380px] max-h-[80vh] overflow-y-auto">
               <div className="text-[1rem] font-black mb-1">이번 달 목표</div>
-              <div className="text-[0.85rem] text-[#9CA3AF] mb-4">목표가 있어야 AI가 맞춤 압박을 줍니다</div>
-              <input type="text" value={goalInput} onChange={e => setGoalInput(e.target.value)}
-                placeholder="예: 앱 출시, 운동 20회, 매출 100만원"
-                className="w-full bg-[#FAFAFA] border border-[#E5E7EB] rounded-2xl px-4 py-3 text-[0.92rem] text-[#1A1A2E] placeholder-white/25 focus:outline-none focus:border-[#D1D5DB] mb-3"
-                onKeyDown={e => e.key === "Enter" && handleSaveGoal()} />
-              <button onClick={handleSaveGoal} disabled={goalSaving}
-                className="w-full bg-white text-[#050A12] font-bold rounded-2xl py-3 text-[0.88rem] mb-2">
-                {goalSaving ? "저장 중..." : "목표 저장"}
-              </button>
-              <button onClick={() => setShowGoalModal(false)} className="w-full text-[#9CA3AF] text-[0.78rem] py-2">닫기</button>
+              <div className="text-[0.85rem] text-[#9CA3AF] mb-4">목표를 입력하면 AI가 분석하고 더 나은 방향을 제안합니다</div>
+              <textarea value={goalInput} onChange={e => setGoalInput(e.target.value)}
+                placeholder={"예: 다이어트 - 하루 2끼, 러닝 30분, 단백질 위주 식단\n예: 앱 개발 - 매일 2시간 코딩, 주 1회 배포"}
+                rows={3}
+                className="w-full bg-[#FAFAFA] border border-[#E5E7EB] rounded-2xl px-4 py-3 text-[0.88rem] text-[#1A1A2E] placeholder-[#9CA3AF] focus:outline-none focus:border-[#4F46E5] mb-3 resize-none" />
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <button onClick={handleSaveGoal} disabled={goalSaving}
+                  className="bg-[#4F46E5] text-white font-bold rounded-2xl py-3 text-[0.85rem] press-effect">
+                  {goalSaving ? "저장 중..." : "목표 저장"}
+                </button>
+                <button onClick={async () => {
+                  if (!goalInput.trim()) return;
+                  setPlanAnalyzing(true);
+                  setPlanAnalysis("");
+                  try {
+                    const prompt = userPlan === "ultra"
+                      ? "너는 전문 실행 코치다. 유저가 이런 계획을 세웠다: " + goalInput + ". 아래 5가지를 각각 1~2줄로 답해라. 1) 안전점검: 이 계획에서 건강이나 지속 가능성에 위험한 부분. 2) 좋은 점: 이 계획에서 잘한 부분. 3) 개선할 점: 이 계획에서 바꾸면 더 좋은 부분. 4) 추천 플랜: 이 계획을 개선한 구체적인 대안. 5) 성공 확률: 이 계획대로 했을 때 예상 성공 확률과 이유. 존댓말 쓰지 마. 해라 체로. 이모지 쓰지 마."
+                      : userPlan !== "free"
+                      ? "너는 실행 코치다. 유저가 이런 계획을 세웠다: " + goalInput + ". 아래 4가지를 각각 1줄로 답해라. 1) 안전점검: 위험한 부분. 2) 좋은 점. 3) 개선할 점. 4) 추천 플랜: 개선된 대안 1개. 존댓말 쓰지 마. 해라 체로. 이모지 쓰지 마."
+                      : "너는 실행 코치다. 유저가 이런 계획을 세웠다: " + goalInput + ". 이 계획에 대해 한 줄로 핵심 조언 1개만 해라. 존댓말 쓰지 마. 이모지 쓰지 마.";
+                    const res = await fetch("/api/gemini", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({prompt}) });
+                    const data = await res.json();
+                    if (data.text) setPlanAnalysis(data.text);
+                  } catch {}
+                  setPlanAnalyzing(false);
+                }} disabled={planAnalyzing || !goalInput.trim()}
+                  className="bg-[#F3F4F6] text-[#1A1A2E] font-bold rounded-2xl py-3 text-[0.85rem] press-effect disabled:opacity-40">
+                  {planAnalyzing ? "분석 중..." : "AI 분석"}
+                </button>
+              </div>
+              {planAnalysis && (
+                <div className={`rounded-2xl p-4 mb-3 ${userPlan === "ultra" ? "bg-[#F5F3FF] border border-[#DDD6FE]" : userPlan !== "free" ? "bg-[#EEF2FF] border border-[#C7D2FE]" : "bg-[#F9FAFB]"}`}>
+                  <div className="text-[0.75rem] font-bold tracking-wider mb-2" style={{color: userPlan === "ultra" ? "#7C3AED" : userPlan !== "free" ? "#4F46E5" : "#9CA3AF"}}>
+                    {userPlan === "ultra" ? "ULTRA AI 분석" : userPlan !== "free" ? "PRO AI 분석" : "AI 조언"}
+                  </div>
+                  <div className="text-[0.85rem] text-[#1A1A2E] leading-relaxed whitespace-pre-line">{planAnalysis}</div>
+                </div>
+              )}
+              {userPlan === "free" && planAnalysis && (
+                <div className="bg-[#EEF2FF] rounded-2xl p-3 mb-3">
+                  <div className="text-[0.82rem] text-[#4F46E5] font-medium">Pro에서는 안전점검, 개선점, 추천 플랜까지 분석해줍니다</div>
+                </div>
+              )}
+              <button onClick={() => { setShowGoalModal(false); setPlanAnalysis(""); }} className="w-full text-[#9CA3AF] text-[0.78rem] py-2">닫기</button>
             </div>
           </div>
         )}
@@ -1201,17 +1266,37 @@ export default function VanguardHome() {
 
                       {/* 메인 버튼 */}
                       {nextBlock && (
-                        <button onClick={() => {
-                          setMission(nextBlock.title);
-                          setCurrentMission(nextBlock.title);
-                          setStartTime(new Date());
-                          setRunningMessage("");
-                          setShowRunningMessage(false);
-                          setHomeMode("running");
-                        }}
-                          className="w-full bg-[#4F46E5] text-white font-bold rounded-3xl py-5 text-[1.1rem] press-effect mb-4 shadow-lg shadow-[#4F46E5]/20">
-                          시작하기
-                        </button>
+                        <div className="space-y-2 mb-4">
+                          <button onClick={() => {
+                            setMission(nextBlock.title);
+                            setCurrentMission(nextBlock.title);
+                            setStartTime(new Date());
+                            setRunningMessage("");
+                            setShowRunningMessage(false);
+                            setHomeMode("running");
+                          }}
+                            className="w-full bg-[#4F46E5] text-white font-bold rounded-3xl py-5 text-[1.1rem] press-effect shadow-lg shadow-[#4F46E5]/20">
+                            시작하기
+                          </button>
+                          <button onClick={async () => {
+                            setMission(nextBlock.title);
+                            setCurrentMission(nextBlock.title);
+                            if (!isGuest && nickname) {
+                              await saveRecord({ nickname, date: today, task: nextBlock.title, done: true, hour_of_day: hour });
+                              await loadUserData(nickname);
+                            }
+                            trackEvent("quick_complete", { task: nextBlock.title, hour });
+                            setMissionFeedback("");
+                            setHomeMode("done");
+                            if (userPlan === "free") {
+                              const cheers = ["해냈다. 다음 미션으로.", "체크 완료. 계속 가자.", "하나 끝냈다. 멈추지 마라."];
+                              setMissionFeedback(cheers[Math.floor(Math.random() * cheers.length)]);
+                            }
+                          }}
+                            className="w-full bg-[#F3F4F6] text-[#6B7280] font-medium rounded-3xl py-3.5 text-[0.88rem] press-effect">
+                            바로 완료 (체크만)
+                          </button>
+                        </div>
                       )}
 
                       {/* 직접 입력 */}
@@ -1636,8 +1721,14 @@ export default function VanguardHome() {
                         </div>
                       </div>
                       {!block.is_completed && !block.skipped && userPlan !== "free" && (
-                        <button onClick={() => deleteScheduleBlock(block.id)}
-                          className="text-[0.75rem] text-[#FCA5A5]/40 hover:text-[#FCA5A5] shrink-0">✕</button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button onClick={() => moveScheduleBlock(block.id, "up")}
+                            className="text-[0.7rem] text-[#9CA3AF] hover:text-[#1A1A2E] px-1">↑</button>
+                          <button onClick={() => moveScheduleBlock(block.id, "down")}
+                            className="text-[0.7rem] text-[#9CA3AF] hover:text-[#1A1A2E] px-1">↓</button>
+                          <button onClick={() => deleteScheduleBlock(block.id)}
+                            className="text-[0.75rem] text-[#FCA5A5]/40 hover:text-[#FCA5A5] px-1">✕</button>
+                        </div>
                       )}
                     </div>
                   ))}
