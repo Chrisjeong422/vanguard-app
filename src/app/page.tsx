@@ -245,6 +245,8 @@ function getProUpsellMessage(records: ExecutionRecord[], failCount: number, stre
 // ── 유저 상태 계산 ──
 function calcUserState(records: ExecutionRecord[], hour: number): UserState {
   const today = new Date().toISOString().split("T")[0];
+
+
   const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
 
   const byDate: Record<string, boolean> = {};
@@ -310,7 +312,9 @@ export default function VanguardHome() {
   const [aiUsedCount, setAiUsedCount] = useState(0);
   const [tomorrowLetter, setTomorrowLetter] = useState("");
   const [missionFeedback, setMissionFeedback] = useState("");
+  const [dailyAiInsight, setDailyAiInsight] = useState("");
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+
   const [showInquiry, setShowInquiry] = useState(false);
   const [inquiryMsg, setInquiryMsg] = useState("");
   const [inquirySent, setInquirySent] = useState(false);
@@ -321,6 +325,7 @@ export default function VanguardHome() {
   const [briefingDate, setBriefingDate] = useState("");
 
   const [records, setRecords] = useState<ExecutionRecord[]>([]);
+
   const [streak, setStreak] = useState(0);
   const [failCount, setFailCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -361,6 +366,36 @@ export default function VanguardHome() {
   const hour = new Date().getHours();
   const urgency = getUrgencyMessage(hour, failCount, goal);
   const today = new Date().toISOString().split("T")[0];
+
+  // AI 오늘의 분석 생성
+  useEffect(() => {
+    if (records.length >= 3 && nickname && !dailyAiInsight) {
+      const cached = localStorage.getItem("vanguard_daily_insight_" + today);
+      if (cached) { setDailyAiInsight(cached); return; }
+      const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
+      const avgFailHour = failsByHour.length > 0 ? Math.round(failsByHour.reduce((s, r) => s + (r.hour_of_day || 0), 0) / failsByHour.length) : 0;
+      const topReason = Object.entries(records.filter(r => !r.done && r.fail_reason).reduce((a, r) => { a[r.fail_reason || "기타"] = (a[r.fail_reason || "기타"] || 0) + 1; return a; }, {} as Record<string, number>)).sort((a, b) => b[1] - a[1])[0];
+      const yesterdayRecords = records.filter(r => r.date === new Date(Date.now() - 86400000).toISOString().split("T")[0]);
+      const yesterdaySuccess = yesterdayRecords.filter(r => r.done).length;
+      const yesterdayFail = yesterdayRecords.filter(r => !r.done).length;
+      const timeLabel = avgFailHour >= 20 ? "밤" : avgFailHour >= 16 ? "저녁" : avgFailHour >= 12 ? "오후" : "오전";
+
+      let insight = "";
+      if (yesterdayFail > 0 && yesterdaySuccess === 0) {
+        insight = "어제 멈췄다. 오늘 3분만 시작하면 흐름이 돌아온다.";
+      } else if (yesterdaySuccess > 0 && yesterdayFail === 0) {
+        insight = "어제 " + yesterdaySuccess + "개 완료했다. " + streak + "일 연속이다. 오늘도 이어가라.";
+      } else if (yesterdaySuccess > 0 && yesterdayFail > 0) {
+        insight = "어제 " + yesterdaySuccess + "개 성공, " + yesterdayFail + "개 실패. " + timeLabel + " " + avgFailHour + "시가 위험하다.";
+      } else if (failsByHour.length >= 3) {
+        insight = timeLabel + " " + avgFailHour + "시에 자주 무너진다. 그 전에 시작해라.";
+      } else {
+        insight = "오늘 하나만 시작해라. 시작하면 끝낼 수 있다.";
+      }
+      setDailyAiInsight(insight);
+      localStorage.setItem("vanguard_daily_insight_" + today, insight);
+    }
+  }, [records, nickname, today, dailyAiInsight, streak]);
 
   const router = useRouter();
 
@@ -646,10 +681,27 @@ export default function VanguardHome() {
     if (userPlan === "free" && aiUsedCount >= 4) { return; }
     setScheduleGenerating(true);
     try {
+      // Pro/Ultra: 성공/실패 패턴을 AI에게 전달하여 난이도 자동 조절
+      const recentRecords = records.slice(-14);
+      const consecutiveSuccess = recentRecords.filter(r => r.done).length;
+      const consecutiveFail = recentRecords.filter(r => !r.done).length;
+      const avgDuration = 15; // 기본 15분
+      const difficultyHint = userPlan !== "free" ? (
+        consecutiveSuccess >= 5 ? "high" :
+        consecutiveFail >= 3 ? "low" :
+        "normal"
+      ) : "normal";
+
       const res = await fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname }),
+        body: JSON.stringify({
+          nickname,
+          difficulty: difficultyHint,
+          recentSuccess: consecutiveSuccess,
+          recentFail: consecutiveFail,
+          avgDuration: avgDuration || 15,
+        }),
       });
       const data = await res.json();
       if (data.schedule) setDailySchedule(data.schedule);
@@ -1020,6 +1072,14 @@ export default function VanguardHome() {
                     <div>
                       {/* === 핵심 영역: 할 것 + 진행률 + 시작 === */}
                       <div className="pt-4 pb-2">
+                        {/* AI 오늘의 분석 */}
+                        {dailyAiInsight && (
+                          <div className="bg-[#EEF2FF] rounded-3xl p-4 mb-4 text-center">
+                            <div className="text-[0.75rem] text-[#4F46E5] font-bold mb-1">AI 분석</div>
+                            <div className="text-[0.88rem] text-[#1A1A2E] leading-relaxed">{dailyAiInsight}</div>
+                          </div>
+                        )}
+
                         {/* 상태 한 줄 */}
                         <div className="text-[0.88rem] text-[#6B7280] text-center mb-8 leading-relaxed">
                           {statusLine}
@@ -2048,6 +2108,108 @@ export default function VanguardHome() {
                 <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded bg-[#FCA5A5]/30"></div><span className="text-[0.85rem] text-[#9CA3AF]">미접속</span></div>
               </div>
             </div>
+
+            {/* Ultra 실패 예측 + 목표 달성 확률 */}
+            {userPlan === "ultra" && records.length >= 5 && (
+              <div className="bg-[#F5F3FF] border border-[#DDD6FE] rounded-3xl p-5 mb-4">
+                <div className="text-[0.75rem] text-[#7C3AED] font-bold tracking-widest uppercase mb-3">ULTRA AI 예측</div>
+                {(() => {
+                  const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
+                  const hourCounts: Record<number, number> = {};
+                  failsByHour.forEach(r => { hourCounts[r.hour_of_day!] = (hourCounts[r.hour_of_day!] || 0) + 1; });
+                  const sorted = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]));
+                  const peakHour = sorted.length > 0 ? Number(sorted[0][0]) : 0;
+                  const peakCount = sorted.length > 0 ? Number(sorted[0][1]) : 0;
+                  const totalFails = failsByHour.length;
+                  const failProb = totalFails > 0 ? Math.min(95, Math.round((peakCount / Math.max(totalFails, 1)) * 100 + 15)) : 0;
+                  const timeLabel = peakHour >= 20 ? "밤" : peakHour >= 16 ? "저녁" : peakHour >= 12 ? "오후" : "오전";
+                  const topReason = Object.entries(records.filter(r => !r.done && r.fail_reason).reduce((a, r) => { a[r.fail_reason || "기타"] = (a[r.fail_reason || "기타"] || 0) + 1; return a; }, {} as Record<string, number>)).sort((a, b) => b[1] - a[1])[0];
+
+                  const totalDays = new Set(records.map(r => r.date)).size;
+                  const successDays = new Set(records.filter(r => r.done).map(r => r.date)).size;
+                  const goalProb = totalDays > 0 ? Math.min(99, Math.round((successDays / totalDays) * 100 + streak * 2)) : 50;
+
+                  return (
+                    <div>
+                      {/* 실패 예측 */}
+                      <div className="mb-5">
+                        <div className="text-[0.85rem] font-medium text-[#1A1A2E] mb-3">내일 실패 예측</div>
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="relative w-20 h-20">
+                            <svg width="80" height="80" viewBox="0 0 80 80">
+                              <circle cx="40" cy="40" r="32" fill="none" stroke="#EDE9FE" strokeWidth="6" />
+                              <circle cx="40" cy="40" r="32" fill="none" stroke={failProb >= 60 ? "#DC2626" : failProb >= 40 ? "#F59E0B" : "#22C55E"} strokeWidth="6"
+                                strokeLinecap="round"
+                                strokeDasharray={`${(failProb / 100) * 2 * Math.PI * 32} ${2 * Math.PI * 32}`}
+                                transform="rotate(-90 40 40)" />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-[1.2rem] font-bold" style={{color: failProb >= 60 ? "#DC2626" : failProb >= 40 ? "#F59E0B" : "#22C55E"}}>{failProb}%</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-[0.88rem] font-bold text-[#1A1A2E] mb-1">
+                              {timeLabel} {peakHour}시에 무너질 확률 {failProb}%
+                            </div>
+                            <div className="text-[0.8rem] text-[#6B7280]">
+                              {topReason ? `주요 원인: ${topReason[0]} (${topReason[1]}회)` : "데이터 수집 중"}
+                            </div>
+                            <div className="text-[0.8rem] text-[#7C3AED] mt-1">
+                              {peakHour > 0 ? `${peakHour - 1}시에 미리 시작하면 확률이 절반으로 줄어듭니다` : ""}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 목표 달성 확률 */}
+                      <div className="pt-4 border-t border-[#EDE9FE]">
+                        <div className="text-[0.85rem] font-medium text-[#1A1A2E] mb-3">목표 달성 확률</div>
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-20 h-20">
+                            <svg width="80" height="80" viewBox="0 0 80 80">
+                              <circle cx="40" cy="40" r="32" fill="none" stroke="#EDE9FE" strokeWidth="6" />
+                              <circle cx="40" cy="40" r="32" fill="none" stroke={goalProb >= 70 ? "#22C55E" : goalProb >= 40 ? "#F59E0B" : "#DC2626"} strokeWidth="6"
+                                strokeLinecap="round"
+                                strokeDasharray={`${(goalProb / 100) * 2 * Math.PI * 32} ${2 * Math.PI * 32}`}
+                                transform="rotate(-90 40 40)" />
+                            </svg>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <span className="text-[1.2rem] font-bold" style={{color: goalProb >= 70 ? "#22C55E" : goalProb >= 40 ? "#F59E0B" : "#DC2626"}}>{goalProb}%</span>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-[0.88rem] font-bold text-[#1A1A2E] mb-1">
+                              이번 달 목표 달성 확률 {goalProb}%
+                            </div>
+                            <div className="text-[0.8rem] text-[#6B7280]">
+                              {goalProb >= 70 ? "좋은 페이스입니다. 이대로 유지하세요." :
+                               goalProb >= 40 ? `이번 주 ${Math.ceil((70 - goalProb) / 10)}회 더 실행하면 70%를 넘깁니다.` :
+                               "위험합니다. 오늘부터 매일 1개씩 실행하면 회복됩니다."}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Pro가 아닌 유저에게 예측 미리보기 */}
+            {userPlan !== "ultra" && records.length >= 5 && (
+              <div className="relative mb-4">
+                <div className="bg-[#F5F3FF] border border-[#DDD6FE] rounded-3xl p-5 blur-[4px]">
+                  <div className="text-[0.75rem] text-[#7C3AED] font-bold mb-2">ULTRA AI 예측</div>
+                  <div className="text-[0.88rem] text-[#1A1A2E]">내일 오후 실패 확률: ??% · 목표 달성 확률: ??%</div>
+                </div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <button onClick={() => setActiveTab("settings")}
+                    className="bg-[#7C3AED] text-white font-bold rounded-2xl px-6 py-3 text-[0.85rem] press-effect shadow-lg shadow-[#7C3AED]/20">
+                    Ultra에서 AI 예측 보기
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* 실행 점수 XP */}
             <div className="bg-white border border-[#E5E7EB] rounded-3xl p-5 mb-4">
