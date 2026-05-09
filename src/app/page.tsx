@@ -1720,14 +1720,16 @@ export default function VanguardHome() {
                           <span className={`text-[0.78rem] font-bold truncate ${block.is_completed ? "line-through text-[#9CA3AF]" : "text-[#1A1A2E]"}`}>{block.title}</span>
                         </div>
                       </div>
-                      {!block.is_completed && !block.skipped && userPlan !== "free" && (
+                      {!block.is_completed && !block.skipped && (
                         <div className="flex items-center gap-1 shrink-0">
                           <button onClick={() => moveScheduleBlock(block.id, "up")}
                             className="text-[0.7rem] text-[#9CA3AF] hover:text-[#1A1A2E] px-1">↑</button>
                           <button onClick={() => moveScheduleBlock(block.id, "down")}
                             className="text-[0.7rem] text-[#9CA3AF] hover:text-[#1A1A2E] px-1">↓</button>
-                          <button onClick={() => deleteScheduleBlock(block.id)}
-                            className="text-[0.75rem] text-[#FCA5A5]/40 hover:text-[#FCA5A5] px-1">✕</button>
+                          {userPlan !== "free" && (
+                            <button onClick={() => deleteScheduleBlock(block.id)}
+                              className="text-[0.75rem] text-[#FCA5A5]/40 hover:text-[#FCA5A5] px-1">✕</button>
+                          )}
                         </div>
                       )}
                     </div>
