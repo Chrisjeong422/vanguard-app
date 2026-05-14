@@ -318,9 +318,6 @@ export default function VanguardHome() {
   const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   const [showInquiry, setShowInquiry] = useState(false);
-  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [deleteLoading, setDeleteLoading] = useState(false);
   const [inquiryMsg, setInquiryMsg] = useState("");
   const [inquirySent, setInquirySent] = useState(false);
   const [yesterdayLetter, setYesterdayLetter] = useState("");
@@ -997,65 +994,6 @@ export default function VanguardHome() {
         )}
 
         {/* 문의 모달 */}
-        {showDeleteAccount && (
-          <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl p-6 w-full max-w-[340px]">
-              <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-2">계정 삭제</div>
-              <div className="text-[0.85rem] text-[#6B7280] mb-4 leading-relaxed">
-                계정을 삭제하면 모든 미션, 기록, 분석 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-              </div>
-              <div className="text-[0.8rem] text-[#9CA3AF] mb-2">삭제하려면 "삭제"를 입력하세요.</div>
-              <input
-                type="text"
-                value={deleteConfirmText}
-                onChange={(e) => setDeleteConfirmText(e.target.value)}
-                placeholder="삭제"
-                className="w-full border border-[#E5E7EB] rounded-xl px-3 py-2.5 text-[0.85rem] mb-4 outline-none focus:border-[#EF4444]"
-              />
-              <div className="flex gap-2">
-                <button onClick={() => { setShowDeleteAccount(false); setDeleteConfirmText(""); }}
-                  className="flex-1 py-2.5 rounded-xl bg-[#F3F4F6] text-[0.85rem] font-medium text-[#6B7280]">
-                  취소
-                </button>
-                <button
-                  disabled={deleteConfirmText !== "삭제" || deleteLoading}
-                  onClick={async () => {
-                    setDeleteLoading(true);
-                    try {
-                      const { data: { user } } = await supabase.auth.getUser();
-                      if (!user) { alert("로그인 정보를 찾을 수 없습니다."); return; }
-                      const res = await fetch("/api/delete-account", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ userId: user.id }),
-                      });
-                      const result = await res.json();
-                      if (result.success) {
-                        await supabase.auth.signOut();
-                        localStorage.clear();
-                        alert("계정이 삭제되었습니다.");
-                        window.location.href = "/login";
-                      } else {
-                        alert("삭제 중 오류가 발생했습니다: " + (result.error || ""));
-                      }
-                    } catch (e: any) {
-                      alert("삭제 중 오류가 발생했습니다.");
-                    } finally {
-                      setDeleteLoading(false);
-                    }
-                  }}
-                  className={`flex-1 py-2.5 rounded-xl text-[0.85rem] font-medium ${
-                    deleteConfirmText === "삭제" && !deleteLoading
-                      ? "bg-[#EF4444] text-white"
-                      : "bg-[#FEE2E2] text-[#FCA5A5]"
-                  }`}>
-                  {deleteLoading ? "삭제 중..." : "삭제하기"}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {showInquiry && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-6">
             <div className="bg-white border border-[#E5E7EB] rounded-3xl p-6 w-full max-w-[340px]">
@@ -1597,7 +1535,7 @@ export default function VanguardHome() {
                     <div className="text-[0.85rem] text-[#9CA3AF] mb-3">Pro에서 이 흐름을 데이터로 만들어라. 언제 무너지는지, 왜 무너지는지 AI가 분석한다.</div>
                     <button onClick={() => setActiveTab("settings")}
                       className="w-full bg-white text-[#050A12] font-bold rounded-2xl py-2.5 text-[0.82rem] press-effect">
-                      Pro 베타 신청 →
+                      Pro 시작하기 →
                     </button>
                   </div>
                 )}
@@ -1711,9 +1649,9 @@ export default function VanguardHome() {
                     </div>
                     <button onClick={() => { if (isGuest) { setShowNicknameModal(true); return; } setActiveTab("settings"); setHomeMode("mission_input"); }}
                       className="w-full bg-white text-[#050A12] font-bold rounded-2xl py-3 text-[0.85rem] press-effect">
-                      {failCount >= 3 ? "지금 바로 패턴 끊기 — Pro 베타 신청 가능" :
-                       failCount >= 2 ? "패턴 분석 시작하기 — Pro 베타 신청 가능" :
-                       "Pro 베타 신청 — 베타 신청 가능"}
+                      {failCount >= 3 ? "지금 바로 패턴 끊기 — Pro ₩9,900/월" :
+                       failCount >= 2 ? "패턴 분석 시작하기 — Pro ₩9,900/월" :
+                       "Pro 시작하기 — ₩9,900/월"}
                     </button>
                   </div>
                 )}
@@ -2643,37 +2581,37 @@ export default function VanguardHome() {
               </div>
               {userPlan === "free" && (
                 <div>
-                  <button onClick={() => alert("Pro 베타 신청이 완료되었습니다. 정식 출시 시 안내드리겠습니다.")}
+                  <button onClick={() => window.open(`https://qr.kakaopay.com/FGVf0Mmo6?amount=9900&memo=Vanguard_Pro_${nickname}`, "_blank")}
                     className="w-full flex items-center justify-between px-4 py-3.5 border-b border-[#E5E7EB]/50">
-                    <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Pro 베타 신청</span>
+                    <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Pro 시작하기</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[0.85rem] text-[#9CA3AF]">베타 신청 가능</span>
+                      <span className="text-[0.85rem] text-[#9CA3AF]">₩9,900/월</span>
                       <span className="text-[#9CA3AF]">›</span>
                     </div>
                   </button>
-                  <button onClick={() => alert("Ultra 베타 신청이 완료되었습니다. 정식 출시 시 안내드리겠습니다.")}
+                  <button onClick={() => window.open(`https://qr.kakaopay.com/FGVf0Mmo6?amount=49000&memo=Vanguard_Ultra_${nickname}`, "_blank")}
                     className="w-full flex items-center justify-between px-4 py-3.5">
-                    <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Ultra 베타 신청</span>
+                    <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Ultra 시작하기</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-[0.85rem] text-[#9CA3AF]">베타 신청 가능</span>
+                      <span className="text-[0.85rem] text-[#9CA3AF]">₩49,000/월</span>
                       <span className="text-[#9CA3AF]">›</span>
                     </div>
                   </button>
                 </div>
               )}
               {userPlan === "pro" && (
-                <button onClick={() => alert("Ultra 베타 신청이 완료되었습니다. 정식 출시 시 안내드리겠습니다.")}
+                <button onClick={() => window.open(`https://qr.kakaopay.com/FGVf0Mmo6?amount=49000&memo=Vanguard_Ultra_${nickname}`, "_blank")}
                   className="w-full flex items-center justify-between px-4 py-3.5">
-                  <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Ultra 베타 신청</span>
+                  <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Ultra로 업그레이드</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-[0.85rem] text-[#9CA3AF]">베타 신청 가능</span>
+                    <span className="text-[0.85rem] text-[#9CA3AF]">₩49,000/월</span>
                     <span className="text-[#9CA3AF]">›</span>
                   </div>
                 </button>
               )}
               {userPlan === "ultra" && (
                 <div className="px-4 py-3.5">
-                  <div className="text-[0.78rem] text-[#7C3AED] font-medium">Ultra 플랜 사용 중 · 베타 신청 가능</div>
+                  <div className="text-[0.78rem] text-[#7C3AED] font-medium">Ultra 플랜 사용 중 · ₩49,000/월</div>
                 </div>
               )}
             </div>
@@ -2688,17 +2626,12 @@ export default function VanguardHome() {
                 className="w-full flex items-center justify-between px-4 py-3.5">
                 <span className="text-[0.85rem] text-[#FCA5A5] font-medium">로그아웃</span>
               </button>
-              <button onClick={() => setShowDeleteAccount(true)}
-                className="w-full flex items-center justify-between px-4 py-3.5 border-t border-[#E5E7EB]/50">
-                <span className="text-[0.85rem] text-[#EF4444] font-medium">계정 삭제</span>
-                <span className="text-[#9CA3AF]">›</span>
-              </button>
             </div>
 
             <div className="bg-white border border-[#E5E7EB]/50 rounded-2xl p-3 mt-1">
               <div className="text-[0.75rem] text-[#9CA3AF] text-center leading-relaxed">
-                Pro/Ultra는 현재 베타 신청을 받고 있습니다.<br />
-                정식 출시 시 안내드리겠습니다.
+                결제 후 카카오톡으로 닉네임과 플랜을 알려주시면<br />
+                24시간 내 활성화됩니다. 환불은 7일 이내 전액 가능.
               </div>
             </div>
           </div>
