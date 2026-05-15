@@ -645,7 +645,34 @@ export default function VanguardHome() {
       }).catch(() => {});
     }
     trackEvent("mission_complete", { task: currentMission, hour, elapsed_seconds: elapsedSeconds });
+    setMissionFeedback("");
     setHomeMode("done");
+    
+    // AI 피드백 생성
+    setFeedbackLoading(true);
+    try {
+      const todayRecords = records.filter(r => r.date === today);
+      const doneCount = todayRecords.filter(r => r.done).length + 1;
+      const failCount = todayRecords.filter(r => !r.done).length;
+      const feedbackPrompt = userPlan === "free"
+        ? `너는 실행 코치다. 유저가 "${currentMission}"을 완료했다. 오늘 ${doneCount}개 완료, ${failCount}개 실패. 스트릭 ${streak}일. 한 줄로 강하게 인정하고 다음 행동을 촉구해라. 이모지 쓰지마.`
+        : `너는 전문 실행 코치다. 유저가 "${currentMission}"을 ${Math.floor(elapsedSeconds/60)}분 동안 실행해서 완료했다. 오늘 ${doneCount}개 완료, ${failCount}개 실패. 스트릭 ${streak}일. 유저 직업: ${localStorage.getItem("vanguard_occupation") || "미설정"}. 목표: ${goal || "미설정"}.
+3줄로 피드백해라:
+1줄: 이 미션에서 잘한 점을 구체적으로 인정해라.
+2줄: 이 미션의 결과물을 더 발전시킬 구체적 방법 1가지를 제안해라.
+3줄: 다음에 해야 할 구체적 행동 1가지를 제시해라.
+이모지 쓰지마. 단호하고 구체적으로.`;
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: feedbackPrompt }),
+      });
+      const data = await res.json();
+      setMissionFeedback(data.text || "피드백 생성 실패");
+    } catch {
+      setMissionFeedback("피드백을 불러올 수 없습니다.");
+    }
+    setFeedbackLoading(false);
   }
 
   async function handleFail(reason: string) {
@@ -1413,10 +1440,16 @@ export default function VanguardHome() {
                             trackEvent("quick_complete", { task: nextBlock.title, hour });
                             setMissionFeedback("");
                             setHomeMode("done");
-                            if (userPlan === "free") {
-                              const cheers = ["해냈다. 다음 미션으로.", "체크 완료. 계속 가자.", "하나 끝냈다. 멈추지 마라."];
-                              setMissionFeedback(cheers[Math.floor(Math.random() * cheers.length)]);
-                            }
+                            try {
+                              setFeedbackLoading(true);
+                              const fbPrompt = userPlan === "free"
+                                ? `너는 실행 코치다. 유저가 "${nextBlock.title}"을 완료했다. 스트릭 ${streak}일. 한 줄로 강하게 인정하고 다음 행동을 촉구해라. 이모지 쓰지마.`
+                                : `너는 전문 실행 코치다. 유저가 "${nextBlock.title}"을 바로 완료했다. 스트릭 ${streak}일. 목표: ${goal || "미설정"}. 2줄로: 1줄 인정, 2줄 다음 구체적 행동 제시. 이모지 쓰지마.`;
+                              const fbRes = await fetch("/api/gemini", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: fbPrompt }) });
+                              const fbData = await fbRes.json();
+                              setMissionFeedback(fbData.text || "해냈다. 계속 가자.");
+                            } catch { setMissionFeedback("해냈다. 계속 가자."); }
+                            setFeedbackLoading(false);
                           }}
                             className="w-full bg-[#F3F4F6] text-[#6B7280] font-medium rounded-3xl py-3.5 text-[0.88rem] press-effect">
                             바로 완료 (체크만)
@@ -2208,6 +2241,86 @@ export default function VanguardHome() {
                       <div className="text-[0.78rem] font-bold text-[#1A1A2E]">당신은 {timeLabel} {peakHour}시에 가장 자주 무너집니다.</div>
                       {userPlan !== "free" && (
                         <div className="text-[0.8rem] text-[#6B7280] mt-1">다음부터 {peakHour > 0 ? peakHour - 1 : 23}시에 미리 개입합니다.</div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* AI 패턴 인사이트 */}
+            {records.length >= 3 && (
+              <div className="bg-white border border-[#E5E7EB] rounded-3xl p-5 mb-4">
+                <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-widest uppercase mb-3">AI 패턴 인사이트</div>
+                {(() => {
+                  const allFails = records.filter(r => !r.done);
+                  const allDone = records.filter(r => r.done);
+                  const totalRate = records.length > 0 ? Math.round((allDone.length / records.length) * 100) : 0;
+                  
+                  // 요일별 분석
+                  const dayNames = ["일","월","화","수","목","금","토"];
+                  const dayStats: Record<number, {done: number, fail: number}> = {};
+                  records.forEach(r => {
+                    const d = new Date(r.date).getDay();
+                    if (!dayStats[d]) dayStats[d] = {done: 0, fail: 0};
+                    if (r.done) dayStats[d].done++;
+                    else dayStats[d].fail++;
+                  });
+                  const worstDay = Object.entries(dayStats)
+                    .filter(([,v]) => v.fail > 0)
+                    .sort((a, b) => b[1].fail - a[1].fail)[0];
+                  const bestDay = Object.entries(dayStats)
+                    .filter(([,v]) => v.done > 0)
+                    .sort((a, b) => (b[1].done/(b[1].done+b[1].fail)) - (a[1].done/(a[1].done+a[1].fail)))[0];
+                  
+                  // 실패 이유 분석
+                  const failReasons: Record<string, number> = {};
+                  allFails.forEach(r => {
+                    const reason = r.fail_reason || "기타";
+                    failReasons[reason] = (failReasons[reason] || 0) + 1;
+                  });
+                  const topReason = Object.entries(failReasons).sort((a, b) => b[1] - a[1])[0];
+                  
+                  // 연속 성공/실패 최고 기록
+                  let maxStreak = 0, curStreak = 0;
+                  const sortedRecs = [...records].sort((a, b) => a.date.localeCompare(b.date));
+                  sortedRecs.forEach(r => {
+                    if (r.done) { curStreak++; maxStreak = Math.max(maxStreak, curStreak); }
+                    else { curStreak = 0; }
+                  });
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-[#F0FDF4] rounded-2xl p-3 text-center">
+                          <div className="text-[1.2rem] font-black text-[#4ADE80]">{totalRate}%</div>
+                          <div className="text-[0.75rem] text-[#6B7280]">전체 실행률</div>
+                        </div>
+                        <div className="bg-[#EEF2FF] rounded-2xl p-3 text-center">
+                          <div className="text-[1.2rem] font-black text-[#4F46E5]">{maxStreak}일</div>
+                          <div className="text-[0.75rem] text-[#6B7280]">최고 연속 기록</div>
+                        </div>
+                      </div>
+                      
+                      {worstDay && (
+                        <div className="bg-[#FEF2F2] rounded-2xl p-3">
+                          <div className="text-[0.78rem] font-bold text-[#1A1A2E]">⚠ {dayNames[Number(worstDay[0])]}요일에 가장 많이 무너집니다</div>
+                          <div className="text-[0.75rem] text-[#6B7280] mt-0.5">실패 {worstDay[1].fail}회 — 이 요일에 미션을 줄이는 게 좋습니다</div>
+                        </div>
+                      )}
+                      
+                      {bestDay && (
+                        <div className="bg-[#F0FDF4] rounded-2xl p-3">
+                          <div className="text-[0.78rem] font-bold text-[#1A1A2E]">✦ {dayNames[Number(bestDay[0])]}요일이 가장 강합니다</div>
+                          <div className="text-[0.75rem] text-[#6B7280] mt-0.5">성공률 {Math.round((bestDay[1].done/(bestDay[1].done+bestDay[1].fail))*100)}% — 이 요일에 중요한 미션을 넣으세요</div>
+                        </div>
+                      )}
+                      
+                      {topReason && (
+                        <div className="bg-[#FFFBEB] rounded-2xl p-3">
+                          <div className="text-[0.78rem] font-bold text-[#1A1A2E]">무너지는 이유 1위: "{topReason[0]}"</div>
+                          <div className="text-[0.75rem] text-[#6B7280] mt-0.5">{topReason[1]}회 반복 — AI가 이 패턴을 먼저 잡아줍니다</div>
+                        </div>
                       )}
                     </div>
                   );
