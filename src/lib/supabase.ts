@@ -34,14 +34,22 @@ export async function getUser(nickname: string): Promise<User | null> {
   return data
 }
 
-export async function createUser(nickname: string): Promise<User | null> {
+export async function createUser(nickname: string, profile?: { occupation?: string; focus_time?: string; obstacle?: string }): Promise<User | null> {
   const { data, error } = await supabase
     .from('users')
-    .insert([{ nickname }])
+    .insert([{ nickname, ...(profile || {}) }])
     .select()
     .single()
   if (error) return null
   return data
+}
+
+export async function updateUserProfile(nickname: string, profile: { occupation?: string; focus_time?: string; obstacle?: string }): Promise<boolean> {
+  const { error } = await supabase
+    .from('users')
+    .update(profile)
+    .eq('nickname', nickname)
+  return !error
 }
 
 export async function saveRecord(record: ExecutionRecord): Promise<boolean> {

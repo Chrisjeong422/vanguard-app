@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase,
   getUser,
   createUser,
+  updateUserProfile,
   saveRecord,
   getRecords,
   calcStreak,
@@ -321,6 +322,11 @@ export default function VanguardHome() {
   const [showDeleteAccount, setShowDeleteAccount] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardStep, setOnboardStep] = useState(0);
+  const [profileOccupation, setProfileOccupation] = useState("");
+  const [profileFocusTime, setProfileFocusTime] = useState("");
+  const [profileObstacle, setProfileObstacle] = useState("");
   const [inquiryMsg, setInquiryMsg] = useState("");
   const [inquirySent, setInquirySent] = useState(false);
   const [yesterdayLetter, setYesterdayLetter] = useState("");
@@ -525,6 +531,8 @@ export default function VanguardHome() {
     if (user) {
       const nick = nicknameInput.trim();
       localStorage.setItem("vanguard_nickname", nick);
+      setShowOnboarding(true);
+      setShowNicknameModal(false);
       setNickname(nick);
       setIsGuest(false);
       setShowNicknameModal(false);
@@ -997,6 +1005,61 @@ export default function VanguardHome() {
         )}
 
         {/* 문의 모달 */}
+        {showOnboarding && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[300] px-6">
+            <div className="bg-white rounded-3xl p-6 w-full max-w-[340px]">
+              {onboardStep === 0 && (
+                <div>
+                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">반가워요! 🎯</div>
+                  <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 당신에게 맞는 미션을 만들기 위해 3가지만 알려주세요.</div>
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">나는 어떤 사람인가요?</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["학생", "직장인", "창업자", "프리랜서", "취준생", "기타"].map(opt => (
+                      <button key={opt} onClick={() => { setProfileOccupation(opt); setOnboardStep(1); }}
+                        className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileOccupation === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {onboardStep === 1 && (
+                <div>
+                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">집중이 잘 되는 시간은?</div>
+                  <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 이 시간에 중요한 미션을 배치합니다.</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[{label: "아침 (6~9시)", val: "morning"}, {label: "오전 (9~12시)", val: "forenoon"}, {label: "오후 (12~18시)", val: "afternoon"}, {label: "저녁/밤 (18시~)", val: "evening"}].map(opt => (
+                      <button key={opt.val} onClick={() => { setProfileFocusTime(opt.val); setOnboardStep(2); }}
+                        className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileFocusTime === opt.val ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {onboardStep === 2 && (
+                <div>
+                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">가장 큰 실행 장애물은?</div>
+                  <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 이 패턴을 먼저 잡아줍니다.</div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {["시작 자체가 어려움", "시작은 하는데 중간에 포기", "계획만 세우고 실행 못 함", "피곤해서 무너짐"].map(opt => (
+                      <button key={opt} onClick={async () => {
+                        setProfileObstacle(opt);
+                        await updateUserProfile(nickname, { occupation: profileOccupation, focus_time: profileFocusTime, obstacle: opt });
+                        setShowOnboarding(false);
+                        setOnboardStep(0);
+                      }}
+                        className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileObstacle === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {showDeleteAccount && (
           <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl p-6 w-full max-w-[340px]">

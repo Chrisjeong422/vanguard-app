@@ -97,6 +97,15 @@ export async function POST(req: NextRequest) {
 
   const existingSchedules = schedules?.map(s => `${s.due_time || ""} ${s.title}`).join(", ") || "없음";
 
+
+  // 유저 프로필 가져오기
+  const { data: userProfile } = await supabaseAdmin.from("users").select("occupation, focus_time, obstacle, goal").eq("nickname", nickname).single();
+  const occupation = userProfile?.occupation || "";
+  const focusTime = userProfile?.focus_time || "";
+  const obstacle = userProfile?.obstacle || "";
+  const userGoal = userProfile?.goal || user?.goal || "없음";
+  const profileContext = occupation ? "유저 정보: 직업=" + occupation + ", 집중시간=" + (focusTime === "morning" ? "아침6-9시" : focusTime === "forenoon" ? "오전9-12시" : focusTime === "afternoon" ? "오후12-18시" : focusTime === "evening" ? "저녁18시이후" : "미설정") + ", 장애물=" + obstacle + ". 집중 잘 되는 시간에 중요한 미션을 배치하고 장애물에 맞는 전략을 적용해라." : "";
+  const goalContext = userGoal !== "없음" ? "유저목표: " + userGoal + ". 이 목표 달성을 위한 구체적 행동 미션을 만들어라. 래퍼면 가사4줄쓰기, 수능생이면 수학10문제, 다이어트면 스쿼트20개 같은 구체적 미션." : "";
   const difficultyGuide = difficulty === "high" ? "유저가 최근 연속 성공 중이다. 미션 시간을 평소보다 10~20% 늘려라. 도전적인 미션을 포함해라." : difficulty === "low" ? "유저가 최근 연속 실패 중이다. 미션을 극단적으로 줄여라. 3분~5분짜리 미션 위주로 구성해라. 시작의 마찰을 최소화해라." : "보통 수준으로 구성해라.";
   const now = new Date();
   const currentHour = now.getHours();
@@ -104,7 +113,7 @@ export async function POST(req: NextRequest) {
   const currentTime = `${String(currentHour).padStart(2,"0")}:${String(currentMin).padStart(2,"0")}`;
   const remainingHours = Math.max(1, 23 - currentHour);
   const timeContext = currentHour >= 20 ? "지금은 저녁 늦은 시간이다. 오늘 남은 시간에 할 수 있는 가벼운 미션 1~3개만 만들어라. 취침 준비도 포함해라." : currentHour >= 17 ? "지금은 저녁 시간이다. 오늘 남은 시간에 집중할 수 있는 미션 3~5개를 만들어라." : currentHour >= 12 ? "지금은 오후다. 오후~저녁 시간에 할 미션을 만들어라." : "아침부터 시작하는 하루 전체 스케줄을 만들어라.";
-  const prompt = `하루 스케줄을 JSON으로 만들어. 현재 시간: ${currentTime}. ${timeContext} 목표: ${user?.goal || "없음"}. 날짜: ${today}(${dayOfWeek}). 일정: ${existingSchedules}. 난이도 조절: ${difficultyGuide} 최근 성공 ${recentSuccess || 0}회, 실패 ${recentFail || 0}회, 평균 집중시간 ${avgDuration || 15}분. 현재 시간 이후의 블록만 만들어라. 지나간 시간의 블록은 만들지 마라. 블록은 최소 3개, 최대 10개. JSON만 출력. {"wake_time":"${String(Math.min(currentHour, 7)).padStart(2,"0")}:00","sleep_time":"23:00","strategy":"전략","blocks":[{"id":"b1","start":"${currentTime}","end":"${String(currentHour).padStart(2,"0")}:30","type":"routine","title":"제목","description":"설명","priority":"medium","energy_required":"low"}],"risk_slots":["위험시간"],"top_priority":"최우선1개"}`;
+  const prompt = `하루 스케줄을 JSON으로 만들어. 현재 시간: ${currentTime}. ${timeContext} ${profileContext} ${goalContext} 목표: ${userGoal}. 날짜: ${today}(${dayOfWeek}). 일정: ${existingSchedules}. 난이도 조절: ${difficultyGuide} 최근 성공 ${recentSuccess || 0}회, 실패 ${recentFail || 0}회, 평균 집중시간 ${avgDuration || 15}분. 현재 시간 이후의 블록만 만들어라. 지나간 시간의 블록은 만들지 마라. 블록은 최소 3개, 최대 10개. JSON만 출력. {"wake_time":"${String(Math.min(currentHour, 7)).padStart(2,"0")}:00","sleep_time":"23:00","strategy":"전략","blocks":[{"id":"b1","start":"${currentTime}","end":"${String(currentHour).padStart(2,"0")}:30","type":"routine","title":"제목","description":"설명","priority":"medium","energy_required":"low"}],"risk_slots":["위험시간"],"top_priority":"최우선1개"}`;
 
   try {
     const geminiRes = await fetch(
