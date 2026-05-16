@@ -2819,7 +2819,7 @@ export default function VanguardHome() {
               </div>
               {userPlan === "free" && (
                 <div>
-                  <button onClick={() => alert("Pro 베타 신청이 완료되었습니다. 정식 출시 시 안내드리겠습니다.")}
+                  <button onClick={() => (async () => { await supabase.from("beta_requests").insert([{ nickname, plan: "pro" }]); alert("Pro 베타 신청이 완료되었습니다! 정식 출시 시 가장 먼저 안내드리겠습니다."); })()}
                     className="w-full flex items-center justify-between px-4 py-3.5 border-b border-[#E5E7EB]/50">
                     <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Pro 베타 신청</span>
                     <div className="flex items-center gap-2">
@@ -2827,7 +2827,7 @@ export default function VanguardHome() {
                       <span className="text-[#9CA3AF]">›</span>
                     </div>
                   </button>
-                  <button onClick={() => alert("Ultra 베타 신청이 완료되었습니다. 정식 출시 시 안내드리겠습니다.")}
+                  <button onClick={() => (async () => { await supabase.from("beta_requests").insert([{ nickname, plan: "ultra" }]); alert("Ultra 베타 신청이 완료되었습니다! 정식 출시 시 가장 먼저 안내드리겠습니다."); })()}
                     className="w-full flex items-center justify-between px-4 py-3.5">
                     <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Ultra 베타 신청</span>
                     <div className="flex items-center gap-2">
@@ -2838,7 +2838,7 @@ export default function VanguardHome() {
                 </div>
               )}
               {userPlan === "pro" && (
-                <button onClick={() => alert("Ultra 베타 신청이 완료되었습니다. 정식 출시 시 안내드리겠습니다.")}
+                <button onClick={() => (async () => { await supabase.from("beta_requests").insert([{ nickname, plan: "ultra" }]); alert("Ultra 베타 신청이 완료되었습니다! 정식 출시 시 가장 먼저 안내드리겠습니다."); })()}
                   className="w-full flex items-center justify-between px-4 py-3.5">
                   <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Ultra 베타 신청</span>
                   <div className="flex items-center gap-2">
