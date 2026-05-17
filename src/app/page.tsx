@@ -472,11 +472,30 @@ export default function VanguardHome() {
     }
 
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const kstNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+      const today = `${kstNow.getFullYear()}-${String(kstNow.getMonth()+1).padStart(2,"0")}-${String(kstNow.getDate()).padStart(2,"0")}`;
+      const currentHour = kstNow.getHours();
+      const currentTime = `${String(currentHour).padStart(2,"0")}:${String(kstNow.getMinutes()).padStart(2,"0")}`;
+      
       const schedRes = await fetch(`/api/schedule?nickname=${nick}&date=${today}`);
       const schedData = await schedRes.json();
+      
       if (schedData.schedule) {
-        setDailySchedule(schedData.schedule);
+        // 현재 시간 이후 블록만 필터링
+        const futureBlocks = (schedData.schedule.blocks || []).filter((b: any) => b.start >= currentTime || b.is_completed);
+        
+        if (futureBlocks.length > 0) {
+          setDailySchedule({ ...schedData.schedule, blocks: futureBlocks, total_blocks: futureBlocks.length });
+        } else {
+          // 모든 블록이 지났으면 새로 생성
+          const genRes = await fetch("/api/schedule", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nickname: nick }),
+          });
+          const genData = await genRes.json();
+          if (genData.schedule) setDailySchedule(genData.schedule);
+        }
       } else {
         const genRes = await fetch("/api/schedule", {
           method: "POST",
