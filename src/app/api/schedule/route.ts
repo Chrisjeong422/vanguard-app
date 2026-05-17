@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
   // 입력 검증
   const rawNick = req.nextUrl.searchParams.get("nickname");
   const nickname = sanitizeNickname(rawNick);
-  const date = req.nextUrl.searchParams.get("date") || new Date().toISOString().split("T")[0];
+  const kstDate = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  const date = req.nextUrl.searchParams.get("date") || `${kstDate.getFullYear()}-${String(kstDate.getMonth()+1).padStart(2,"0")}-${String(kstDate.getDate()).padStart(2,"0")}`;
   if (!nickname) return NextResponse.json({ error: "닉네임 필요" }, { status: 400 });
 
   const { data: schedule } = await supabaseAdmin
@@ -80,7 +81,8 @@ export async function POST(req: NextRequest) {
   if (!nickname) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
   if (sanitizeNickname(nickname) === null) return NextResponse.json({ error: "잘못된 닉네임" }, { status: 400 });
 
-  const today = targetDate || new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })).toISOString().split("T")[0];
+  const kstNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+  const today = targetDate || `${kstNow.getFullYear()}-${String(kstNow.getMonth()+1).padStart(2,"0")}-${String(kstNow.getDate()).padStart(2,"0")}`;
   const dayOfWeek = new Date(today).toLocaleDateString("ko-KR", { weekday: "long" });
 
   const { data: user } = await supabaseAdmin
