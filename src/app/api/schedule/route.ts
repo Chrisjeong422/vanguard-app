@@ -83,6 +83,26 @@ export async function POST(req: NextRequest) {
 
   const kstNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
   const today = targetDate || `${kstNow.getFullYear()}-${String(kstNow.getMonth()+1).padStart(2,"0")}-${String(kstNow.getDate()).padStart(2,"0")}`;
+  
+  // 새벽 0~5시에는 스케줄 생성하지 않음
+  const kstHour = kstNow.getHours();
+  if (kstHour < 6 && !targetDate) {
+    return NextResponse.json({
+      schedule: {
+        nickname,
+        schedule_date: today,
+        wake_time: "07:00",
+        sleep_time: "23:00",
+        strategy: "지금은 충분히 쉬세요. 내일 아침에 최적의 스케줄을 만들어드립니다.",
+        blocks: [
+          { id: "sleep1", start: `${String(kstHour).padStart(2,"0")}:00`, end: "06:00", type: "routine", title: "지금은 쉬는 시간입니다", description: "충분히 자야 내일 실행할 수 있습니다. 내일 아침에 AI가 스케줄을 만들어드립니다.", is_completed: false, priority: "high", energy_required: "low" }
+        ],
+        total_blocks: 1,
+        completed_blocks: 0,
+        generation_context: { top_priority: "충분한 수면" },
+      }
+    });
+  }
   const dayOfWeek = new Date(today).toLocaleDateString("ko-KR", { weekday: "long" });
 
   const { data: user } = await supabaseAdmin
