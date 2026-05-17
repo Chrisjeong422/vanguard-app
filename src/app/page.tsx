@@ -323,6 +323,10 @@ export default function VanguardHome() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showCoachChat, setShowCoachChat] = useState(false);
+  const [coachMessages, setCoachMessages] = useState<{role: string; text: string}[]>([]);
+  const [coachInput, setCoachInput] = useState("");
+  const [coachLoading, setCoachLoading] = useState(false);
   const [onboardStep, setOnboardStep] = useState(0);
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
@@ -1032,6 +1036,125 @@ export default function VanguardHome() {
         )}
 
         {/* 문의 모달 */}
+        {showCoachChat && (
+          <div className="fixed inset-0 bg-black/80 z-[250] flex flex-col">
+            <div className="flex items-center justify-between px-4 pt-12 pb-3">
+              <div className="text-[1rem] font-black text-white">AI 코치</div>
+              <button onClick={() => setShowCoachChat(false)} className="text-[#9CA3AF] text-[0.85rem]">닫기</button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
+              {coachMessages.length === 0 && (
+                <div className="text-center mt-8">
+                  <div className="text-[1.5rem] mb-2">🎯</div>
+                  <div className="text-[0.92rem] text-white font-bold mb-2">무엇이든 물어보세요</div>
+                  <div className="text-[0.8rem] text-[#9CA3AF] leading-relaxed mb-4">
+                    AI가 당신의 목표, 패턴, 기록을 기반으로 답합니다.
+                  </div>
+                  <div className="space-y-2">
+                    {["오늘 뭐 해야 해?", "왜 자꾸 저녁에 무너질까?", "동기부여 해줘", "이번 주 어땠어?"].map(q => (
+                      <button key={q} onClick={() => { setCoachInput(q); }} 
+                        className="w-full bg-white/10 rounded-2xl py-3 text-[0.82rem] text-white/80 press-effect">
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {coachMessages.map((msg, i) => (
+                <div key={i} className={`mb-3 ${msg.role === "user" ? "text-right" : "text-left"}`}>
+                  <div className={`inline-block max-w-[85%] rounded-2xl px-4 py-3 text-[0.85rem] leading-relaxed ${
+                    msg.role === "user" 
+                      ? "bg-[#4F46E5] text-white" 
+                      : "bg-white/10 text-white"
+                  }`}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {coachLoading && (
+                <div className="text-left mb-3">
+                  <div className="inline-block bg-white/10 rounded-2xl px-4 py-3 text-[0.85rem] text-[#9CA3AF]">
+                    생각하는 중...
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-4 pb-8 pt-2">
+              <div className="flex gap-2">
+                <input type="text" value={coachInput} onChange={e => setCoachInput(e.target.value)}
+                  placeholder="질문을 입력하세요..."
+                  className="flex-1 bg-white/10 rounded-2xl px-4 py-3 text-[0.85rem] text-white placeholder-white/30 focus:outline-none"
+                  onKeyDown={async e => {
+                    if (e.key === "Enter" && coachInput.trim() && !coachLoading) {
+                      const userMsg = coachInput.trim();
+                      setCoachInput("");
+                      setCoachMessages(prev => [...prev, { role: "user", text: userMsg }]);
+                      setCoachLoading(true);
+                      try {
+                        const todayDone = records.filter(r => r.date === today && r.done).length;
+                        const todayFail = records.filter(r => r.date === today && !r.done).length;
+                        const recentFails = records.filter(r => !r.done).slice(-5).map(r => r.fail_reason || "알 수 없음").join(", ");
+                        const prompt = `너는 Vanguard AI 실행 코치다. 유저와 1:1 대화 중이다.
+유저 정보: 닉네임=${nickname}, 목표=${goal || "미설정"}, 스트릭=${streak}일, 오늘 완료=${todayDone}개, 오늘 실패=${todayFail}개, 최근 실패 이유=${recentFails || "없음"}.
+유저 질문: "${userMsg}"
+규칙:
+- 3줄 이내로 답해라.
+- 유저의 데이터를 기반으로 구체적으로 답해라.
+- 공감하되 단호하게.
+- "다시 시작"을 항상 방향으로 잡아라.
+- 이모지 쓰지마.`;
+                        const res = await fetch("/api/gemini", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ prompt }),
+                        });
+                        const data = await res.json();
+                        setCoachMessages(prev => [...prev, { role: "ai", text: data.text || "응답을 불러올 수 없습니다." }]);
+                      } catch {
+                        setCoachMessages(prev => [...prev, { role: "ai", text: "연결 오류. 다시 시도해주세요." }]);
+                      }
+                      setCoachLoading(false);
+                    }
+                  }} />
+                <button onClick={async () => {
+                  if (!coachInput.trim() || coachLoading) return;
+                  const userMsg = coachInput.trim();
+                  setCoachInput("");
+                  setCoachMessages(prev => [...prev, { role: "user", text: userMsg }]);
+                  setCoachLoading(true);
+                  try {
+                    const todayDone = records.filter(r => r.date === today && r.done).length;
+                    const todayFail = records.filter(r => r.date === today && !r.done).length;
+                    const recentFails = records.filter(r => !r.done).slice(-5).map(r => r.fail_reason || "알 수 없음").join(", ");
+                    const prompt = `너는 Vanguard AI 실행 코치다. 유저와 1:1 대화 중이다.
+유저 정보: 닉네임=${nickname}, 목표=${goal || "미설정"}, 스트릭=${streak}일, 오늘 완료=${todayDone}개, 오늘 실패=${todayFail}개, 최근 실패 이유=${recentFails || "없음"}.
+유저 질문: "${userMsg}"
+규칙:
+- 3줄 이내로 답해라.
+- 유저의 데이터를 기반으로 구체적으로 답해라.
+- 공감하되 단호하게.
+- "다시 시작"을 항상 방향으로 잡아라.
+- 이모지 쓰지마.`;
+                    const res = await fetch("/api/gemini", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ prompt }),
+                    });
+                    const data = await res.json();
+                    setCoachMessages(prev => [...prev, { role: "ai", text: data.text || "응답을 불러올 수 없습니다." }]);
+                  } catch {
+                    setCoachMessages(prev => [...prev, { role: "ai", text: "연결 오류. 다시 시도해주세요." }]);
+                  }
+                  setCoachLoading(false);
+                }}
+                  className="bg-[#4F46E5] rounded-2xl px-5 py-3 text-white text-[0.85rem] font-bold press-effect">
+                  전송
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showOnboarding && (
           <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[300] px-6">
             <div className="bg-white rounded-3xl p-6 w-full max-w-[340px]">
@@ -2880,6 +3003,15 @@ export default function VanguardHome() {
           </div>
         )}
         </div>
+
+        {/* AI 코치 플로팅 버튼 */}
+        {!showSplash && !showCoachChat && !isGuest && (
+          <button onClick={() => setShowCoachChat(true)}
+            className="fixed bottom-24 right-4 bg-[#4F46E5] text-white w-14 h-14 rounded-full shadow-lg shadow-[#4F46E5]/30 flex items-center justify-center z-40 press-effect"
+            style={{fontSize: "1.3rem"}}>
+            AI
+          </button>
+        )}
 
         {/* 하단 네비게이션 */}
         {!showSplash && (
