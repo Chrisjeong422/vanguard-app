@@ -1203,6 +1203,34 @@ ${contextToPrompt(ctx)}
                         const data = await res.json();
                         setCoachMessages(prev => [...prev, { role: "ai", text: data.text || "응답을 불러올 수 없습니다." }]);
                         await saveAiLog(nickname, "coach_chat", { question: userMsg }, { answer: data.text }, ctx);
+                        
+                        // 스케줄 변경 요청 감지
+                        const scheduleKeywords = ["일정", "약속", "스케줄", "바꿔", "변경", "미뤄", "옮겨", "취소", "시간 변경", "오늘 못", "갑자기", "급한 일", "예정", "계획 변경"];
+                        const isScheduleRequest = scheduleKeywords.some(k => userMsg.includes(k));
+                        if (isScheduleRequest) {
+                          setCoachMessages(prev => [...prev, { role: "ai", text: "스케줄을 다시 짜고 있습니다..." }]);
+                          try {
+                            const regenRes = await fetch("/api/schedule", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ nickname }),
+                            });
+                            const regenData = await regenRes.json();
+                            if (regenData.schedule) {
+                              setDailySchedule(regenData.schedule);
+                              setCoachMessages(prev => {
+                                const filtered = prev.filter(m => m.text !== "스케줄을 다시 짜고 있습니다...");
+                                return [...filtered, { role: "ai", text: "스케줄을 다시 짰습니다. 홈에서 확인하세요. 바뀐 상황에 맞게 조정했습니다." }];
+                              });
+                              await saveAiLog(nickname, "schedule_regen_by_chat", { trigger: userMsg }, { schedule: regenData.schedule }, ctx);
+                            }
+                          } catch {
+                            setCoachMessages(prev => {
+                              const filtered = prev.filter(m => m.text !== "스케줄을 다시 짜고 있습니다...");
+                              return [...filtered, { role: "ai", text: "스케줄 재생성에 실패했습니다. 홈에서 다시 생성을 눌러주세요." }];
+                            });
+                          }
+                        }
                       } catch {
                         setCoachMessages(prev => [...prev, { role: "ai", text: "연결 오류. 다시 시도해주세요." }]);
                       }
