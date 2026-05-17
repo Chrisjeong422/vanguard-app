@@ -450,6 +450,76 @@ export default function VanguardHome() {
     });
   }, [router]);
 
+  // 유저 맥락 통합 시스템 — 모든 AI 호출에 사용
+  async function getUserContext(nick: string) {
+    const recs = records.length > 0 ? records : await getRecords(nick);
+    const todayStr = new Date().toISOString().split("T")[0];
+    const todayRecs = recs.filter(r => r.date === todayStr);
+    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+    const weekRecs = recs.filter(r => r.date >= weekAgo);
+    
+    // 실패 패턴 분석
+    const failRecs = recs.filter(r => !r.done);
+    const failHours: Record<number, number> = {};
+    failRecs.forEach(r => { if (r.hour_of_day !== undefined) failHours[r.hour_of_day] = (failHours[r.hour_of_day] || 0) + 1; });
+    const peakFailHour = Object.entries(failHours).sort((a, b) => Number(b[1]) - Number(a[1]))[0];
+    
+    const failReasons: Record<string, number> = {};
+    failRecs.forEach(r => { const reason = r.fail_reason || "기타"; failReasons[reason] = (failReasons[reason] || 0) + 1; });
+    const topFailReason = Object.entries(failReasons).sort((a, b) => b[1] - a[1])[0];
+    
+    // 요일별 분석
+    const dayNames = ["일","월","화","수","목","금","토"];
+    const dayStats: Record<number, {done: number, fail: number}> = {};
+    recs.forEach(r => { const d = new Date(r.date).getDay(); if (!dayStats[d]) dayStats[d] = {done:0,fail:0}; if (r.done) dayStats[d].done++; else dayStats[d].fail++; });
+    const worstDay = Object.entries(dayStats).filter(([,v]) => v.fail > 0).sort((a, b) => b[1].fail - a[1].fail)[0];
+    const bestDay = Object.entries(dayStats).filter(([,v]) => v.done > 0).sort((a, b) => (b[1].done/(b[1].done+b[1].fail)) - (a[1].done/(a[1].done+a[1].fail)))[0];
+    
+    // 프로필 정보
+    const occ = localStorage.getItem("vanguard_occupation") || "";
+    const focus = localStorage.getItem("vanguard_focus_time") || "";
+    const obs = localStorage.getItem("vanguard_obstacle") || "";
+    
+    const ctx = {
+      nickname: nick,
+      goal: goal || "미설정",
+      plan: userPlan,
+      streak: streak,
+      totalDone: recs.filter(r => r.done).length,
+      totalFail: failRecs.length,
+      totalRate: recs.length > 0 ? Math.round((recs.filter(r => r.done).length / recs.length) * 100) : 0,
+      todayDone: todayRecs.filter(r => r.done).length,
+      todayFail: todayRecs.filter(r => !r.done).length,
+      weekDone: weekRecs.filter(r => r.done).length,
+      weekFail: weekRecs.filter(r => !r.done).length,
+      peakFailHour: peakFailHour ? `${peakFailHour[0]}시(${peakFailHour[1]}회)` : "없음",
+      topFailReason: topFailReason ? `${topFailReason[0]}(${topFailReason[1]}회)` : "없음",
+      worstDay: worstDay ? `${dayNames[Number(worstDay[0])]}요일` : "없음",
+      bestDay: bestDay ? `${dayNames[Number(bestDay[0])]}요일` : "없음",
+      occupation: occ,
+      focusTime: focus,
+      obstacle: obs,
+    };
+    return ctx;
+  }
+  
+  function contextToPrompt(ctx: any) {
+    return `[유저 맥락] 닉네임: ${ctx.nickname}. 목표: ${ctx.goal}. 직업: ${ctx.occupation || "미설정"}. 집중시간: ${ctx.focusTime || "미설정"}. 장애물: ${ctx.obstacle || "미설정"}. 스트릭: ${ctx.streak}일. 전체 실행률: ${ctx.totalRate}%. 오늘 완료: ${ctx.todayDone}개, 실패: ${ctx.todayFail}개. 이번 주 완료: ${ctx.weekDone}개, 실패: ${ctx.weekFail}개. 가장 많이 무너지는 시간: ${ctx.peakFailHour}. 무너지는 이유 1위: ${ctx.topFailReason}. 최약 요일: ${ctx.worstDay}. 최강 요일: ${ctx.bestDay}.`;
+  }
+  
+  // AI 로그 저장 — 미래 자체 AI 학습용
+  async function saveAiLog(nick: string, logType: string, input: any, output: any, context: any) {
+    try {
+      await supabase.from("ai_logs").insert([{
+        nickname: nick,
+        log_type: logType,
+        input_data: input,
+        output_data: output,
+        context: context,
+      }]);
+    } catch {}
+  }
+
   const loadUserData = useCallback(async (nick: string) => {
     const recs = await getRecords(nick);
     setRecords(recs);
@@ -1114,17 +1184,16 @@ export default function VanguardHome() {
                       setCoachMessages(prev => [...prev, { role: "user", text: userMsg }]);
                       setCoachLoading(true);
                       try {
-                        const todayDone = records.filter(r => r.date === today && r.done).length;
-                        const todayFail = records.filter(r => r.date === today && !r.done).length;
-                        const recentFails = records.filter(r => !r.done).slice(-5).map(r => r.fail_reason || "알 수 없음").join(", ");
+                        const ctx = await getUserContext(nickname);
                         const prompt = `너는 Vanguard AI 실행 코치다. 유저와 1:1 대화 중이다.
-유저 정보: 닉네임=${nickname}, 목표=${goal || "미설정"}, 스트릭=${streak}일, 오늘 완료=${todayDone}개, 오늘 실패=${todayFail}개, 최근 실패 이유=${recentFails || "없음"}.
+${contextToPrompt(ctx)}
 유저 질문: "${userMsg}"
 규칙:
 - 3줄 이내로 답해라.
 - 유저의 데이터를 기반으로 구체적으로 답해라.
 - 공감하되 단호하게.
 - "다시 시작"을 항상 방향으로 잡아라.
+- 유저가 "일정 바뀌었어" "오늘 약속 생겼어" 같은 말을 하면 기존 스케줄을 고려해서 새로운 시간 배치를 제안해라.
 - 이모지 쓰지마.`;
                         const res = await fetch("/api/gemini", {
                           method: "POST",
@@ -1133,6 +1202,7 @@ export default function VanguardHome() {
                         });
                         const data = await res.json();
                         setCoachMessages(prev => [...prev, { role: "ai", text: data.text || "응답을 불러올 수 없습니다." }]);
+                        await saveAiLog(nickname, "coach_chat", { question: userMsg }, { answer: data.text }, ctx);
                       } catch {
                         setCoachMessages(prev => [...prev, { role: "ai", text: "연결 오류. 다시 시도해주세요." }]);
                       }
@@ -1219,6 +1289,9 @@ export default function VanguardHome() {
                       <button key={opt} onClick={async () => {
                         setProfileObstacle(opt);
                         await updateUserProfile(nickname, { occupation: profileOccupation, focus_time: profileFocusTime, obstacle: opt });
+                        localStorage.setItem("vanguard_occupation", profileOccupation);
+                        localStorage.setItem("vanguard_focus_time", profileFocusTime);
+                        localStorage.setItem("vanguard_obstacle", opt);
                         setShowOnboarding(false);
                         setOnboardStep(0);
                       }}
