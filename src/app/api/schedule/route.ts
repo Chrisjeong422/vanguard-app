@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   if (!nickname) return NextResponse.json({ error: "인증 필요" }, { status: 401 });
   if (sanitizeNickname(nickname) === null) return NextResponse.json({ error: "잘못된 닉네임" }, { status: 400 });
 
-  const today = targetDate || new Date().toISOString().split("T")[0];
+  const today = targetDate || new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })).toISOString().split("T")[0];
   const dayOfWeek = new Date(today).toLocaleDateString("ko-KR", { weekday: "long" });
 
   const { data: user } = await supabaseAdmin
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
   const profileContext = occupation ? "유저 정보: 직업=" + occupation + ", 집중시간=" + (focusTime === "morning" ? "아침6-9시" : focusTime === "forenoon" ? "오전9-12시" : focusTime === "afternoon" ? "오후12-18시" : focusTime === "evening" ? "저녁18시이후" : "미설정") + ", 장애물=" + obstacle + ". 집중 잘 되는 시간에 중요한 미션을 배치하고 장애물에 맞는 전략을 적용해라." : "";
   const goalContext = userGoal !== "없음" ? "유저목표: " + userGoal + ". 이 목표 달성을 위한 구체적 행동 미션을 만들어라. 래퍼면 가사4줄쓰기, 수능생이면 수학10문제, 다이어트면 스쿼트20개 같은 구체적 미션." : "";
   const difficultyGuide = difficulty === "high" ? "유저가 최근 연속 성공 중이다. 미션 시간을 평소보다 10~20% 늘려라. 도전적인 미션을 포함해라." : difficulty === "low" ? "유저가 최근 연속 실패 중이다. 미션을 극단적으로 줄여라. 3분~5분짜리 미션 위주로 구성해라. 시작의 마찰을 최소화해라." : "보통 수준으로 구성해라.";
-  const now = new Date();
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
   const currentHour = now.getHours();
   const currentMin = now.getMinutes();
   const currentTime = `${String(currentHour).padStart(2,"0")}:${String(currentMin).padStart(2,"0")}`;

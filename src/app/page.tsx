@@ -1041,7 +1041,7 @@ export default function VanguardHome() {
 
         {/* 문의 모달 */}
         {showCoachChat && (
-          <div className="fixed inset-0 bg-black/80 z-[250] flex flex-col">
+          <div className="fixed inset-0 bg-[#0A0A0A] z-[250] flex flex-col">
             <div className="flex items-center justify-between px-4 pt-12 pb-3">
               <div className="text-[1rem] font-black text-white">AI 코치</div>
               <button onClick={() => setShowCoachChat(false)} className="text-[#9CA3AF] text-[0.85rem]">닫기</button>
