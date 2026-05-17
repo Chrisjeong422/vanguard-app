@@ -42,6 +42,7 @@ export default function LoginPage() {
       if (user) {
         const nickname = user.user_metadata?.nickname;
         if (nickname) {
+          localStorage.setItem("vanguard_nickname", nickname);
           await supabase.from("users").update({ auth_id: user.id }).eq("nickname", nickname).is("auth_id", null);
         }
       }
