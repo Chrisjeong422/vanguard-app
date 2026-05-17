@@ -422,6 +422,10 @@ export default function VanguardHome() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (!data.session) {
+        const savedNick = localStorage.getItem("vanguard_nickname");
+        if (savedNick) {
+          return;
+        }
         const trial = localStorage.getItem("vanguard_guest_trial");
         if (!trial) {
           router.replace("/landing");
