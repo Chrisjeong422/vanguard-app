@@ -602,6 +602,17 @@ export default function VanguardHome() {
       setNickname(saved);
       setIsGuest(false);
       loadUserData(saved);
+      // 프로필도 DB에서 로드
+      (async () => {
+        try {
+          const { data } = await supabase.from("users").select("occupation, focus_time, obstacle").eq("nickname", saved).single();
+          if (data) {
+            if (data.occupation) localStorage.setItem("vanguard_occupation", data.occupation);
+            if (data.focus_time) localStorage.setItem("vanguard_focus_time", data.focus_time);
+            if (data.obstacle) localStorage.setItem("vanguard_obstacle", data.obstacle);
+          }
+        } catch {}
+      })();
     }
   }, [loadUserData]);
 
@@ -1185,16 +1196,27 @@ export default function VanguardHome() {
                       setCoachLoading(true);
                       try {
                         const ctx = await getUserContext(nickname);
+                        const chatHistory = coachMessages.slice(-6).map(m => `${m.role === "user" ? "유저" : "코치"}: ${m.text}`).join("\n");
                         const prompt = `너는 Vanguard AI 실행 코치다. 유저와 1:1 대화 중이다.
+
 ${contextToPrompt(ctx)}
+
+최근 대화:
+${chatHistory}
+
 유저 질문: "${userMsg}"
-규칙:
-- 3줄 이내로 답해라.
-- 유저의 데이터를 기반으로 구체적으로 답해라.
-- 공감하되 단호하게.
-- "다시 시작"을 항상 방향으로 잡아라.
-- 유저가 "일정 바뀌었어" "오늘 약속 생겼어" 같은 말을 하면 기존 스케줄을 고려해서 새로운 시간 배치를 제안해라.
-- 이모지 쓰지마.`;
+
+핵심 규칙:
+1. 절대 공감만 하지 마라. 모든 답변에 반드시 "지금 당장 할 수 있는 구체적 행동 1가지"를 포함해라.
+2. "힘들었겠다", "괜찮아" 같은 위로만 하지 마라. "지금 바로 [구체적 행동]을 해라"를 말해라.
+3. 유저의 실제 데이터를 인용해라. "당신은 ${ctx.peakFailHour}에 자주 무너진다" 같은 구체적 사실.
+4. 이전 대화와 다른 표현을 사용해라. 같은 말을 반복하지 마라.
+5. 유저의 목표(${ctx.goal})와 직업(${ctx.occupation})에 맞는 구체적 미션을 제안해라.
+6. "일정 바뀌었어" "약속 생겼어" 같은 말에는 기존 스케줄을 고려해서 시간 재배치를 제안해라.
+7. 3줄 이내. 이모지 쓰지마. 단호하고 구체적으로.
+
+나쁜 예: "힘들었겠다. 괜찮아. 내일 다시 시작하면 돼."
+좋은 예: "이번 주 3번째 ${ctx.peakFailHour}에 무너졌다. 내일은 그 시간 전에 가장 쉬운 미션부터 시작해라. 지금 당장 내일 할 미션 1개를 정해라."`;
                         const res = await fetch("/api/gemini", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
