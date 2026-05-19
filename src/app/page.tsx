@@ -766,7 +766,8 @@ export default function VanguardHome() {
     setMissionFeedback("");
     setHomeMode("done");
     
-    // AI 피드백 생성
+    // AI 피드백 비동기 생성 — 화면 전환은 바로, 피드백은 백그라운드
+    setTimeout(async () => {
     setFeedbackLoading(true);
     try {
       const todayRecords = records.filter(r => r.date === today);
@@ -791,6 +792,7 @@ export default function VanguardHome() {
       setMissionFeedback("피드백을 불러올 수 없습니다.");
     }
     setFeedbackLoading(false);
+    }, 100);
   }
 
   async function handleFail(reason: string) {

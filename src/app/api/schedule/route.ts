@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 8000, temperature: 0.7 },
+          generationConfig: { maxOutputTokens: 1000, temperature: 0.7 },
         }),
       }
     );
