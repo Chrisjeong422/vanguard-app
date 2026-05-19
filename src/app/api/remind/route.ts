@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
+function toKST(date?: Date | number) {
+  const d = date ? new Date(date) : new Date();
+  return new Date(d.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+}
+function kstDateStr(date?: Date | number) {
+  const k = toKST(date);
+  return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`;
+}
+
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const supabaseAdmin = createClient(
@@ -12,8 +21,8 @@ async function handleRemind() {
   try {
     const { data: users } = await supabaseAdmin.from("users").select("*");
     if (!users) return NextResponse.json({ error: "no users" }, { status: 500 });
-    const today = new Date().toISOString().split("T")[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const today = kstDateStr();
+    const yesterday = kstDateStr(Date.now() - 86400000);
     const { data: records } = await supabaseAdmin.from("execution_records").select("*");
     let sent = 0;
     for (const user of users) {

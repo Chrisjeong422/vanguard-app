@@ -23,6 +23,15 @@ async function getAuthNickname(req: NextRequest): Promise<string | null> {
 }
 
 import { createClient } from "@supabase/supabase-js";
+function toKST(date?: Date | number) {
+  const d = date ? new Date(date) : new Date();
+  return new Date(d.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+}
+function kstDateStr(date?: Date | number) {
+  const k = toKST(date);
+  return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`;
+}
+
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -46,13 +55,13 @@ function getWeekStart(date: Date = new Date()): string {
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
-  return d.toISOString().split("T")[0];
+  return kstDateStr(d);
 }
 
 function getWeekEnd(weekStart: string): string {
   const d = new Date(weekStart);
   d.setDate(d.getDate() + 6);
-  return d.toISOString().split("T")[0];
+  return kstDateStr(d);
 }
 
 export async function GET(req: NextRequest) {
