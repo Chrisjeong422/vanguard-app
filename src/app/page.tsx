@@ -1,4 +1,12 @@
 "use client";
+function toKST(date?: Date | number): Date {
+  const d = date ? new Date(date) : new Date();
+  return new Date(d.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+}
+function kstDateStr(date?: Date | number): string {
+  const k = toKST(date);
+  return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`;
+}
 
 import { useState, useEffect, useCallback } from "react";
 import { supabase,
@@ -245,10 +253,10 @@ function getProUpsellMessage(records: ExecutionRecord[], failCount: number, stre
 
 // ── 유저 상태 계산 ──
 function calcUserState(records: ExecutionRecord[], hour: number): UserState {
-  const today = new Date().toISOString().split("T")[0];
+  const today = (() => { const k = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })); return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`; })();
 
 
-  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+  const yesterday = kstDateStr(Date.now() - 86400000);
 
   const byDate: Record<string, boolean> = {};
   records.forEach(r => {
@@ -261,12 +269,12 @@ function calcUserState(records: ExecutionRecord[], hour: number): UserState {
 
   let consecutiveFails = 0;
   for (let i = 1; i <= 7; i++) {
-    const d = new Date(Date.now() - 86400000 * i).toISOString().split("T")[0];
+    const d = kstDateStr(Date.now() - 86400000 * i);
     if (byDate[d] === false) consecutiveFails++;
     else break;
   }
 
-  const weekAgo = new Date(Date.now() - 86400000 * 7).toISOString().split("T")[0];
+  const weekAgo = kstDateStr(Date.now() - 86400000 * 7);
   const thisWeekFails = records.filter(r => !r.done && r.date >= weekAgo).length;
   const failStreak = records.filter(r => !r.done).length;
 
@@ -380,7 +388,7 @@ export default function VanguardHome() {
 
   const hour = new Date().getHours();
   const urgency = getUrgencyMessage(hour, failCount, goal);
-  const today = new Date().toISOString().split("T")[0];
+  const today = (() => { const k = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })); return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`; })();
 
   // AI 오늘의 분석 생성
   useEffect(() => {
@@ -390,7 +398,7 @@ export default function VanguardHome() {
       const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
       const avgFailHour = failsByHour.length > 0 ? Math.round(failsByHour.reduce((s, r) => s + (r.hour_of_day || 0), 0) / failsByHour.length) : 0;
       const topReason = Object.entries(records.filter(r => !r.done && r.fail_reason).reduce((a, r) => { a[r.fail_reason || "기타"] = (a[r.fail_reason || "기타"] || 0) + 1; return a; }, {} as Record<string, number>)).sort((a, b) => b[1] - a[1])[0];
-      const yesterdayRecords = records.filter(r => r.date === new Date(Date.now() - 86400000).toISOString().split("T")[0]);
+      const yesterdayRecords = records.filter(r => r.date === kstDateStr(Date.now() - 86400000));
       const yesterdaySuccess = yesterdayRecords.filter(r => r.done).length;
       const yesterdayFail = yesterdayRecords.filter(r => !r.done).length;
       const timeLabel = avgFailHour >= 20 ? "밤" : avgFailHour >= 16 ? "저녁" : avgFailHour >= 12 ? "오후" : "오전";
@@ -453,9 +461,10 @@ export default function VanguardHome() {
   // 유저 맥락 통합 시스템 — 모든 AI 호출에 사용
   async function getUserContext(nick: string) {
     const recs = records.length > 0 ? records : await getRecords(nick);
-    const todayStr = new Date().toISOString().split("T")[0];
+    const kstToday = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    const todayStr = `${kstToday.getFullYear()}-${String(kstToday.getMonth()+1).padStart(2,"0")}-${String(kstToday.getDate()).padStart(2,"0")}`;
     const todayRecs = recs.filter(r => r.date === todayStr);
-    const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+    const weekAgo = kstDateStr(Date.now() - 7 * 86400000);
     const weekRecs = recs.filter(r => r.date >= weekAgo);
     
     // 실패 패턴 분석
@@ -596,7 +605,7 @@ export default function VanguardHome() {
     const saved = localStorage.getItem("vanguard_nickname");
     const letter = localStorage.getItem("vanguard_letter");
     const letterDate = localStorage.getItem("vanguard_letter_date");
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const yesterday = kstDateStr(Date.now() - 86400000);
     if (letter && letterDate === yesterday) setYesterdayLetter(letter);
     if (saved) {
       setNickname(saved);
@@ -663,7 +672,8 @@ export default function VanguardHome() {
     if (userPlan === "free" && aiUsedCount >= 4) { setAiBriefing("무료는 하루 4회까지 가능합니다. Pro로 업그레이드하면 무제한으로 사용할 수 있습니다."); return; }
     setBriefingLoading(true);
     setAiBriefing("");
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+    const kstTmr = new Date(new Date(Date.now() + 86400000).toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    const tomorrow = `${kstTmr.getFullYear()}-${String(kstTmr.getMonth()+1).padStart(2,"0")}-${String(kstTmr.getDate()).padStart(2,"0")}`;
     const upcomingSchedules = schedules.slice(0, 5)
       .map(s => `${s.due_date === today ? "오늘" : s.due_date === tomorrow ? "내일" : s.due_date} ${s.due_time || ""} - ${s.title}`)
       .join(", ");
@@ -745,7 +755,7 @@ export default function VanguardHome() {
     setFailTime(null);
     // 내일 스케줄 미리 생성
     if (userPlan !== "free") {
-      const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+      const tomorrow = kstDateStr(Date.now() + 86400000);
       fetch("/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1930,7 +1940,7 @@ ${chatHistory}
                       const data = await res.json();
                       setTomorrowLetter(data.text || "");
                       localStorage.setItem("vanguard_letter", data.text || "");
-                      localStorage.setItem("vanguard_letter_date", new Date().toISOString().split("T")[0]);
+                      localStorage.setItem("vanguard_letter_date", (() => { const k = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })); return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`; })());
                     } catch {}
                   }}
                     className="w-full bg-white border border-[#E5E7EB] rounded-2xl py-3 text-[0.78rem] text-[#6B7280] press-effect mb-3">
@@ -2257,7 +2267,7 @@ ${chatHistory}
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-[0.8rem] text-[#9CA3AF]">
-                          {s.due_date === today ? "오늘" : s.due_date === new Date(Date.now() + 86400000).toISOString().split("T")[0] ? "내일" : s.due_date}
+                          {s.due_date === today ? "오늘" : s.due_date === kstDateStr(Date.now() + 86400000) ? "내일" : s.due_date}
                         </div>
                         <button onClick={async () => { if (s.id && confirm("이 일정을 삭제할까요?")) { await deleteSchedule(s.id); await loadUserData(nickname); } }}
                           className="text-[0.8rem] text-[#FCA5A5]/50 hover:text-[#FCA5A5]">✕</button>
@@ -2423,7 +2433,7 @@ ${chatHistory}
                   const dayNames = ["일","월","화","수","목","금","토"];
                   for (let i = 6; i >= 0; i--) {
                     const d = new Date(Date.now() - 86400000 * i);
-                    const dateStr = d.toISOString().split("T")[0];
+                    const dateStr = kstDateStr(d);
                     const dayRecs = records.filter(r => r.date === dateStr);
                     const success = dayRecs.filter(r => r.done).length;
                     const fail = dayRecs.filter(r => !r.done).length;
@@ -2604,7 +2614,7 @@ ${chatHistory}
                 <div className="text-[0.75rem] text-[#4F46E5] font-medium">이번 주</div>
               </div>
               {(() => {
-                const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+                const weekAgo = kstDateStr(Date.now() - 7 * 86400000);
                 const weekRecords = records.filter(r => r.date >= weekAgo);
                 const myWeekXP = weekRecords.filter(r => r.done).length * 20;
                 const myRank = 1;
@@ -2829,7 +2839,7 @@ ${chatHistory}
                 const currentLevel = levels.find(l => score >= l.min && score < l.max) || levels[levels.length - 1];
                 const progressInLevel = ((score - currentLevel.min) / (currentLevel.max - currentLevel.min)) * 100;
                 const todayXP = records.filter(r => r.date === today && r.done).length * 20;
-                const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().split("T")[0];
+                const weekAgo = kstDateStr(Date.now() - 7 * 86400000);
                 const weekXP = records.filter(r => r.date >= weekAgo && r.done).length * 20;
                 return (
                   <div>
