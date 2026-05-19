@@ -625,6 +625,48 @@ export default function VanguardHome() {
     }
   }, [loadUserData]);
 
+  // 알림 설정
+  useEffect(() => {
+    if (isGuest || !nickname) return;
+    
+    // 알림 권한 요청
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+    
+    // 매 시간 체크 — 오늘 미션을 안 했으면 알림
+    const notifTimer = setInterval(() => {
+      if ("Notification" in window && Notification.permission === "granted") {
+        const kstNow = toKST();
+        const h = kstNow.getHours();
+        const todayStr = kstDateStr();
+        const todayDone = records.filter(r => r.date === todayStr && r.done).length;
+        
+        // 오전 9시, 오후 2시, 저녁 7시에 체크
+        if ((h === 9 || h === 14 || h === 19) && todayDone === 0) {
+          new Notification("Vanguard", {
+            body: h === 9 ? "좋은 아침. 오늘 첫 미션을 시작하자." 
+              : h === 14 ? "오후가 지나고 있다. 아직 하나도 안 했다." 
+              : "저녁이다. 오늘 0개 완료. 3분이라도 시작해라.",
+            icon: "/icon-192x192.png",
+            tag: "vanguard-reminder",
+          });
+        }
+        
+        // 스트릭 끊기 직전 경고 (밤 10시)
+        if (h === 22 && todayDone === 0 && streak > 0) {
+          new Notification("Vanguard", {
+            body: `${streak}일 스트릭이 끊기려고 한다. 지금 3분만 하면 살릴 수 있다.`,
+            icon: "/icon-192x192.png",
+            tag: "vanguard-streak-warning",
+          });
+        }
+      }
+    }, 60 * 60 * 1000); // 1시간마다 체크
+    
+    return () => clearInterval(notifTimer);
+  }, [isGuest, nickname, records, streak]);
+
   // 실패 후 연속 개입 타이머
   useEffect(() => {
     if (!failTime) return;
@@ -3071,6 +3113,29 @@ ${chatHistory}
                 <span className="text-[0.85rem] text-[#1A1A2E] font-medium">실행 점수</span>
                 <span className="text-[0.85rem] text-[#9CA3AF]">{records.reduce((s, r) => s + (r.done ? 20 : -10), 0)}점</span>
               </div>
+            </div>
+
+            {/* 알림 설정 */}
+            <div className="bg-white border border-[#E5E7EB] rounded-3xl mb-3">
+              <div className="px-4 py-3 border-b border-[#E5E7EB]/50">
+                <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-wider uppercase">알림</div>
+              </div>
+              <button onClick={async () => {
+                if ("Notification" in window) {
+                  const perm = await Notification.requestPermission();
+                  if (perm === "granted") {
+                    new Notification("Vanguard", { body: "알림이 설정되었습니다. 매일 미션을 놓치지 않게 알려드리겠습니다.", icon: "/icon-192x192.png" });
+                    alert("알림이 활성화되었습니다!");
+                  } else {
+                    alert("알림 권한을 허용해주세요. 브라우저 설정에서 변경할 수 있습니다.");
+                  }
+                } else {
+                  alert("이 브라우저는 알림을 지원하지 않습니다.");
+                }
+              }} className="w-full flex items-center justify-between px-4 py-3.5">
+                <span className="text-[0.85rem] text-[#1A1A2E] font-medium">알림 허용하기</span>
+                <span className="text-[0.75rem] text-[#9CA3AF]">{"Notification" in window && Notification.permission === "granted" ? "✓ 활성" : "비활성"}</span>
+              </button>
             </div>
 
             {/* 코칭 스타일 */}
