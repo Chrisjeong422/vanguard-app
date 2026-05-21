@@ -1359,9 +1359,9 @@ ${chatHistory}
                 <div>
                   <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">반가워요! 🎯</div>
                   <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 당신에게 맞는 미션을 만들기 위해 3가지만 알려주세요.</div>
-                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">나는 어떤 사람인가요?</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {["학생", "직장인", "창업자", "프리랜서", "취준생", "기타"].map(opt => (
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">당신은 어떤 유형인가요?</div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {["계획은 세우는데 실행을 못 함", "시작은 하는데 중간에 포기함", "아예 시작을 못 함", "매일 미루다가 하루가 끝남"].map(opt => (
                       <button key={opt} onClick={() => { setProfileOccupation(opt); setOnboardStep(1); }}
                         className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileOccupation === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
                         {opt}
@@ -1386,10 +1386,10 @@ ${chatHistory}
               )}
               {onboardStep === 2 && (
                 <div>
-                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">가장 큰 실행 장애물은?</div>
-                  <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 이 패턴을 먼저 잡아줍니다.</div>
+                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">지금 가장 하고 싶은 건?</div>
+                  <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 여기에 맞춰 미션을 만들어줍니다.</div>
                   <div className="grid grid-cols-1 gap-2">
-                    {["시작 자체가 어려움", "시작은 하는데 중간에 포기", "계획만 세우고 실행 못 함", "피곤해서 무너짐"].map(opt => (
+                    {["운동/다이어트", "공부/시험", "일/프로젝트", "아직 모르겠는데 뭐라도 시작하고 싶음"].map(opt => (
                       <button key={opt} onClick={async () => {
                         setProfileObstacle(opt);
                         await updateUserProfile(nickname, { occupation: profileOccupation, focus_time: profileFocusTime, obstacle: opt });
@@ -1411,10 +1411,10 @@ ${chatHistory}
                   <div className="bg-[#F5F3FF] rounded-2xl p-4 mb-3">
                     <div className="text-[0.75rem] text-[#7C3AED] font-bold tracking-wider mb-2">당신의 실행 유형</div>
                     <div className="text-[0.95rem] font-black text-[#1A1A2E] mb-1">
-                      {profileFocusTime === "morning" ? "아침형" : profileFocusTime === "forenoon" ? "오전형" : profileFocusTime === "afternoon" ? "오후형" : "저녁형"} {profileObstacle === "시작 자체가 어려움" ? "회피자" : profileObstacle === "시작은 하는데 중간에 포기" ? "중단자" : profileObstacle === "계획만 세우고 실행 못 함" ? "계획가" : "에너지 소진형"}
+                      {profileFocusTime === "morning" ? "아침형" : profileFocusTime === "forenoon" ? "오전형" : profileFocusTime === "afternoon" ? "오후형" : "저녁형"} {profileOccupation === "계획은 세우는데 실행을 못 함" ? "계획가" : profileOccupation === "시작은 하는데 중간에 포기함" ? "중단자" : profileOccupation === "아예 시작을 못 함" ? "회피자" : "미루기 전문가"}
                     </div>
                     <div className="text-[0.8rem] text-[#6B7280] leading-relaxed">
-                      {profileObstacle === "시작 자체가 어려움" ? "시작의 마찰을 극단적으로 줄여야 합니다. AI가 3분짜리 미션부터 시작합니다." : profileObstacle === "시작은 하는데 중간에 포기" ? "중간에 무너지는 패턴을 AI가 감지하고, 그 순간 개입합니다." : profileObstacle === "계획만 세우고 실행 못 함" ? "계획은 AI가 세웁니다. 당신은 실행만 하면 됩니다." : "에너지가 높은 시간에 중요한 미션을 배치합니다."}
+                      {profileOccupation === "계획은 세우는데 실행을 못 함" ? "계획은 AI가 세웁니다. 당신은 오늘 1개만 실행하면 됩니다." : profileOccupation === "시작은 하는데 중간에 포기함" ? "중간에 무너지는 패턴을 AI가 감지하고, 그 순간 3분짜리로 줄여서 다시 시작하게 만듭니다." : profileOccupation === "아예 시작을 못 함" ? "시작의 마찰을 극단적으로 줄입니다. AI가 30초짜리 미션부터 시작합니다." : "AI가 매일 미루기 전에 먼저 찾아옵니다. 알림으로 잡고, 미션을 극단적으로 작게 만듭니다."}
                     </div>
                   </div>
                   <div className="bg-[#FEF2F2] rounded-2xl p-4 mb-3">
@@ -1426,7 +1426,7 @@ ${chatHistory}
                   <div className="bg-[#F0FDF4] rounded-2xl p-4 mb-4">
                     <div className="text-[0.75rem] text-[#4ADE80] font-bold tracking-wider mb-1">AI 전략</div>
                     <div className="text-[0.8rem] text-[#1A1A2E] font-medium">
-                      AI가 {profileOccupation}인 당신에게 맞는 미션을 만들고, 무너지는 순간을 잡아줍니다.
+                      {profileObstacle === "아직 모르겠는데 뭐라도 시작하고 싶음" ? "목표가 없어도 괜찮습니다. AI가 오늘 딱 하나만 정해줍니다. 시작하면 방향이 보입니다." : `AI가 ${profileObstacle}에 맞는 미션을 만들고, 무너지는 순간을 잡아줍니다.`}
                     </div>
                   </div>
                   <button onClick={() => { setShowOnboarding(false); setOnboardStep(0); }}
