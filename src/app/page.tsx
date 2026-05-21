@@ -1396,14 +1396,43 @@ ${chatHistory}
                         localStorage.setItem("vanguard_occupation", profileOccupation);
                         localStorage.setItem("vanguard_focus_time", profileFocusTime);
                         localStorage.setItem("vanguard_obstacle", opt);
-                        setShowOnboarding(false);
-                        setOnboardStep(0);
+                        setOnboardStep(3);
                       }}
                         className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileObstacle === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
                         {opt}
                       </button>
                     ))}
                   </div>
+                </div>
+              )}
+              {onboardStep === 3 && (
+                <div>
+                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-2">AI 분석 완료</div>
+                  <div className="bg-[#F5F3FF] rounded-2xl p-4 mb-3">
+                    <div className="text-[0.75rem] text-[#7C3AED] font-bold tracking-wider mb-2">당신의 실행 유형</div>
+                    <div className="text-[0.95rem] font-black text-[#1A1A2E] mb-1">
+                      {profileFocusTime === "morning" ? "아침형" : profileFocusTime === "forenoon" ? "오전형" : profileFocusTime === "afternoon" ? "오후형" : "저녁형"} {profileObstacle === "시작 자체가 어려움" ? "회피자" : profileObstacle === "시작은 하는데 중간에 포기" ? "중단자" : profileObstacle === "계획만 세우고 실행 못 함" ? "계획가" : "에너지 소진형"}
+                    </div>
+                    <div className="text-[0.8rem] text-[#6B7280] leading-relaxed">
+                      {profileObstacle === "시작 자체가 어려움" ? "시작의 마찰을 극단적으로 줄여야 합니다. AI가 3분짜리 미션부터 시작합니다." : profileObstacle === "시작은 하는데 중간에 포기" ? "중간에 무너지는 패턴을 AI가 감지하고, 그 순간 개입합니다." : profileObstacle === "계획만 세우고 실행 못 함" ? "계획은 AI가 세웁니다. 당신은 실행만 하면 됩니다." : "에너지가 높은 시간에 중요한 미션을 배치합니다."}
+                    </div>
+                  </div>
+                  <div className="bg-[#FEF2F2] rounded-2xl p-4 mb-3">
+                    <div className="text-[0.75rem] text-[#EF4444] font-bold tracking-wider mb-1">위험 예측</div>
+                    <div className="text-[0.8rem] text-[#1A1A2E] font-medium">
+                      {profileFocusTime === "evening" ? "저녁 9시 이후에 무너질 확률이 가장 높습니다." : profileFocusTime === "afternoon" ? "오후 늦은 시간에 집중력이 떨어질 수 있습니다." : "오전에 시작하지 못하면 하루 전체가 무너질 수 있습니다."}
+                    </div>
+                  </div>
+                  <div className="bg-[#F0FDF4] rounded-2xl p-4 mb-4">
+                    <div className="text-[0.75rem] text-[#4ADE80] font-bold tracking-wider mb-1">AI 전략</div>
+                    <div className="text-[0.8rem] text-[#1A1A2E] font-medium">
+                      AI가 {profileOccupation}인 당신에게 맞는 미션을 만들고, 무너지는 순간을 잡아줍니다.
+                    </div>
+                  </div>
+                  <button onClick={() => { setShowOnboarding(false); setOnboardStep(0); }}
+                    className="w-full bg-[#4F46E5] text-white font-bold rounded-2xl py-3.5 text-[0.88rem] press-effect">
+                    시작하기
+                  </button>
                 </div>
               )}
             </div>
