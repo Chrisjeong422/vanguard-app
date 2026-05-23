@@ -335,6 +335,7 @@ export default function VanguardHome() {
   const [coachMessages, setCoachMessages] = useState<{role: string; text: string}[]>([]);
   const [coachInput, setCoachInput] = useState("");
   const [coachLoading, setCoachLoading] = useState(false);
+  const [onboardAiResult, setOnboardAiResult] = useState<any>(null);
   const [onboardStep, setOnboardStep] = useState(0);
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
@@ -1396,7 +1397,29 @@ ${chatHistory}
                         localStorage.setItem("vanguard_occupation", profileOccupation);
                         localStorage.setItem("vanguard_focus_time", profileFocusTime);
                         localStorage.setItem("vanguard_obstacle", opt);
+                        setOnboardAiResult(null);
                         setOnboardStep(3);
+                        // AI 분석 호출
+                        (async () => {
+                          try {
+                            const prompt = `너는 실행 심리 전문가다. 유저 프로필을 분석해서 JSON만 출력해라.
+유저 정보: 실행 유형="${profileOccupation}", 집중 시간="${profileFocusTime === "morning" ? "아침" : profileFocusTime === "forenoon" ? "오전" : profileFocusTime === "afternoon" ? "오후" : "저녁"}", 목표="${opt}"
+반드시 이 JSON 형식만 출력: {"type":"2~4글자 실행 유형 이름","description":"이 유형의 특징 1줄","risk":"이 유형이 가장 무너지기 쉬운 시간과 상황 1줄","strategy":"AI가 이 유형에게 적용할 전략 1줄","firstMission":"오늘 당장 할 수 있는 구체적 미션 1개 (10글자 이내)"}`;
+                            const res = await fetch("/api/gemini", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
+                            const data = await res.json();
+                            const text = (data.text || "").replace(/```json|```/g, "").trim();
+                            const parsed = JSON.parse(text);
+                            setOnboardAiResult(parsed);
+                          } catch {
+                            setOnboardAiResult({
+                              type: (profileFocusTime === "morning" ? "아침형 " : profileFocusTime === "forenoon" ? "오전형 " : profileFocusTime === "afternoon" ? "오후형 " : "저녁형 ") + (profileOccupation === "계획은 세우는데 실행을 못 함" ? "계획가" : profileOccupation === "시작은 하는데 중간에 포기함" ? "중단자" : profileOccupation === "아예 시작을 못 함" ? "회피자" : "미루기 전문가"),
+                              description: "AI가 당신의 패턴을 학습하고 맞춤 전략을 적용합니다.",
+                              risk: "집중 시간 외에 무너질 확률이 높습니다.",
+                              strategy: "AI가 미션을 극단적으로 작게 줄여서 시작하게 만듭니다.",
+                              firstMission: "3분 집중하기"
+                            });
+                          }
+                        })();
                       }}
                         className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileObstacle === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
                         {opt}
@@ -1407,32 +1430,38 @@ ${chatHistory}
               )}
               {onboardStep === 3 && (
                 <div>
-                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-2">AI 분석 완료</div>
-                  <div className="bg-[#F5F3FF] rounded-2xl p-4 mb-3">
-                    <div className="text-[0.75rem] text-[#7C3AED] font-bold tracking-wider mb-2">당신의 실행 유형</div>
-                    <div className="text-[0.95rem] font-black text-[#1A1A2E] mb-1">
-                      {profileFocusTime === "morning" ? "아침형" : profileFocusTime === "forenoon" ? "오전형" : profileFocusTime === "afternoon" ? "오후형" : "저녁형"} {profileOccupation === "계획은 세우는데 실행을 못 함" ? "계획가" : profileOccupation === "시작은 하는데 중간에 포기함" ? "중단자" : profileOccupation === "아예 시작을 못 함" ? "회피자" : "미루기 전문가"}
+                  {!onboardAiResult ? (
+                    <div className="text-center py-8">
+                      <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-3">AI가 분석하고 있습니다...</div>
+                      <div className="text-[0.85rem] text-[#6B7280]">당신만을 위한 실행 전략을 만들고 있어요</div>
+                      <div className="mt-4 w-8 h-8 border-2 border-[#4F46E5] border-t-transparent rounded-full animate-spin mx-auto"></div>
                     </div>
-                    <div className="text-[0.8rem] text-[#6B7280] leading-relaxed">
-                      {profileOccupation === "계획은 세우는데 실행을 못 함" ? "계획은 AI가 세웁니다. 당신은 오늘 1개만 실행하면 됩니다." : profileOccupation === "시작은 하는데 중간에 포기함" ? "중간에 무너지는 패턴을 AI가 감지하고, 그 순간 3분짜리로 줄여서 다시 시작하게 만듭니다." : profileOccupation === "아예 시작을 못 함" ? "시작의 마찰을 극단적으로 줄입니다. AI가 30초짜리 미션부터 시작합니다." : "AI가 매일 미루기 전에 먼저 찾아옵니다. 알림으로 잡고, 미션을 극단적으로 작게 만듭니다."}
+                  ) : (
+                    <div>
+                      <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-3">AI 분석 완료</div>
+                      <div className="bg-[#F5F3FF] rounded-2xl p-4 mb-3">
+                        <div className="text-[0.75rem] text-[#7C3AED] font-bold tracking-wider mb-2">당신의 실행 유형</div>
+                        <div className="text-[0.95rem] font-black text-[#1A1A2E] mb-1">{onboardAiResult.type}</div>
+                        <div className="text-[0.8rem] text-[#6B7280] leading-relaxed">{onboardAiResult.description}</div>
+                      </div>
+                      <div className="bg-[#FEF2F2] rounded-2xl p-4 mb-3">
+                        <div className="text-[0.75rem] text-[#EF4444] font-bold tracking-wider mb-1">위험 예측</div>
+                        <div className="text-[0.8rem] text-[#1A1A2E] font-medium">{onboardAiResult.risk}</div>
+                      </div>
+                      <div className="bg-[#F0FDF4] rounded-2xl p-4 mb-3">
+                        <div className="text-[0.75rem] text-[#4ADE80] font-bold tracking-wider mb-1">AI 전략</div>
+                        <div className="text-[0.8rem] text-[#1A1A2E] font-medium">{onboardAiResult.strategy}</div>
+                      </div>
+                      <div className="bg-[#EEF2FF] rounded-2xl p-4 mb-4">
+                        <div className="text-[0.75rem] text-[#4F46E5] font-bold tracking-wider mb-1">오늘 첫 미션</div>
+                        <div className="text-[0.88rem] font-black text-[#1A1A2E]">{onboardAiResult.firstMission}</div>
+                      </div>
+                      <button onClick={() => { setShowOnboarding(false); setOnboardStep(0); }}
+                        className="w-full bg-[#4F46E5] text-white font-bold rounded-2xl py-3.5 text-[0.88rem] press-effect">
+                        시작하기
+                      </button>
                     </div>
-                  </div>
-                  <div className="bg-[#FEF2F2] rounded-2xl p-4 mb-3">
-                    <div className="text-[0.75rem] text-[#EF4444] font-bold tracking-wider mb-1">위험 예측</div>
-                    <div className="text-[0.8rem] text-[#1A1A2E] font-medium">
-                      {profileFocusTime === "evening" ? "저녁 9시 이후에 무너질 확률이 가장 높습니다." : profileFocusTime === "afternoon" ? "오후 늦은 시간에 집중력이 떨어질 수 있습니다." : "오전에 시작하지 못하면 하루 전체가 무너질 수 있습니다."}
-                    </div>
-                  </div>
-                  <div className="bg-[#F0FDF4] rounded-2xl p-4 mb-4">
-                    <div className="text-[0.75rem] text-[#4ADE80] font-bold tracking-wider mb-1">AI 전략</div>
-                    <div className="text-[0.8rem] text-[#1A1A2E] font-medium">
-                      {profileObstacle === "아직 모르겠는데 뭐라도 시작하고 싶음" ? "목표가 없어도 괜찮습니다. AI가 오늘 딱 하나만 정해줍니다. 시작하면 방향이 보입니다." : `AI가 ${profileObstacle}에 맞는 미션을 만들고, 무너지는 순간을 잡아줍니다.`}
-                    </div>
-                  </div>
-                  <button onClick={() => { setShowOnboarding(false); setOnboardStep(0); }}
-                    className="w-full bg-[#4F46E5] text-white font-bold rounded-2xl py-3.5 text-[0.88rem] press-effect">
-                    시작하기
-                  </button>
+                  )}
                 </div>
               )}
             </div>
