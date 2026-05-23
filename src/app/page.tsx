@@ -1639,52 +1639,22 @@ ${chatHistory}
 
                   return (
                     <div>
-                      {/* === 핵심 영역: 할 것 + 진행률 + 시작 === */}
-                      <div className="pt-4 pb-2">
-                        {/* AI 오늘의 분석 */}
-                        {dailyAiInsight && (
-                          <div className="bg-[#EEF2FF] rounded-3xl p-4 mb-4 text-center">
-                            <div className="text-[0.75rem] text-[#4F46E5] font-bold mb-1">AI 분석</div>
-                            <div className="text-[0.88rem] text-[#1A1A2E] leading-relaxed">{dailyAiInsight}</div>
-                          </div>
-                        )}
-
+                      {/* === 핵심: 지금 할 것 먼저 === */}
+                      <div className="pt-2 pb-2">
                         {/* 상태 한 줄 */}
-                        <div className="text-[0.88rem] text-[#6B7280] text-center mb-8 leading-relaxed">
+                        <div className="text-[0.85rem] text-[#6B7280] text-center mb-4">
                           {statusLine}
                         </div>
 
-                        {/* 원형 진행률 — 화면 중앙, 크게 */}
-                        <div className="flex flex-col items-center mb-8">
-                          <div className="relative">
-                            <svg width="140" height="140" viewBox="0 0 140 140">
-                              <circle cx="70" cy="70" r="58" fill="none" stroke="#F3F4F6" strokeWidth="8" />
-                              <circle cx="70" cy="70" r="58" fill="none" stroke={completedCount === totalCount && totalCount > 0 ? "#22C55E" : "#4F46E5"} strokeWidth="8"
-                                strokeLinecap="round"
-                                strokeDasharray={`${(totalCount > 0 ? completedCount / totalCount : 0) * 2 * Math.PI * 58} ${2 * Math.PI * 58}`}
-                                transform="rotate(-90 70 70)" style={{ transition: "stroke-dasharray 0.6s ease" }} />
-                            </svg>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                              <span className="text-[2rem] font-bold text-[#1A1A2E]">{totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0}%</span>
-                              <span className="text-[0.8rem] text-[#9CA3AF]">{completedCount}/{totalCount} 완료</span>
-                            </div>
+                        {/* 진행률 바 */}
+                        <div className="mb-4">
+                          <div className="flex justify-between text-[0.75rem] text-[#9CA3AF] mb-1">
+                            <span>{completedCount}/{totalCount} 완료</span>
+                            <span>{streak}일 연속 · +{records.filter(r => r.date === today && r.done).length * 20}XP</span>
                           </div>
-                        </div>
-                        {/* 오늘 XP */}
-                        <div className="flex items-center justify-center gap-4 mt-2">
-                          <div className="text-center">
-                            <div className="text-[1.1rem] font-bold text-[#4F46E5]">+{records.filter(r => r.date === today && r.done).length * 20}XP</div>
-                            <div className="text-[0.75rem] text-[#9CA3AF]">오늘</div>
-                          </div>
-                          <div className="w-px h-6 bg-[#E5E7EB]"></div>
-                          <div className="text-center">
-                            <div className="text-[1.1rem] font-bold text-[#1A1A2E]">{streak}일</div>
-                            <div className="text-[0.75rem] text-[#9CA3AF]">연속</div>
-                          </div>
-                          <div className="w-px h-6 bg-[#E5E7EB]"></div>
-                          <div className="text-center">
-                            <div className="text-[1.1rem] font-bold text-[#1A1A2E]">{records.reduce((s, r) => s + (r.done ? 20 : -10), 0)}</div>
-                            <div className="text-[0.75rem] text-[#9CA3AF]">총 XP</div>
+                          <div className="w-full h-2 bg-[#F3F4F6] rounded-full">
+                            <div className="h-2 rounded-full transition-all duration-500" 
+                              style={{width: `${totalCount > 0 ? (completedCount/totalCount)*100 : 0}%`, background: completedCount === totalCount && totalCount > 0 ? "#22C55E" : "#4F46E5"}} />
                           </div>
                         </div>
                       </div>
