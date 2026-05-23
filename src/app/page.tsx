@@ -436,7 +436,7 @@ export default function VanguardHome() {
         }
         const trial = localStorage.getItem("vanguard_guest_trial");
         if (!trial) {
-          router.replace("/landing");
+          router.replace("/login");
         } else {
           setIsGuest(true);
           setNickname("게스트");
