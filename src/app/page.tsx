@@ -693,6 +693,7 @@ export default function VanguardHome() {
       localStorage.setItem("vanguard_nickname", nick);
       setShowOnboarding(true);
       setShowNicknameModal(false);
+      trackEvent("signup", { nickname: nick });
       setNickname(nick);
       setIsGuest(false);
       setShowNicknameModal(false);
@@ -3149,43 +3150,46 @@ ${chatHistory}
             {/* 플랜 관리 */}
             <div className="bg-white border border-[#E5E7EB] rounded-3xl mb-3">
               <div className="px-4 py-3 border-b border-[#E5E7EB]/50">
-                <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-wider uppercase">플랜 관리</div>
+                <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-wider uppercase">플랜 비교</div>
               </div>
-              {userPlan === "free" && (
-                <div>
-                  <button onClick={() => (async () => { await supabase.from("beta_requests").insert([{ nickname, plan: "pro" }]); alert("Pro 베타 신청이 완료되었습니다! 정식 출시 시 가장 먼저 안내드리겠습니다."); })()}
-                    className="w-full flex items-center justify-between px-4 py-3.5 border-b border-[#E5E7EB]/50">
-                    <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Pro 베타 신청</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[0.85rem] text-[#9CA3AF]">베타 신청 가능</span>
-                      <span className="text-[#9CA3AF]">›</span>
-                    </div>
-                  </button>
-                  <button onClick={() => (async () => { await supabase.from("beta_requests").insert([{ nickname, plan: "ultra" }]); alert("Ultra 베타 신청이 완료되었습니다! 정식 출시 시 가장 먼저 안내드리겠습니다."); })()}
-                    className="w-full flex items-center justify-between px-4 py-3.5">
-                    <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Ultra 베타 신청</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[0.85rem] text-[#9CA3AF]">베타 신청 가능</span>
-                      <span className="text-[#9CA3AF]">›</span>
-                    </div>
-                  </button>
-                </div>
-              )}
-              {userPlan === "pro" && (
-                <button onClick={() => (async () => { await supabase.from("beta_requests").insert([{ nickname, plan: "ultra" }]); alert("Ultra 베타 신청이 완료되었습니다! 정식 출시 시 가장 먼저 안내드리겠습니다."); })()}
-                  className="w-full flex items-center justify-between px-4 py-3.5">
-                  <span className="text-[0.85rem] text-[#1A1A2E] font-medium">Ultra 베타 신청</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[0.85rem] text-[#9CA3AF]">베타 신청 가능</span>
-                    <span className="text-[#9CA3AF]">›</span>
+              <div className="p-4 space-y-3">
+                {/* Free */}
+                <div className={`rounded-2xl p-3 ${userPlan === "free" ? "bg-[#F3F4F6] border-2 border-[#4F46E5]" : "bg-[#F9FAFB]"}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="text-[0.85rem] font-bold text-[#1A1A2E]">Free</div>
+                    {userPlan === "free" && <div className="text-[0.7rem] bg-[#4F46E5] text-white px-2 py-0.5 rounded-full">현재</div>}
                   </div>
-                </button>
-              )}
-              {userPlan === "ultra" && (
-                <div className="px-4 py-3.5">
-                  <div className="text-[0.78rem] text-[#7C3AED] font-medium">Ultra 플랜 사용 중 · 베타 신청 가능</div>
+                  <div className="text-[0.75rem] text-[#6B7280] leading-relaxed">AI 스케줄 · 미션 실행 · 3분 복귀 · AI 코치 하루 4회</div>
                 </div>
-              )}
+                {/* Pro */}
+                <div className={`rounded-2xl p-3 ${userPlan === "pro" ? "bg-[#EEF2FF] border-2 border-[#4F46E5]" : "bg-[#F9FAFB]"}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="text-[0.85rem] font-bold text-[#4F46E5]">Pro</div>
+                    {userPlan === "pro" ? <div className="text-[0.7rem] bg-[#4F46E5] text-white px-2 py-0.5 rounded-full">현재</div> : <div className="text-[0.7rem] text-[#9CA3AF]">출시 예정</div>}
+                  </div>
+                  <div className="text-[0.75rem] text-[#6B7280] leading-relaxed">Free 전체 + AI 패턴 분석 · 맞춤 피드백 · 주간 리포트 · AI 코치 무제한</div>
+                  {userPlan === "free" && (
+                    <button onClick={() => (async () => { await supabase.from("beta_requests").insert([{ nickname, plan: "pro" }]); trackEvent("beta_request", { plan: "pro" }); alert("Pro 베타 신청 완료! 정식 출시 시 가장 먼저 안내드립니다."); })()}
+                      className="mt-2 w-full bg-[#4F46E5] text-white text-[0.78rem] font-bold rounded-xl py-2 press-effect">
+                      Pro 베타 신청
+                    </button>
+                  )}
+                </div>
+                {/* Ultra */}
+                <div className={`rounded-2xl p-3 ${userPlan === "ultra" ? "bg-[#F5F3FF] border-2 border-[#7C3AED]" : "bg-[#F9FAFB]"}`}>
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="text-[0.85rem] font-bold text-[#7C3AED]">Ultra</div>
+                    {userPlan === "ultra" ? <div className="text-[0.7rem] bg-[#7C3AED] text-white px-2 py-0.5 rounded-full">현재</div> : <div className="text-[0.7rem] text-[#9CA3AF]">출시 예정</div>}
+                  </div>
+                  <div className="text-[0.75rem] text-[#6B7280] leading-relaxed">Pro 전체 + 실패 예측 · 미접속 개입 · 전체 실행 관리 · 월간 성장 리포트</div>
+                  {userPlan !== "ultra" && (
+                    <button onClick={() => (async () => { await supabase.from("beta_requests").insert([{ nickname, plan: "ultra" }]); trackEvent("beta_request", { plan: "ultra" }); alert("Ultra 베타 신청 완료! 정식 출시 시 가장 먼저 안내드립니다."); })()}
+                      className="mt-2 w-full bg-[#7C3AED] text-white text-[0.78rem] font-bold rounded-xl py-2 press-effect">
+                      Ultra 베타 신청
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* 기타 */}
