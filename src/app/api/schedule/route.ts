@@ -135,7 +135,29 @@ export async function POST(req: NextRequest) {
   const currentTime = `${String(currentHour).padStart(2,"0")}:${String(currentMin).padStart(2,"0")}`;
   const remainingHours = Math.max(1, 23 - currentHour);
   const timeContext = currentHour >= 20 ? "지금은 저녁 늦은 시간이다. 오늘 남은 시간에 할 수 있는 가벼운 미션 1~3개만 만들어라. 취침 준비도 포함해라." : currentHour >= 17 ? "지금은 저녁 시간이다. 오늘 남은 시간에 집중할 수 있는 미션 3~5개를 만들어라." : currentHour >= 12 ? "지금은 오후다. 오후~저녁 시간에 할 미션을 만들어라." : "아침부터 시작하는 하루 전체 스케줄을 만들어라.";
-  const prompt = `하루 스케줄을 JSON으로 만들어. 현재 시간: ${currentTime}. ${timeContext} ${profileContext} ${goalContext} 목표: ${userGoal}. 날짜: ${today}(${dayOfWeek}). 일정: ${existingSchedules}. 난이도 조절: ${difficultyGuide} 최근 성공 ${recentSuccess || 0}회, 실패 ${recentFail || 0}회, 평균 집중시간 ${avgDuration || 15}분. 현재 시간 이후의 블록만 만들어라. 지나간 시간의 블록은 만들지 마라. 블록은 최소 3개, 최대 10개. JSON만 출력. {"wake_time":"${String(Math.min(currentHour, 7)).padStart(2,"0")}:00","sleep_time":"23:00","strategy":"전략","blocks":[{"id":"b1","start":"${currentTime}","end":"${String(currentHour).padStart(2,"0")}:30","type":"routine","title":"제목","description":"설명","priority":"medium","energy_required":"low"}],"risk_slots":["위험시간"],"top_priority":"최우선1개"}`;
+  const prompt = `너는 세계 최고의 실행 코치다. 유저의 하루 스케줄을 JSON으로 만들어라.
+
+현재 시간: ${currentTime}. ${timeContext}
+${profileContext}
+${goalContext}
+목표: ${userGoal}. 날짜: ${today}(${dayOfWeek}).
+기존 일정: ${existingSchedules}.
+${difficultyGuide}
+최근 성공 ${recentSuccess || 0}회, 실패 ${recentFail || 0}회, 평균 집중시간 ${avgDuration || 15}분.
+
+핵심 규칙:
+1. 현재 시간(${currentTime}) 이후의 블록만 만들어라. 지나간 시간은 절대 만들지 마라.
+2. 블록은 최소 3개, 최대 8개.
+3. 미션 제목은 반드시 구체적인 행동이어야 한다. "30분 집중", "독서 준비" 같은 애매한 제목 금지.
+4. 좋은 예: "팔굽혀펴기 20개", "영어 단어 30개 암기", "보고서 서론 500자 쓰기", "스쿼트 3세트", "코드 리뷰 3개"
+5. 나쁜 예: "운동하기", "공부하기", "독서", "집중 시간", "휴식 및 정리"
+6. 유저 목표가 있으면 그 목표에 직접 연결되는 미션을 만들어라. 다이어트면 운동+식단, 공부면 과목별 구체적 분량.
+7. 목표가 없으면 "3분 스트레칭", "물 한 잔 마시기", "오늘 할 일 1개 적기" 같은 극단적으로 쉬운 것부터 시작해라.
+8. 각 블록 사이에 최소 10분 간격을 둬라.
+9. description에는 "왜 이걸 해야 하는지" 한 줄을 써라.
+
+JSON만 출력. 다른 텍스트 쓰지 마라.
+{"wake_time":"${String(Math.min(currentHour, 7)).padStart(2,"0")}:00","sleep_time":"23:00","strategy":"오늘의 전략 한 줄","blocks":[{"id":"b1","start":"${currentTime}","end":"${String(currentHour).padStart(2,"0")}:30","type":"task","title":"구체적 행동","description":"왜 해야 하는지","priority":"high","energy_required":"medium"}],"risk_slots":["위험시간"],"top_priority":"오늘 가장 중요한 1개"}`;
 
   try {
     const geminiRes = await fetch(

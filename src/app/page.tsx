@@ -1321,18 +1321,23 @@ ${chatHistory}
                   setCoachMessages(prev => [...prev, { role: "user", text: userMsg }]);
                   setCoachLoading(true);
                   try {
-                    const todayDone = records.filter(r => r.date === today && r.done).length;
-                    const todayFail = records.filter(r => r.date === today && !r.done).length;
-                    const recentFails = records.filter(r => !r.done).slice(-5).map(r => r.fail_reason || "알 수 없음").join(", ");
+                    const ctx = await getUserContext(nickname);
+                    const chatHistory = coachMessages.slice(-6).map(m => `${m.role === "user" ? "유저" : "코치"}: ${m.text}`).join("\n");
                     const prompt = `너는 Vanguard AI 실행 코치다. 유저와 1:1 대화 중이다.
-유저 정보: 닉네임=${nickname}, 목표=${goal || "미설정"}, 스트릭=${streak}일, 오늘 완료=${todayDone}개, 오늘 실패=${todayFail}개, 최근 실패 이유=${recentFails || "없음"}.
+
+${contextToPrompt(ctx)}
+
+최근 대화:
+${chatHistory}
+
 유저 질문: "${userMsg}"
-규칙:
-- 3줄 이내로 답해라.
-- 유저의 데이터를 기반으로 구체적으로 답해라.
-- 공감하되 단호하게.
-- "다시 시작"을 항상 방향으로 잡아라.
-- 이모지 쓰지마.`;
+
+핵심 규칙:
+1. 절대 공감만 하지 마라. 모든 답변에 반드시 "지금 당장 할 수 있는 구체적 행동 1가지"를 포함해라.
+2. 유저의 실제 데이터를 인용해라.
+3. 이전 대화와 다른 표현을 사용해라.
+4. 유저의 목표(${ctx.goal})에 맞는 구체적 미션을 제안해라.
+5. 3줄 이내. 이모지 쓰지마. 단호하고 구체적으로.`;
                     const res = await fetch("/api/gemini", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
@@ -1340,6 +1345,7 @@ ${chatHistory}
                     });
                     const data = await res.json();
                     setCoachMessages(prev => [...prev, { role: "ai", text: data.text || "응답을 불러올 수 없습니다." }]);
+                    await saveAiLog(nickname, "coach_chat_click", { question: userMsg }, { answer: data.text }, ctx);
                   } catch {
                     setCoachMessages(prev => [...prev, { role: "ai", text: "연결 오류. 다시 시도해주세요." }]);
                   }
@@ -1696,59 +1702,13 @@ ${chatHistory}
                         </div>
                       )}
 
-                      {yesterdayLetter && !userState.consecutiveFails && (
-                        <div className="bg-[#F9FAFB] rounded-3xl p-5 mb-5">
-                          <div className="text-[0.8rem] text-[#9CA3AF] mb-2">어제의 나로부터</div>
-                          <div className="text-[0.88rem] text-[#1A1A2E] leading-relaxed">{yesterdayLetter}</div>
-                        </div>
-                      )}
 
-                      {userPlan !== "free" && streak === 0 && userState.consecutiveFails === 1 && (
-                        <div className="bg-[#FFFBEB] rounded-3xl p-5 mb-5">
-                          <div className="text-[0.88rem] font-bold text-[#1A1A2E] mb-1">스트릭이 끊어졌습니다</div>
-                          <div className="text-[0.85rem] text-[#6B7280]">미션 1개를 완료하면 복구할 수 있습니다</div>
-                        </div>
-                      )}
 
-                      {/* 패턴 브레이커 경고 (Pro/Ultra) */}
-                      {userPlan !== "free" && (() => {
-                        const riskyHour = getRiskyHour(records);
-                        const pb = getPatternBreakerMessage(hour, riskyHour, userPlan);
-                        if (pb.show) return (
-                          <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-2xl p-4 mb-5">
-                            <div className="text-[0.82rem] text-[#FCA5A5] font-bold mb-1">{pb.message}</div>
-                            <div className="text-[0.85rem] text-[#6B7280]">{pb.sub}</div>
-                          </div>
-                        );
-                        return null;
-                      })()}
 
-                      {/* Ultra 선제 개입 — 내일 위험 예측 */}
-                      {userPlan === "ultra" && (() => {
-                        const failsByHour = records.filter(r => !r.done && r.hour_of_day !== undefined);
-                        if (failsByHour.length < 3) return null;
-                        const hourCounts: Record<number, number> = {};
-                        failsByHour.forEach(r => { hourCounts[r.hour_of_day!] = (hourCounts[r.hour_of_day!] || 0) + 1; });
-                        const sorted = Object.entries(hourCounts).sort((a, b) => Number(b[1]) - Number(a[1]));
-                        const peakHour = Number(sorted[0][0]);
-                        const peakCount = Number(sorted[0][1]);
-                        const hoursUntil = peakHour - hour;
-                        if (hoursUntil > 0 && hoursUntil <= 3) return (
-                          <div className="bg-[#F5F3FF] border border-[#DDD6FE] rounded-2xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
-                            <div className="text-[0.75rem] text-[#7C3AED] font-bold tracking-wider mb-1">ULTRA 선제 개입</div>
-                            <div className="text-[0.88rem] font-black text-[#1A1A2E] mb-1">오늘 {peakHour}시에 무너질 확률이 높습니다.</div>
-                            <div className="text-[0.85rem] text-[#6B7280]">{peakCount}번 같은 시간에 실패했습니다. 지금 미리 3분 시작하면 오늘은 버틸 수 있습니다.</div>
-                          </div>
-                        );
-                        if (hoursUntil === 0) return (
-                          <div className="bg-[#FEF2F2] border border-[#FCA5A5] rounded-2xl p-4 mb-4" style={{animation: "fadeIn 0.5s ease-in"}}>
-                            <div className="text-[0.75rem] text-[#FCA5A5] font-bold tracking-wider mb-1">ULTRA 긴급 개입</div>
-                            <div className="text-[0.88rem] font-black text-[#FCA5A5] mb-1">지금이 당신이 항상 무너지는 시간입니다.</div>
-                            <div className="text-[0.85rem] text-[#6B7280]">이 시간을 버텨내면 오늘은 이깁니다. 지금 바로 시작하세요.</div>
-                          </div>
-                        );
-                        return null;
-                      })()}
+
+
+
+
 
                       {/* 오늘 할 것 1개 */}
                       {nextBlock ? (
