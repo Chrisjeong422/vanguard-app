@@ -822,7 +822,7 @@ export default function VanguardHome() {
       const feedbackPrompt = userPlan === "free"
         ? `너는 실행 코치다. 유저가 "${currentMission}"을 완료했다. 오늘 ${doneCount}개 완료, ${failCount}개 실패. 스트릭 ${streak}일. 한 줄로 강하게 인정하고 다음 행동을 촉구해라. 이모지 쓰지마.`
         : `너는 전문 실행 코치다. 유저가 "${currentMission}"을 ${Math.floor(elapsedSeconds/60)}분 동안 실행해서 완료했다. 오늘 ${doneCount}개 완료, ${failCount}개 실패. 스트릭 ${streak}일. 유저 직업: ${localStorage.getItem("vanguard_occupation") || "미설정"}. 목표: ${goal || "미설정"}.
-3줄로 피드백해라:
+질문에 맞는 적절한 길이로 피드백해라:
 1줄: 이 미션에서 잘한 점을 구체적으로 인정해라.
 2줄: 이 미션의 결과물을 더 발전시킬 구체적 방법 1가지를 제안해라.
 3줄: 다음에 해야 할 구체적 행동 1가지를 제시해라.
@@ -1340,7 +1340,7 @@ ${chatHistory}
 2. 유저의 실제 데이터를 인용해라.
 3. 이전 대화와 다른 표현을 사용해라.
 4. 유저의 목표(${ctx.goal})에 맞는 구체적 미션을 제안해라.
-5. 3줄 이내. 이모지 쓰지마. 단호하고 구체적으로.`;
+5. 답변 길이는 질문에 맞게 조절해라. 간단한 질문은 1~2줄, 복잡한 질문은 5~7줄까지. 이모지 쓰지마. 단호하고 구체적으로.`;
                     const res = await fetch("/api/gemini", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
