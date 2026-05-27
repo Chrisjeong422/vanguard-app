@@ -796,15 +796,9 @@ export default function VanguardHome() {
   async function handleComplete() {
     if (!isGuest && nickname) {
       await saveRecord({ nickname, date: today, task: currentMission, done: true, hour_of_day: hour });
+      await loadUserData(nickname);
     }
     setFailTime(null);
-    // records를 즉시 로컬에서도 업데이트 (XP 즉시 반영)
-    setRecords(prev => [...prev, { nickname, date: today, task: currentMission, done: true, hour_of_day: hour }]);
-    setStreak(prev => prev + (records.filter(r => r.date === today && r.done).length === 0 ? 1 : 0));
-    // DB에서도 전체 다시 로드 (백그라운드)
-    if (!isGuest && nickname) {
-      loadUserData(nickname);
-    }
     // 내일 스케줄 미리 생성
     if (userPlan !== "free") {
       const tomorrow = kstDateStr(Date.now() + 86400000);
