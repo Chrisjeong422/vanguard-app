@@ -545,10 +545,12 @@ export default function VanguardHome() {
     setGoal(g);
     setGoalInput(g);
 
-    if (recs.length === 0 && !g) {
+    const savedType = localStorage.getItem("vanguard_user_type");
+    if (recs.length === 0 && !g && !savedType) {
       setIsNewUser(true);
     } else {
       setIsNewUser(false);
+      if (savedType) setUserType(savedType as "planner" | "starter" | "repeater");
     }
 
     try {
