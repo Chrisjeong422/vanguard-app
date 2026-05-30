@@ -2702,24 +2702,27 @@ ${chatHistory}
                 <div className="text-[0.75rem] text-[#4F46E5] font-medium">이번 주</div>
               </div>
               {(() => {
-                // 진짜 유저 데이터 기반 리더보드. 내가 없으면 추가.
-                let board = [...leaderboard];
-                if (nickname && !board.find(u => u.nickname === nickname)) {
+                let fullBoard = [...leaderboard];
+                if (nickname && !fullBoard.find(u => u.nickname === nickname)) {
                   const weekAgo = kstDateStr(Date.now() - 7 * 86400000);
                   const myWeekXP = records.filter(r => r.date >= weekAgo && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0);
-                  board.push({ nickname, xp: myWeekXP });
+                  fullBoard.push({ nickname, xp: myWeekXP });
                 }
-                board = board.sort((a, b) => b.xp - a.xp).slice(0, 10);
+                fullBoard = fullBoard.sort((a, b) => b.xp - a.xp);
+                const myIndex = fullBoard.findIndex(u => u.nickname === nickname);
+                const myRank = myIndex + 1;
+                const top10 = fullBoard.slice(0, 10);
                 const medals = ["🥇", "🥈", "🥉"];
-                if (board.length === 0) {
+                if (fullBoard.length === 0) {
                   return <div className="text-center py-6 text-[0.85rem] text-[#9CA3AF]">아직 이번 주 기록이 없습니다. 첫 미션을 완료하면 순위가 생깁니다.</div>;
                 }
+                const iAmInTop10 = myIndex >= 0 && myIndex < 10;
                 return (
                   <div>
-                    {board.map((user, i) => {
+                    {top10.map((user, i) => {
                       const isMe = user.nickname === nickname;
                       return (
-                        <div key={user.nickname} className={`flex items-center gap-3 py-3 ${i < board.length - 1 ? "border-b border-[#F3F4F6]" : ""} ${isMe ? "bg-[#EEF2FF] -mx-5 px-5 rounded-2xl" : ""}`}>
+                        <div key={user.nickname} className={`flex items-center gap-3 py-3 border-b border-[#F3F4F6] ${isMe ? "bg-[#EEF2FF] -mx-5 px-5 rounded-2xl" : ""}`}>
                           <div className="w-8 text-center text-[1rem]">{i < 3 ? medals[i] : <span className="text-[0.85rem] text-[#9CA3AF] font-medium">{i + 1}</span>}</div>
                           <div className="flex-1">
                             <div className={`text-[0.88rem] ${isMe ? "font-bold text-[#4F46E5]" : "font-medium text-[#1A1A2E]"}`}>
@@ -2730,8 +2733,17 @@ ${chatHistory}
                         </div>
                       );
                     })}
+                    {!iAmInTop10 && myIndex >= 0 && (
+                      <div className="flex items-center gap-3 py-3 bg-[#EEF2FF] -mx-5 px-5 rounded-2xl mt-1">
+                        <div className="w-8 text-center text-[0.85rem] text-[#4F46E5] font-bold">{myRank}</div>
+                        <div className="flex-1">
+                          <div className="text-[0.88rem] font-bold text-[#4F46E5]">{nickname} ← 나</div>
+                        </div>
+                        <div className="text-[0.88rem] font-bold text-[#4F46E5]">{fullBoard[myIndex].xp} XP</div>
+                      </div>
+                    )}
                     <div className="text-center mt-3 pt-3 border-t border-[#F3F4F6]">
-                      <div className="text-[0.8rem] text-[#9CA3AF]">매주 월요일 리셋 · 실행할수록 순위 상승</div>
+                      <div className="text-[0.8rem] text-[#9CA3AF]">전체 {fullBoard.length}명 · 매주 월요일 리셋</div>
                     </div>
                   </div>
                 );
