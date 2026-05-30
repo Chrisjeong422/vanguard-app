@@ -565,7 +565,7 @@ export default function VanguardHome() {
     const recs = await getRecords(nick);
     setRecords(recs);
     setStreak(calcStreak(recs));
-    getWeeklyLeaderboard().then(setLeaderboard).catch(() => {});
+fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderboard || [])).catch(() => {});
     setFailCount(calcFailCount(recs));
     const schs = await getSchedules(nick);
     setSchedules(schs);
