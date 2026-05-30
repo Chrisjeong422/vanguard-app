@@ -551,14 +551,15 @@ export default function VanguardHome() {
   // AI 로그 저장 — 미래 자체 AI 학습용
   async function saveAiLog(nick: string, logType: string, input: any, output: any, context: any) {
     try {
-      await supabase.from("ai_logs").insert([{
+      const { error } = await supabase.from("ai_logs").insert([{
         nickname: nick,
         log_type: logType,
         input_data: input,
         output_data: output,
         context: context,
       }]);
-    } catch {}
+      if (error) console.error("ai_logs 저장 실패:", error.message);
+    } catch (e) { console.error("ai_logs 예외:", e); }
   }
 
   const loadUserData = useCallback(async (nick: string) => {
@@ -822,12 +823,13 @@ fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderb
 
   async function trackEvent(eventType: string, data: Record<string, unknown> = {}) {
     try {
-      await supabase.from("user_events").insert([{
+      const { error } = await supabase.from("user_events").insert([{
         nickname,
         event_type: eventType,
         event_data: data,
       }]);
-    } catch {}
+      if (error) console.error("user_events 저장 실패:", error.message);
+    } catch (e) { console.error("user_events 예외:", e); }
   }
   async function saveCoachChat(role: string, text: string) {
     if (isGuest || !nickname) return;
