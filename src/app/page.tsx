@@ -35,6 +35,9 @@ type HomeMode = "mission_input" | "running" | "done" | "fail";
 // ── 유저 상태 타입 ──
 type UserState = {
   lastSuccess: boolean;
+  comebackToday: boolean;
+  weeklyComebacks: number;
+  gapDays: number;
   failStreak: number;
   currentHour: number;
   todayCompleted: boolean;
@@ -278,7 +281,22 @@ function calcUserState(records: ExecutionRecord[], hour: number): UserState {
   const thisWeekFails = records.filter(r => !r.done && r.date >= weekAgo).length;
   const failStreak = records.filter(r => !r.done).length;
 
-  return { lastSuccess, failStreak, currentHour: hour, todayCompleted, consecutiveFails, thisWeekFails };
+  let gapDays = 0;
+  for (let i = 1; i <= 30; i++) {
+    const d = kstDateStr(Date.now() - 86400000 * i);
+    if (byDate[d] === undefined || byDate[d] === false) gapDays++;
+    else break;
+  }
+  const comebackToday = todayCompleted && gapDays >= 1;
+  let weeklyComebacks = 0;
+  for (let i = 0; i <= 6; i++) {
+    const d = kstDateStr(Date.now() - 86400000 * i);
+    const prevD = kstDateStr(Date.now() - 86400000 * (i + 1));
+    if (byDate[d] === true && (byDate[prevD] === false || byDate[prevD] === undefined)) {
+      weeklyComebacks++;
+    }
+  }
+  return { lastSuccess, failStreak, currentHour: hour, todayCompleted, consecutiveFails, thisWeekFails, comebackToday, weeklyComebacks, gapDays };
 }
 
 export default function VanguardHome() {
@@ -1679,10 +1697,21 @@ ${chatHistory}
                     <div>
                       {/* === 핵심: 지금 할 것 먼저 === */}
                       <div className="pt-2 pb-2">
-                        {/* 상태 한 줄 */}
-                        <div className="text-[0.85rem] text-[#6B7280] text-center mb-4">
-                          {statusLine}
-                        </div>
+                        {/* 복귀 메시지 */}
+                        {userState.gapDays >= 1 && !userState.todayCompleted ? (
+                          <div className="text-center mb-4">
+                            <div className="text-[0.78rem] text-[#9CA3AF] mb-1">{userState.gapDays}일 쉬었습니다</div>
+                            <div className="text-[1rem] font-black text-[#1A1A2E]">하지만 지금 돌아왔습니다</div>
+                          </div>
+                        ) : userState.comebackToday ? (
+                          <div className="text-center mb-4">
+                            <div className="text-[1rem] font-black text-[#4F46E5]">돌아온 걸 환영합니다</div>
+                          </div>
+                        ) : (
+                          <div className="text-[0.85rem] text-[#6B7280] text-center mb-4">
+                            {statusLine}
+                          </div>
+                        )}
 
                         {/* 진행률 바 */}
                         <div className="mb-4">
@@ -1695,6 +1724,12 @@ ${chatHistory}
                               style={{width: `${totalCount > 0 ? (completedCount/totalCount)*100 : 0}%`, background: completedCount === totalCount && totalCount > 0 ? "#22C55E" : "#4F46E5"}} />
                           </div>
                         </div>
+                        {/* 복귀 횟수 - Vanguard 정체성 */}
+                        {userState.weeklyComebacks >= 1 && (
+                          <div className="bg-[#EEF2FF] rounded-2xl p-3 mb-4 text-center">
+                            <div className="text-[0.85rem] font-bold text-[#4F46E5]">당신은 이번 주 포기하지 않고 {userState.weeklyComebacks}번 다시 시작했습니다</div>
+                          </div>
+                        )}
                       </div>
 
                       {/* === 알림 영역 (있을 때만) === */}
