@@ -103,12 +103,18 @@ export async function POST(req: NextRequest) {
 
 
   // 유저 프로필 가져오기
-  const { data: userProfile } = await supabaseAdmin.from("users").select("occupation, focus_time, obstacle, goal").eq("nickname", nickname).single();
+  const { data: userProfile } = await supabaseAdmin.from("users").select("occupation, focus_time, obstacle, goal, age, personality, want_to_do, priority, free_time").eq("nickname", nickname).single();
   const occupation = userProfile?.occupation || "";
   const focusTime = userProfile?.focus_time || "";
   const obstacle = userProfile?.obstacle || "";
+  const age = userProfile?.age || "";
+  const personality = userProfile?.personality || "";
+  const wantToDo = userProfile?.want_to_do || "";
+  const priority = userProfile?.priority || "";
+  const freeTime = userProfile?.free_time || "";
   const userGoal = userProfile?.goal || user?.goal || "없음";
-  const profileContext = occupation ? "유저 정보: 직업=" + occupation + ", 집중시간=" + (focusTime === "morning" ? "아침6-9시" : focusTime === "forenoon" ? "오전9-12시" : focusTime === "afternoon" ? "오후12-18시" : focusTime === "evening" ? "저녁18시이후" : "미설정") + ", 장애물=" + obstacle + ". 집중 잘 되는 시간에 중요한 미션을 배치하고 장애물에 맞는 전략을 적용해라." : "";
+  const focusLabel = focusTime === "morning" ? "아침6-9시" : focusTime === "forenoon" ? "오전9-12시" : focusTime === "afternoon" ? "오후12-18시" : focusTime === "evening" ? "저녁18시이후" : "미설정";
+  const profileContext = occupation || age ? `유저를 깊이 이해해라. 나이=${age}, 성격=${personality}, 실행유형=${occupation}, 집중시간=${focusLabel}, 하고싶은것=${wantToDo}, 방해요소=${obstacle}, 하루자유시간=${freeTime}, 가장중요한것=${priority}. 이 사람의 성격과 나이에 맞는 톤과 미션을 만들어라. 자유시간이 적으면 미션 개수를 줄이고, 방해요소를 피하는 전략을 짜라. 집중 잘 되는 시간에 중요한 미션을 배치해라.` : "";
   const goalContext = userGoal !== "없음" 
     ? "유저목표: " + userGoal + ". 이 목표 달성을 위한 구체적 행동 미션을 만들어라. 래퍼면 가사4줄쓰기, 수능생이면 수학10문제, 다이어트면 스쿼트20개 같은 구체적 미션."
     : "유저는 아직 목표가 없다. 절대 '목표를 정하세요'라고 하지 마라. 대신 AI인 네가 유저의 프로필(직업, 집중시간, 실행유형)을 분석해서 오늘 당장 할 수 있는 아주 작고 구체적인 행동을 직접 정해줘라. 예: 물 한 잔 마시기, 책상 정리 3분, 스트레칭 5개, 오늘 할 일 1개 적어보기, 산책 10분. 목표가 없는 사람일수록 더 쉽고 부담 없는 것부터 시작시켜서 '시작하는 경험' 자체를 만들어줘라. 작은 성공이 쌓이면 방향이 보인다.";
