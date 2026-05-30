@@ -13,6 +13,7 @@ export type ExecutionRecord = {
   done: boolean
   fail_reason?: string
   hour_of_day?: number
+  xp_earned?: number
 }
 
 export type User = {
@@ -167,25 +168,36 @@ export async function toggleScheduleDone(id: string, done: boolean): Promise<boo
   return !error
 }
 
-// 주간 리더보드 - 모든 유저의 이번 주 XP 집계
+// 주간 리더보드 - 모든 유저 표시 (XP 0 포함)
 export async function getWeeklyLeaderboard(): Promise<{ nickname: string; xp: number }[]> {
   const kstDateStr = (ms: number) => {
     const k = new Date(new Date(ms).toLocaleString("en-US", { timeZone: "Asia/Seoul" }))
     return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`
   }
   const weekAgo = kstDateStr(Date.now() - 7 * 86400000)
-  const { data, error } = await supabase
+
+  // 모든 유저 가져오기
+  const { data: users } = await supabase.from('users').select('nickname')
+  // 이번 주 완료 기록 (xp_earned 포함)
+  const { data: recs } = await supabase
     .from('execution_records')
-    .select('nickname, done, date')
+    .select('nickname, done, date, xp_earned')
     .gte('date', weekAgo)
-  if (error || !data) return []
-  // 닉네임별 완료 횟수 집계
+
   const xpByUser: Record<string, number> = {}
-  data.forEach(r => {
-    if (r.done && r.nickname) {
-      xpByUser[r.nickname] = (xpByUser[r.nickname] || 0) + 20
-    }
-  })
+  // 모든 유저를 0으로 초기화
+  if (users) {
+    users.forEach(u => { if (u.nickname) xpByUser[u.nickname] = 0 })
+  }
+  // 완료 기록 XP 합산 (xp_earned 있으면 그것, 없으면 기본 10)
+  if (recs) {
+    recs.forEach(r => {
+      if (r.done && r.nickname) {
+        const xp = (r.xp_earned !== null && r.xp_earned !== undefined) ? r.xp_earned : 10
+        xpByUser[r.nickname] = (xpByUser[r.nickname] || 0) + xp
+      }
+    })
+  }
   return Object.entries(xpByUser)
     .map(([nickname, xp]) => ({ nickname, xp }))
     .sort((a, b) => b.xp - a.xp)

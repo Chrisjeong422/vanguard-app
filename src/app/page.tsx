@@ -825,8 +825,9 @@ export default function VanguardHome() {
   }
 
   async function handleComplete() {
+    const xpEarned = elapsedSeconds >= 900 ? 25 : elapsedSeconds >= 180 ? 10 : 5;
     if (!isGuest && nickname) {
-      await saveRecord({ nickname, date: today, task: currentMission, done: true, hour_of_day: hour });
+      await saveRecord({ nickname, date: today, task: currentMission, done: true, hour_of_day: hour, xp_earned: xpEarned });
       await loadUserData(nickname);
     }
     setFailTime(null);
@@ -1730,7 +1731,7 @@ ${chatHistory}
                         <div className="mb-4">
                           <div className="flex justify-between text-[0.75rem] text-[#9CA3AF] mb-1">
                             <span>{completedCount}/{totalCount} 완료</span>
-                            <span>{streak}일 연속 · +{records.filter(r => r.date === today && r.done).length * 20}XP</span>
+                            <span>{streak}일 연속 · +{records.filter(r => r.date === today && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0)}XP</span>
                           </div>
                           <div className="w-full h-2 bg-[#F3F4F6] rounded-full">
                             <div className="h-2 rounded-full transition-all duration-500" 
@@ -1796,7 +1797,7 @@ ${chatHistory}
                             setMission(nextBlock.title);
                             setCurrentMission(nextBlock.title);
                             if (!isGuest && nickname) {
-                              await saveRecord({ nickname, date: today, task: nextBlock.title, done: true, hour_of_day: hour });
+                              await saveRecord({ nickname, date: today, task: nextBlock.title, done: true, hour_of_day: hour, xp_earned: 5 });
                               await loadUserData(nickname);
                             }
                             trackEvent("quick_complete", { task: nextBlock.title, hour });
@@ -1983,7 +1984,7 @@ ${chatHistory}
                 <div className="bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] rounded-3xl p-6 mb-4 text-white">
                   <div className="text-center mb-4">
                     <div className="text-[0.75rem] opacity-70 mb-1">오늘의 실행 기록</div>
-                    <div className="text-[2.5rem] font-bold leading-none">+{records.filter(r => r.date === today && r.done).length * 20}</div>
+                    <div className="text-[2.5rem] font-bold leading-none">+{records.filter(r => r.date === today && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0)}</div>
                     <div className="text-[0.85rem] opacity-80 mt-1">XP 획득</div>
                   </div>
                   <div className="flex justify-center gap-6 mb-4">
@@ -1996,14 +1997,14 @@ ${chatHistory}
                       <div className="text-[0.72rem] opacity-70">연속</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-[1.2rem] font-bold">{records.reduce((s, r) => s + (r.done ? 20 : -10), 0)}</div>
+                      <div className="text-[1.2rem] font-bold">{records.reduce((s, r) => s + (r.done ? (r.xp_earned ?? 10) : 0), 0)}</div>
                       <div className="text-[0.72rem] opacity-70">총 XP</div>
                     </div>
                   </div>
                   <div className="text-center text-[0.72rem] opacity-50 mb-3">VANGUARD · AI 실행 코치</div>
                   <button onClick={() => {
-                    const todayXP = records.filter(r => r.date === today && r.done).length * 20;
-                    const totalXP = records.reduce((s, r) => s + (r.done ? 20 : -10), 0);
+                    const todayXP = records.filter(r => r.date === today && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0);
+                    const totalXP = records.reduce((s, r) => s + (r.done ? (r.xp_earned ?? 10) : 0), 0);
                     const text = `오늘 +${todayXP}XP 획득! ${Math.floor(elapsedSeconds / 60)}분 집중, ${streak}일 연속 실행 중. 총 ${totalXP}XP. Vanguard가 실행을 관리해주고 있다.`;
                     const url = "https://vanguard-five-ecru.vercel.app/landing";
                     if (navigator.share) { navigator.share({ title: "Vanguard 실행 기록", text, url }).catch(() => {}); }
@@ -2701,7 +2702,7 @@ ${chatHistory}
                 let board = [...leaderboard];
                 if (nickname && !board.find(u => u.nickname === nickname)) {
                   const weekAgo = kstDateStr(Date.now() - 7 * 86400000);
-                  const myWeekXP = records.filter(r => r.date >= weekAgo && r.done).length * 20;
+                  const myWeekXP = records.filter(r => r.date >= weekAgo && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0);
                   board.push({ nickname, xp: myWeekXP });
                 }
                 board = board.sort((a, b) => b.xp - a.xp).slice(0, 10);
@@ -2911,7 +2912,7 @@ ${chatHistory}
             <div className="bg-white border border-[#E5E7EB] rounded-3xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-widest uppercase mb-3">실행 점수</div>
               {(() => {
-                const score = Math.max(0, records.reduce((s, r) => s + (r.done ? 20 : -10), 0));
+                const score = Math.max(0, records.reduce((s, r) => s + (r.done ? (r.xp_earned ?? 10) : 0), 0));
                 const level = score >= 1000 ? "마스터" : score >= 500 ? "다이아몬드" : score >= 200 ? "골드" : score >= 80 ? "실버" : "브론즈";
                 const levelColor = score >= 1000 ? "#DC2626" : score >= 500 ? "#4F46E5" : score >= 200 ? "#F59E0B" : score >= 80 ? "#6B7280" : "#B45309";
                 const levelEmoji = score >= 1000 ? "👑" : score >= 500 ? "💎" : score >= 200 ? "🥇" : score >= 80 ? "🥈" : "🥉";
@@ -2924,9 +2925,9 @@ ${chatHistory}
                 ];
                 const currentLevel = levels.find(l => score >= l.min && score < l.max) || levels[levels.length - 1];
                 const progressInLevel = ((score - currentLevel.min) / (currentLevel.max - currentLevel.min)) * 100;
-                const todayXP = records.filter(r => r.date === today && r.done).length * 20;
+                const todayXP = records.filter(r => r.date === today && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0);
                 const weekAgo = kstDateStr(Date.now() - 7 * 86400000);
-                const weekXP = records.filter(r => r.date >= weekAgo && r.done).length * 20;
+                const weekXP = records.filter(r => r.date >= weekAgo && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0);
                 return (
                   <div>
                     <div className="flex items-center justify-between mb-4">
@@ -3153,7 +3154,7 @@ ${chatHistory}
               </button>
               <div className="w-full flex items-center justify-between px-4 py-3.5">
                 <span className="text-[0.85rem] text-[#1A1A2E] font-medium">실행 점수</span>
-                <span className="text-[0.85rem] text-[#9CA3AF]">{records.reduce((s, r) => s + (r.done ? 20 : -10), 0)}점</span>
+                <span className="text-[0.85rem] text-[#9CA3AF]">{records.reduce((s, r) => s + (r.done ? (r.xp_earned ?? 10) : 0), 0)}점</span>
               </div>
             </div>
 
