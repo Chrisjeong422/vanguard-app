@@ -16,6 +16,7 @@ import { supabase,
   saveRecord,
   getRecords,
   calcStreak,
+  getWeeklyLeaderboard,
   calcFailCount,
   saveSchedule,
   getSchedules,
@@ -364,6 +365,7 @@ export default function VanguardHome() {
   const [coachInput, setCoachInput] = useState("");
   const [coachLoading, setCoachLoading] = useState(false);
   const [onboardAiResult, setOnboardAiResult] = useState<any>(null);
+  const [leaderboard, setLeaderboard] = useState<{ nickname: string; xp: number }[]>([]);
   const [onboardStep, setOnboardStep] = useState(0);
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
@@ -562,6 +564,7 @@ export default function VanguardHome() {
     const recs = await getRecords(nick);
     setRecords(recs);
     setStreak(calcStreak(recs));
+    getWeeklyLeaderboard().then(setLeaderboard).catch(() => {});
     setFailCount(calcFailCount(recs));
     const schs = await getSchedules(nick);
     setSchedules(schs);
@@ -2694,31 +2697,34 @@ ${chatHistory}
                 <div className="text-[0.75rem] text-[#4F46E5] font-medium">이번 주</div>
               </div>
               {(() => {
-                const weekAgo = kstDateStr(Date.now() - 7 * 86400000);
-                const weekRecords = records.filter(r => r.date >= weekAgo);
-                const myWeekXP = weekRecords.filter(r => r.done).length * 20;
-                const myRank = 1;
-                const mockBoard = [
-                  { name: nickname || "나", xp: myWeekXP, isMe: true },
-                  { name: "실행러_Kim", xp: Math.max(0, myWeekXP - 20 + Math.floor(Math.random() * 10)), isMe: false },
-                  { name: "새벽형_Park", xp: Math.max(0, myWeekXP - 40 + Math.floor(Math.random() * 10)), isMe: false },
-                  { name: "꾸준한_Lee", xp: Math.max(0, myWeekXP - 60 + Math.floor(Math.random() * 10)), isMe: false },
-                  { name: "도전자_Choi", xp: Math.max(0, myWeekXP - 80 + Math.floor(Math.random() * 10)), isMe: false },
-                ].sort((a, b) => b.xp - a.xp);
-                const medals = ["🥇", "🥈", "🥉", "4", "5"];
+                // 진짜 유저 데이터 기반 리더보드. 내가 없으면 추가.
+                let board = [...leaderboard];
+                if (nickname && !board.find(u => u.nickname === nickname)) {
+                  const weekAgo = kstDateStr(Date.now() - 7 * 86400000);
+                  const myWeekXP = records.filter(r => r.date >= weekAgo && r.done).length * 20;
+                  board.push({ nickname, xp: myWeekXP });
+                }
+                board = board.sort((a, b) => b.xp - a.xp).slice(0, 10);
+                const medals = ["🥇", "🥈", "🥉"];
+                if (board.length === 0) {
+                  return <div className="text-center py-6 text-[0.85rem] text-[#9CA3AF]">아직 이번 주 기록이 없습니다. 첫 미션을 완료하면 순위가 생깁니다.</div>;
+                }
                 return (
                   <div>
-                    {mockBoard.map((user, i) => (
-                      <div key={i} className={`flex items-center gap-3 py-3 ${i < mockBoard.length - 1 ? "border-b border-[#F3F4F6]" : ""} ${user.isMe ? "bg-[#EEF2FF] -mx-5 px-5 rounded-2xl" : ""}`}>
-                        <div className="w-8 text-center text-[1rem]">{i < 3 ? medals[i] : <span className="text-[0.85rem] text-[#9CA3AF] font-medium">{medals[i]}</span>}</div>
-                        <div className="flex-1">
-                          <div className={`text-[0.88rem] ${user.isMe ? "font-bold text-[#4F46E5]" : "font-medium text-[#1A1A2E]"}`}>
-                            {user.name} {user.isMe && "← 나"}
+                    {board.map((user, i) => {
+                      const isMe = user.nickname === nickname;
+                      return (
+                        <div key={user.nickname} className={`flex items-center gap-3 py-3 ${i < board.length - 1 ? "border-b border-[#F3F4F6]" : ""} ${isMe ? "bg-[#EEF2FF] -mx-5 px-5 rounded-2xl" : ""}`}>
+                          <div className="w-8 text-center text-[1rem]">{i < 3 ? medals[i] : <span className="text-[0.85rem] text-[#9CA3AF] font-medium">{i + 1}</span>}</div>
+                          <div className="flex-1">
+                            <div className={`text-[0.88rem] ${isMe ? "font-bold text-[#4F46E5]" : "font-medium text-[#1A1A2E]"}`}>
+                              {user.nickname} {isMe && "← 나"}
+                            </div>
                           </div>
+                          <div className={`text-[0.88rem] font-bold ${isMe ? "text-[#4F46E5]" : "text-[#1A1A2E]"}`}>{user.xp} XP</div>
                         </div>
-                        <div className={`text-[0.88rem] font-bold ${user.isMe ? "text-[#4F46E5]" : "text-[#1A1A2E]"}`}>{user.xp} XP</div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     <div className="text-center mt-3 pt-3 border-t border-[#F3F4F6]">
                       <div className="text-[0.8rem] text-[#9CA3AF]">매주 월요일 리셋 · 실행할수록 순위 상승</div>
                     </div>

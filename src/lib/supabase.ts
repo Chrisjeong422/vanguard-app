@@ -166,3 +166,27 @@ export async function toggleScheduleDone(id: string, done: boolean): Promise<boo
     .eq('id', id)
   return !error
 }
+
+// 주간 리더보드 - 모든 유저의 이번 주 XP 집계
+export async function getWeeklyLeaderboard(): Promise<{ nickname: string; xp: number }[]> {
+  const kstDateStr = (ms: number) => {
+    const k = new Date(new Date(ms).toLocaleString("en-US", { timeZone: "Asia/Seoul" }))
+    return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`
+  }
+  const weekAgo = kstDateStr(Date.now() - 7 * 86400000)
+  const { data, error } = await supabase
+    .from('execution_records')
+    .select('nickname, done, date')
+    .gte('date', weekAgo)
+  if (error || !data) return []
+  // 닉네임별 완료 횟수 집계
+  const xpByUser: Record<string, number> = {}
+  data.forEach(r => {
+    if (r.done && r.nickname) {
+      xpByUser[r.nickname] = (xpByUser[r.nickname] || 0) + 20
+    }
+  })
+  return Object.entries(xpByUser)
+    .map(([nickname, xp]) => ({ nickname, xp }))
+    .sort((a, b) => b.xp - a.xp)
+}
