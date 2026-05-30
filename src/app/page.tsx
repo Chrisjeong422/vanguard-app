@@ -371,6 +371,11 @@ export default function VanguardHome() {
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
   const [profileObstacle, setProfileObstacle] = useState("");
+  const [profileAge, setProfileAge] = useState("");
+  const [profilePersonality, setProfilePersonality] = useState("");
+  const [profileWantToDo, setProfileWantToDo] = useState("");
+  const [profilePriority, setProfilePriority] = useState("");
+  const [profileFreeTime, setProfileFreeTime] = useState("");
   const [inquiryMsg, setInquiryMsg] = useState("");
   const [inquirySent, setInquirySent] = useState(false);
   const [yesterdayLetter, setYesterdayLetter] = useState("");
@@ -1399,76 +1404,136 @@ action 판단:
               {onboardStep === 0 && (
                 <div>
                   <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">반가워요! 🎯</div>
-                  <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 당신에게 맞는 미션을 만들기 위해 3가지만 알려주세요.</div>
+                  <div className="text-[0.85rem] text-[#6B7280] mb-4">당신을 알아야 당신만을 위한 코치가 됩니다. 몇 가지만 골라주세요.</div>
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">나이대가 어떻게 되나요?</div>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {["10대", "20대", "30대", "40대 이상"].map(opt => (
+                      <button key={opt} onClick={() => setProfileAge(opt)}
+                        className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileAge === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">성격은 어떤 편인가요?</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {["꼼꼼한 편", "즉흥적인 편", "신중한 편", "활발한 편"].map(opt => (
+                      <button key={opt} onClick={() => setProfilePersonality(opt)}
+                        className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profilePersonality === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                  <button disabled={!profileAge || !profilePersonality} onClick={() => setOnboardStep(1)}
+                    className={`w-full mt-4 py-3 rounded-2xl text-[0.88rem] font-bold press-effect ${profileAge && profilePersonality ? "bg-[#4F46E5] text-white" : "bg-[#E5E7EB] text-[#9CA3AF]"}`}>
+                    다음
+                  </button>
+                </div>
+              )}
+              {onboardStep === 1 && (
+                <div>
                   <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">당신은 어떤 유형인가요?</div>
-                  <div className="grid grid-cols-1 gap-2">
+                  <div className="grid grid-cols-1 gap-2 mb-4">
                     {["계획은 세우는데 실행을 못 함", "시작은 하는데 중간에 포기함", "아예 시작을 못 함", "매일 미루다가 하루가 끝남"].map(opt => (
-                      <button key={opt} onClick={() => { setProfileOccupation(opt); setOnboardStep(1); }}
+                      <button key={opt} onClick={() => setProfileOccupation(opt)}
                         className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileOccupation === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
                         {opt}
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
-              {onboardStep === 1 && (
-                <div>
-                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">집중이 잘 되는 시간은?</div>
-                  <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 이 시간에 중요한 미션을 배치합니다.</div>
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">집중이 잘 되는 시간은?</div>
                   <div className="grid grid-cols-2 gap-2">
                     {[{label: "아침 (6~9시)", val: "morning"}, {label: "오전 (9~12시)", val: "forenoon"}, {label: "오후 (12~18시)", val: "afternoon"}, {label: "저녁/밤 (18시~)", val: "evening"}].map(opt => (
-                      <button key={opt.val} onClick={() => { setProfileFocusTime(opt.val); setOnboardStep(2); }}
+                      <button key={opt.val} onClick={() => setProfileFocusTime(opt.val)}
                         className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileFocusTime === opt.val ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
                         {opt.label}
                       </button>
                     ))}
                   </div>
+                  <button disabled={!profileOccupation || !profileFocusTime} onClick={() => setOnboardStep(2)}
+                    className={`w-full mt-4 py-3 rounded-2xl text-[0.88rem] font-bold press-effect ${profileOccupation && profileFocusTime ? "bg-[#4F46E5] text-white" : "bg-[#E5E7EB] text-[#9CA3AF]"}`}>
+                    다음
+                  </button>
                 </div>
               )}
               {onboardStep === 2 && (
                 <div>
-                  <div className="text-[1.1rem] font-black text-[#1A1A2E] mb-1">지금 가장 하고 싶은 건?</div>
-                  <div className="text-[0.85rem] text-[#6B7280] mb-4">AI가 여기에 맞춰 미션을 만들어줍니다.</div>
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">지금 가장 하고 싶은 건?</div>
+                  <div className="grid grid-cols-1 gap-2 mb-4">
+                    {["운동/건강", "공부/자기계발", "일/커리어", "취미/창작", "아직 모르겠음"].map(opt => (
+                      <button key={opt} onClick={() => setProfileWantToDo(opt)}
+                        className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileWantToDo === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">무엇이 가장 방해가 되나요?</div>
                   <div className="grid grid-cols-1 gap-2">
-                    {["운동/다이어트", "공부/시험", "일/프로젝트", "아직 모르겠는데 뭐라도 시작하고 싶음"].map(opt => (
-                      <button key={opt} onClick={async () => {
-                        setProfileObstacle(opt);
-                        await updateUserProfile(nickname, { occupation: profileOccupation, focus_time: profileFocusTime, obstacle: opt });
-                        localStorage.setItem("vanguard_occupation", profileOccupation);
-                        localStorage.setItem("vanguard_focus_time", profileFocusTime);
-                        localStorage.setItem("vanguard_obstacle", opt);
-                        setOnboardAiResult(null);
-                        setOnboardStep(3);
-                        // AI 분석 호출
-                        (async () => {
-                          try {
-                            const prompt = `너는 실행 심리 전문가다. 유저 프로필을 분석해서 JSON만 출력해라.
-유저 정보: 실행 유형="${profileOccupation}", 집중 시간="${profileFocusTime === "morning" ? "아침" : profileFocusTime === "forenoon" ? "오전" : profileFocusTime === "afternoon" ? "오후" : "저녁"}", 목표="${opt}"
-반드시 이 JSON 형식만 출력: {"type":"2~4글자 실행 유형 이름","description":"이 유형의 특징 1줄","risk":"이 유형이 가장 무너지기 쉬운 시간과 상황 1줄","strategy":"AI가 이 유형에게 적용할 전략 1줄","firstMission":"오늘 당장 할 수 있는 구체적 미션 1개 (10글자 이내)"}`;
-                            const res = await fetch("/api/gemini", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
-                            const data = await res.json();
-                            const text = (data.text || "").replace(/```json|```/g, "").trim();
-                            const parsed = JSON.parse(text);
-                            setOnboardAiResult(parsed);
-                          } catch {
-                            setOnboardAiResult({
-                              type: (profileFocusTime === "morning" ? "아침형 " : profileFocusTime === "forenoon" ? "오전형 " : profileFocusTime === "afternoon" ? "오후형 " : "저녁형 ") + (profileOccupation === "계획은 세우는데 실행을 못 함" ? "계획가" : profileOccupation === "시작은 하는데 중간에 포기함" ? "중단자" : profileOccupation === "아예 시작을 못 함" ? "회피자" : "미루기 전문가"),
-                              description: "AI가 당신의 패턴을 학습하고 맞춤 전략을 적용합니다.",
-                              risk: "집중 시간 외에 무너질 확률이 높습니다.",
-                              strategy: "AI가 미션을 극단적으로 작게 줄여서 시작하게 만듭니다.",
-                              firstMission: "3분 집중하기"
-                            });
-                          }
-                        })();
-                      }}
+                    {["피곤함/체력 부족", "폰/유혹", "동기 부족", "할 일이 너무 많음", "미루는 습관"].map(opt => (
+                      <button key={opt} onClick={() => setProfileObstacle(opt)}
                         className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileObstacle === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
                         {opt}
                       </button>
                     ))}
                   </div>
+                  <button disabled={!profileWantToDo || !profileObstacle} onClick={() => setOnboardStep(3)}
+                    className={`w-full mt-4 py-3 rounded-2xl text-[0.88rem] font-bold press-effect ${profileWantToDo && profileObstacle ? "bg-[#4F46E5] text-white" : "bg-[#E5E7EB] text-[#9CA3AF]"}`}>
+                    다음
+                  </button>
                 </div>
               )}
               {onboardStep === 3 && (
+                <div>
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">하루에 자유 시간이 얼마나 되나요?</div>
+                  <div className="grid grid-cols-1 gap-2 mb-4">
+                    {["1시간 미만", "1~3시간", "3시간 이상"].map(opt => (
+                      <button key={opt} onClick={() => setProfileFreeTime(opt)}
+                        className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profileFreeTime === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[0.8rem] font-bold text-[#1A1A2E] mb-2">지금 인생에서 가장 중요한 건?</div>
+                  <div className="grid grid-cols-1 gap-2">
+                    {["건강", "성장/공부", "일/돈", "관계/사람", "마음의 안정"].map(opt => (
+                      <button key={opt} onClick={() => setProfilePriority(opt)}
+                        className={`py-3 rounded-2xl text-[0.85rem] font-medium press-effect ${profilePriority === opt ? "bg-[#4F46E5] text-white" : "bg-[#F3F4F6] text-[#1A1A2E]"}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                  <button disabled={!profileFreeTime || !profilePriority} onClick={async () => {
+                    await updateUserProfile(nickname, { occupation: profileOccupation, focus_time: profileFocusTime, obstacle: profileObstacle, age: profileAge, personality: profilePersonality, want_to_do: profileWantToDo, priority: profilePriority, free_time: profileFreeTime });
+                    localStorage.setItem("vanguard_occupation", profileOccupation);
+                    localStorage.setItem("vanguard_focus_time", profileFocusTime);
+                    localStorage.setItem("vanguard_obstacle", profileObstacle);
+                    setOnboardAiResult(null);
+                    setOnboardStep(4);
+                    (async () => {
+                      try {
+                        const prompt = `너는 실행 심리 전문가다. 유저 프로필을 깊이 분석해서 JSON만 출력해라.
+유저: 나이=${profileAge}, 성격=${profilePersonality}, 실행유형=${profileOccupation}, 집중시간=${profileFocusTime}, 하고싶은것=${profileWantToDo}, 방해요소=${profileObstacle}, 자유시간=${profileFreeTime}, 가장중요한것=${profilePriority}
+이 사람만을 위한 분석. 반드시 이 JSON 형식만: {"type":"2~5글자 실행 유형 이름","description":"이 사람의 특징 1줄 (나이,성격 반영)","risk":"이 사람이 무너지기 쉬운 순간 1줄 (방해요소 반영)","strategy":"이 사람에게 맞는 전략 1줄","firstMission":"오늘 당장 할 구체적 미션 1개 (하고싶은것 반영, 10글자 이내)"}`;
+                        const res = await fetch("/api/gemini", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
+                        const data = await res.json();
+                        const text = (data.text || "").replace(/```json|```/g, "").trim();
+                        setOnboardAiResult(JSON.parse(text));
+                      } catch {
+                        setOnboardAiResult({
+                          type: profileOccupation === "계획은 세우는데 실행을 못 함" ? "계획가" : profileOccupation === "시작은 하는데 중간에 포기함" ? "중단자" : profileOccupation === "아예 시작을 못 함" ? "회피자" : "미루기 전문가",
+                          description: "AI가 당신의 패턴을 학습하고 맞춤 전략을 적용합니다.",
+                          risk: profileObstacle + " 때문에 무너질 확률이 높습니다.",
+                          strategy: "AI가 미션을 극단적으로 작게 줄여서 시작하게 만듭니다.",
+                          firstMission: "3분 집중하기"
+                        });
+                      }
+                    })();
+                  }}
+                    className={`w-full mt-4 py-3 rounded-2xl text-[0.88rem] font-bold press-effect ${profileFreeTime && profilePriority ? "bg-[#4F46E5] text-white" : "bg-[#E5E7EB] text-[#9CA3AF]"}`}>
+                    AI 분석 시작
+                  </button>
+                </div>
+              )}
+              {onboardStep === 4 && (
                 <div>
                   {!onboardAiResult ? (
                     <div className="text-center py-8">

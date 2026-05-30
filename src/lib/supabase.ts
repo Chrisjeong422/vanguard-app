@@ -45,7 +45,7 @@ export async function createUser(nickname: string, profile?: { occupation?: stri
   return data
 }
 
-export async function updateUserProfile(nickname: string, profile: { occupation?: string; focus_time?: string; obstacle?: string }): Promise<boolean> {
+export async function updateUserProfile(nickname: string, profile: { occupation?: string; focus_time?: string; obstacle?: string; age?: string; personality?: string; want_to_do?: string; priority?: string; free_time?: string }): Promise<boolean> {
   const { error } = await supabase
     .from('users')
     .update(profile)
