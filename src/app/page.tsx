@@ -820,13 +820,12 @@ fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderb
 
   async function trackEvent(eventType: string, data: Record<string, unknown> = {}) {
     try {
-      const { error } = await supabase.from("user_events").insert([{
-        nickname,
-        event_type: eventType,
-        event_data: data,
-      }]);
-      if (error) console.error("user_events 저장 실패:", error.message);
-    } catch (e) { console.error("user_events 예외:", e); }
+      await fetch("/api/save-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname, event_type: eventType, event_data: data }),
+      });
+    } catch (e) { console.error("user_events 저장 실패:", e); }
   }
   async function saveCoachChat(role: string, text: string) {
     if (isGuest || !nickname) return;
