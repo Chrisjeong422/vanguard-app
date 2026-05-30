@@ -109,7 +109,9 @@ export async function POST(req: NextRequest) {
   const obstacle = userProfile?.obstacle || "";
   const userGoal = userProfile?.goal || user?.goal || "없음";
   const profileContext = occupation ? "유저 정보: 직업=" + occupation + ", 집중시간=" + (focusTime === "morning" ? "아침6-9시" : focusTime === "forenoon" ? "오전9-12시" : focusTime === "afternoon" ? "오후12-18시" : focusTime === "evening" ? "저녁18시이후" : "미설정") + ", 장애물=" + obstacle + ". 집중 잘 되는 시간에 중요한 미션을 배치하고 장애물에 맞는 전략을 적용해라." : "";
-  const goalContext = userGoal !== "없음" ? "유저목표: " + userGoal + ". 이 목표 달성을 위한 구체적 행동 미션을 만들어라. 래퍼면 가사4줄쓰기, 수능생이면 수학10문제, 다이어트면 스쿼트20개 같은 구체적 미션." : "";
+  const goalContext = userGoal !== "없음" 
+    ? "유저목표: " + userGoal + ". 이 목표 달성을 위한 구체적 행동 미션을 만들어라. 래퍼면 가사4줄쓰기, 수능생이면 수학10문제, 다이어트면 스쿼트20개 같은 구체적 미션."
+    : "유저는 아직 목표가 없다. 절대 '목표를 정하세요'라고 하지 마라. 대신 AI인 네가 유저의 프로필(직업, 집중시간, 실행유형)을 분석해서 오늘 당장 할 수 있는 아주 작고 구체적인 행동을 직접 정해줘라. 예: 물 한 잔 마시기, 책상 정리 3분, 스트레칭 5개, 오늘 할 일 1개 적어보기, 산책 10분. 목표가 없는 사람일수록 더 쉽고 부담 없는 것부터 시작시켜서 '시작하는 경험' 자체를 만들어줘라. 작은 성공이 쌓이면 방향이 보인다.";
   const difficultyGuide = difficulty === "high" ? "유저가 최근 연속 성공 중이다. 미션 시간을 평소보다 10~20% 늘려라. 도전적인 미션을 포함해라." : difficulty === "low" ? "유저가 최근 연속 실패 중이다. 미션을 극단적으로 줄여라. 3분~5분짜리 미션 위주로 구성해라. 시작의 마찰을 최소화해라." : "보통 수준으로 구성해라.";
   const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
   const currentHour = now.getHours();
