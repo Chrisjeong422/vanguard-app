@@ -366,6 +366,7 @@ export default function VanguardHome() {
   const [coachLoading, setCoachLoading] = useState(false);
   const [onboardAiResult, setOnboardAiResult] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<{ nickname: string; xp: number }[]>([]);
+  const [currentBlockId, setCurrentBlockId] = useState<string | null>(null);
   const [onboardStep, setOnboardStep] = useState(0);
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
@@ -828,6 +829,7 @@ export default function VanguardHome() {
     const xpEarned = elapsedSeconds >= 900 ? 25 : elapsedSeconds >= 180 ? 10 : 5;
     if (!isGuest && nickname) {
       await saveRecord({ nickname, date: today, task: currentMission, done: true, hour_of_day: hour, xp_earned: xpEarned });
+      if (currentBlockId) { await toggleScheduleBlock(currentBlockId, "complete"); setCurrentBlockId(null); }
       await loadUserData(nickname);
     }
     setFailTime(null);
@@ -1785,6 +1787,7 @@ ${chatHistory}
                           <button onClick={() => {
                             setMission(nextBlock.title);
                             setCurrentMission(nextBlock.title);
+                            setCurrentBlockId(nextBlock.id);
                             setStartTime(new Date());
                             setRunningMessage("");
                             setShowRunningMessage(false);
@@ -1798,6 +1801,7 @@ ${chatHistory}
                             setCurrentMission(nextBlock.title);
                             if (!isGuest && nickname) {
                               await saveRecord({ nickname, date: today, task: nextBlock.title, done: true, hour_of_day: hour, xp_earned: 5 });
+                              await toggleScheduleBlock(nextBlock.id, "complete");
                               await loadUserData(nickname);
                             }
                             trackEvent("quick_complete", { task: nextBlock.title, hour });
