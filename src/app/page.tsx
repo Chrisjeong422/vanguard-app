@@ -566,6 +566,11 @@ export default function VanguardHome() {
     setRecords(recs);
     setStreak(calcStreak(recs));
 fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderboard || [])).catch(() => {});
+    fetch(`/api/coach-chat?nickname=${encodeURIComponent(nick)}`).then(r => r.json()).then(d => {
+      if (d.messages && d.messages.length > 0) {
+        setCoachMessages(d.messages.map((m: any) => ({ role: m.role, text: m.text })));
+      }
+    }).catch(() => {});
     setFailCount(calcFailCount(recs));
     const schs = await getSchedules(nick);
     setSchedules(schs);
@@ -823,6 +828,99 @@ fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderb
         event_data: data,
       }]);
     } catch {}
+  }
+  async function saveCoachChat(role: string, text: string) {
+    if (isGuest || !nickname) return;
+    try {
+      await fetch("/api/coach-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname, role, text }),
+      });
+    } catch {}
+  }
+  async function sendCoachMessage() {
+    if (!coachInput.trim() || coachLoading) return;
+    const userMsg = coachInput.trim();
+    setCoachInput("");
+    setCoachMessages(prev => [...prev, { role: "user", text: userMsg }]);
+    saveCoachChat("user", userMsg);
+    setCoachLoading(true);
+    try {
+      const ctx = await getUserContext(nickname);
+      const chatHistory = coachMessages.slice(-8).map(m => `${m.role === "user" ? "유저" : "코치"}: ${m.text}`).join("\n");
+      // AI가 한 번에 판단: 답변 + 계획 변경 필요 여부 + 목표
+      const prompt = `너는 Vanguard AI 실행 코치다. 유저를 다시 움직이게 만드는 게 너의 일이다.
+
+${contextToPrompt(ctx)}
+
+최근 대화:
+${chatHistory}
+
+유저 메시지: "${userMsg}"
+
+유저의 메시지를 분석해서 아래 JSON 형식으로만 답해라. 다른 텍스트 절대 쓰지 마라.
+{
+  "reply": "유저에게 할 답변. 공감만 하지 말고 반드시 지금 할 수 있는 구체적 행동 1가지를 포함. 유저 데이터를 인용. 단호하고 구체적으로. 길이는 질문에 맞게 조절(간단한 질문 1~2줄, 복잡하면 5~7줄). 이모지 쓰지마.",
+  "action": "none 또는 set_goal 또는 regen_schedule 중 하나. 유저가 새로운 하고싶은 것/목표를 말했으면 set_goal. 일정이 바뀌었거나 계획을 다시 짜달라고 하면 regen_schedule. 단순 질문/잡담/불평이면 none.",
+  "goal": "action이 set_goal일 때만 추출한 목표를 한 문장으로. 아니면 빈 문자열."
+}
+
+판단 기준:
+- "운동 시작하고 싶어", "영어 공부해야 하는데", "살 빼고 싶어", "뭐라도 해야겠어" → set_goal
+- "일정 바뀌었어", "약속 생겼어", "계획 다시 짜줘", "오늘 못해" → regen_schedule
+- "오늘 왜 이렇게 안되지", "힘들다", "어떻게 해야해?" → none (답변만)`;
+
+      const res = await fetch("/api/gemini", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
+      const data = await res.json();
+      let parsed: any = null;
+      try {
+        const clean = (data.text || "").replace(/```json|```/g, "").trim();
+        parsed = JSON.parse(clean);
+      } catch {
+        // JSON 파싱 실패 시 그냥 텍스트로 답변
+        parsed = { reply: data.text || "응답을 불러올 수 없습니다.", action: "none", goal: "" };
+      }
+
+      const reply = parsed.reply || "응답을 불러올 수 없습니다.";
+      setCoachMessages(prev => [...prev, { role: "ai", text: reply }]);
+      saveCoachChat("ai", reply);
+      await saveAiLog(nickname, "coach_chat", { question: userMsg }, { answer: reply, action: parsed.action }, ctx);
+
+      // 액션 처리
+      if (parsed.action === "set_goal" && parsed.goal && parsed.goal.length > 1) {
+        const planMsg = `"${parsed.goal}"에 맞춰 계획을 짜고 있습니다...`;
+        setCoachMessages(prev => [...prev, { role: "ai", text: planMsg }]);
+        try {
+          await updateGoal(nickname, parsed.goal);
+          setGoal(parsed.goal);
+          const regenRes = await fetch("/api/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nickname }) });
+          const regenData = await regenRes.json();
+          if (regenData.schedule) setDailySchedule(regenData.schedule);
+          const doneMsg = `홈에 오늘 할 일을 만들어뒀습니다. 거창하게 말고 딱 하나부터 시작하세요.`;
+          setCoachMessages(prev => { const f = prev.filter(m => m.text !== planMsg); return [...f, { role: "ai", text: doneMsg }]; });
+          saveCoachChat("ai", doneMsg);
+        } catch {
+          setCoachMessages(prev => prev.filter(m => m.text !== planMsg));
+        }
+      } else if (parsed.action === "regen_schedule") {
+        const regenMsg = "스케줄을 다시 짜고 있습니다...";
+        setCoachMessages(prev => [...prev, { role: "ai", text: regenMsg }]);
+        try {
+          const regenRes = await fetch("/api/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nickname }) });
+          const regenData = await regenRes.json();
+          if (regenData.schedule) setDailySchedule(regenData.schedule);
+          const doneMsg = "스케줄을 다시 짰습니다. 홈에서 확인하세요.";
+          setCoachMessages(prev => { const f = prev.filter(m => m.text !== regenMsg); return [...f, { role: "ai", text: doneMsg }]; });
+          saveCoachChat("ai", doneMsg);
+        } catch {
+          setCoachMessages(prev => prev.filter(m => m.text !== regenMsg));
+        }
+      }
+    } catch {
+      setCoachMessages(prev => [...prev, { role: "ai", text: "연결 오류. 다시 시도해주세요." }]);
+    }
+    setCoachLoading(false);
   }
 
   async function handleComplete() {
@@ -1280,114 +1378,8 @@ fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderb
                 <input type="text" value={coachInput} onChange={e => setCoachInput(e.target.value)}
                   placeholder="질문을 입력하세요..."
                   className="flex-1 bg-white/10 rounded-2xl px-4 py-3 text-[0.85rem] text-white placeholder-white/30 focus:outline-none"
-                  onKeyDown={async e => {
-                    if (e.key === "Enter" && coachInput.trim() && !coachLoading) {
-                      const userMsg = coachInput.trim();
-                      setCoachInput("");
-                      setCoachMessages(prev => [...prev, { role: "user", text: userMsg }]);
-                      setCoachLoading(true);
-                      try {
-                        const ctx = await getUserContext(nickname);
-                        const chatHistory = coachMessages.slice(-6).map(m => `${m.role === "user" ? "유저" : "코치"}: ${m.text}`).join("\n");
-                        const prompt = `너는 Vanguard AI 실행 코치다. 유저와 1:1 대화 중이다.
-
-${contextToPrompt(ctx)}
-
-최근 대화:
-${chatHistory}
-
-유저 질문: "${userMsg}"
-
-핵심 규칙:
-1. 절대 공감만 하지 마라. 모든 답변에 반드시 "지금 당장 할 수 있는 구체적 행동 1가지"를 포함해라.
-2. "힘들었겠다", "괜찮아" 같은 위로만 하지 마라. "지금 바로 [구체적 행동]을 해라"를 말해라.
-3. 유저의 실제 데이터를 인용해라. "당신은 ${ctx.peakFailHour}에 자주 무너진다" 같은 구체적 사실.
-4. 이전 대화와 다른 표현을 사용해라. 같은 말을 반복하지 마라.
-5. 유저의 목표(${ctx.goal})와 직업(${ctx.occupation})에 맞는 구체적 미션을 제안해라.
-6. "일정 바뀌었어" "약속 생겼어" 같은 말에는 기존 스케줄을 고려해서 시간 재배치를 제안해라.
-7. 3줄 이내. 이모지 쓰지마. 단호하고 구체적으로.
-
-나쁜 예: "힘들었겠다. 괜찮아. 내일 다시 시작하면 돼."
-좋은 예: "이번 주 3번째 ${ctx.peakFailHour}에 무너졌다. 내일은 그 시간 전에 가장 쉬운 미션부터 시작해라. 지금 당장 내일 할 미션 1개를 정해라."`;
-                        const res = await fetch("/api/gemini", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ prompt }),
-                        });
-                        const data = await res.json();
-                        setCoachMessages(prev => [...prev, { role: "ai", text: data.text || "응답을 불러올 수 없습니다." }]);
-                        await saveAiLog(nickname, "coach_chat", { question: userMsg }, { answer: data.text }, ctx);
-                        
-                        // 스케줄 변경 요청 감지
-                        const scheduleKeywords = ["일정", "약속", "스케줄", "바꿔", "변경", "미뤄", "옮겨", "취소", "시간 변경", "오늘 못", "갑자기", "급한 일", "예정", "계획 변경"];
-                        const isScheduleRequest = scheduleKeywords.some(k => userMsg.includes(k));
-                        if (isScheduleRequest) {
-                          setCoachMessages(prev => [...prev, { role: "ai", text: "스케줄을 다시 짜고 있습니다..." }]);
-                          try {
-                            const regenRes = await fetch("/api/schedule", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ nickname }),
-                            });
-                            const regenData = await regenRes.json();
-                            if (regenData.schedule) {
-                              setDailySchedule(regenData.schedule);
-                              setCoachMessages(prev => {
-                                const filtered = prev.filter(m => m.text !== "스케줄을 다시 짜고 있습니다...");
-                                return [...filtered, { role: "ai", text: "스케줄을 다시 짰습니다. 홈에서 확인하세요. 바뀐 상황에 맞게 조정했습니다." }];
-                              });
-                              await saveAiLog(nickname, "schedule_regen_by_chat", { trigger: userMsg }, { schedule: regenData.schedule }, ctx);
-                            }
-                          } catch {
-                            setCoachMessages(prev => {
-                              const filtered = prev.filter(m => m.text !== "스케줄을 다시 짜고 있습니다...");
-                              return [...filtered, { role: "ai", text: "스케줄 재생성에 실패했습니다. 홈에서 다시 생성을 눌러주세요." }];
-                            });
-                          }
-                        }
-                      } catch {
-                        setCoachMessages(prev => [...prev, { role: "ai", text: "연결 오류. 다시 시도해주세요." }]);
-                      }
-                      setCoachLoading(false);
-                    }
-                  }} />
-                <button onClick={async () => {
-                  if (!coachInput.trim() || coachLoading) return;
-                  const userMsg = coachInput.trim();
-                  setCoachInput("");
-                  setCoachMessages(prev => [...prev, { role: "user", text: userMsg }]);
-                  setCoachLoading(true);
-                  try {
-                    const ctx = await getUserContext(nickname);
-                    const chatHistory = coachMessages.slice(-6).map(m => `${m.role === "user" ? "유저" : "코치"}: ${m.text}`).join("\n");
-                    const prompt = `너는 Vanguard AI 실행 코치다. 유저와 1:1 대화 중이다.
-
-${contextToPrompt(ctx)}
-
-최근 대화:
-${chatHistory}
-
-유저 질문: "${userMsg}"
-
-핵심 규칙:
-1. 절대 공감만 하지 마라. 모든 답변에 반드시 "지금 당장 할 수 있는 구체적 행동 1가지"를 포함해라.
-2. 유저의 실제 데이터를 인용해라.
-3. 이전 대화와 다른 표현을 사용해라.
-4. 유저의 목표(${ctx.goal})에 맞는 구체적 미션을 제안해라.
-5. 답변 길이는 질문에 맞게 조절해라. 간단한 질문은 1~2줄, 복잡한 질문은 5~7줄까지. 이모지 쓰지마. 단호하고 구체적으로.`;
-                    const res = await fetch("/api/gemini", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ prompt }),
-                    });
-                    const data = await res.json();
-                    setCoachMessages(prev => [...prev, { role: "ai", text: data.text || "응답을 불러올 수 없습니다." }]);
-                    await saveAiLog(nickname, "coach_chat_click", { question: userMsg }, { answer: data.text }, ctx);
-                  } catch {
-                    setCoachMessages(prev => [...prev, { role: "ai", text: "연결 오류. 다시 시도해주세요." }]);
-                  }
-                  setCoachLoading(false);
-                }}
+                  onKeyDown={e => { if (e.key === "Enter") sendCoachMessage(); }} />
+                <button onClick={() => sendCoachMessage()}
                   className="bg-[#4F46E5] rounded-2xl px-5 py-3 text-white text-[0.85rem] font-bold press-effect">
                   전송
                 </button>
