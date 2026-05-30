@@ -73,12 +73,14 @@ export function calcStreak(records: ExecutionRecord[]): number {
   if (!records.length) return 0
   const daily: Record<string, boolean> = {}
   records.forEach(r => { if (r.done) daily[r.date] = true })
+  // KST 기준 날짜 계산
+  const kstDateStr = (ms: number) => {
+    const k = new Date(new Date(ms).toLocaleString("en-US", { timeZone: "Asia/Seoul" }))
+    return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`
+  }
   let streak = 0
-  const today = new Date()
   for (let i = 0; i < 365; i++) {
-    const d = new Date(today)
-    d.setDate(d.getDate() - i)
-    const ds = d.toISOString().split('T')[0]
+    const ds = kstDateStr(Date.now() - 86400000 * i)
     if (daily[ds]) streak++
     else if (i > 0) break
   }

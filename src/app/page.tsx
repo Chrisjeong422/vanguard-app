@@ -415,7 +415,7 @@ export default function VanguardHome() {
   // 복구 스케줄 제안
   const [recoverySchedule, setRecoverySchedule] = useState<{title: string; duration: string}[]>([]);
 
-  const hour = new Date().getHours();
+  const hour = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })).getHours();
   const urgency = getUrgencyMessage(hour, failCount, goal);
   const today = (() => { const k = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })); return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`; })();
 
