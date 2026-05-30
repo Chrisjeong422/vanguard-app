@@ -551,15 +551,12 @@ export default function VanguardHome() {
   // AI 로그 저장 — 미래 자체 AI 학습용
   async function saveAiLog(nick: string, logType: string, input: any, output: any, context: any) {
     try {
-      const { error } = await supabase.from("ai_logs").insert([{
-        nickname: nick,
-        log_type: logType,
-        input_data: input,
-        output_data: output,
-        context: context,
-      }]);
-      if (error) console.error("ai_logs 저장 실패:", error.message);
-    } catch (e) { console.error("ai_logs 예외:", e); }
+      await fetch("/api/save-log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: nick, log_type: logType, input_data: input, output_data: output, context }),
+      });
+    } catch (e) { console.error("ai_logs 저장 실패:", e); }
   }
 
   const loadUserData = useCallback(async (nick: string) => {
