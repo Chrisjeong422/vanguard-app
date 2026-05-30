@@ -281,18 +281,28 @@ function calcUserState(records: ExecutionRecord[], hour: number): UserState {
   const thisWeekFails = records.filter(r => !r.done && r.date >= weekAgo).length;
   const failStreak = records.filter(r => !r.done).length;
 
-  let gapDays = 0;
-  for (let i = 1; i <= 30; i++) {
+  const allDates = records.map(r => r.date).sort();
+  const firstActiveDate = allDates.length > 0 ? allDates[0] : today;
+  let lastSuccessDate = "";
+  for (let i = 1; i <= 60; i++) {
     const d = kstDateStr(Date.now() - 86400000 * i);
-    if (byDate[d] === undefined || byDate[d] === false) gapDays++;
-    else break;
+    if (d < firstActiveDate) break;
+    if (byDate[d] === true) { lastSuccessDate = d; break; }
+  }
+  let gapDays = 0;
+  if (lastSuccessDate) {
+    const lastMs = new Date(lastSuccessDate + "T00:00:00+09:00").getTime();
+    const todayMs = new Date(today + "T00:00:00+09:00").getTime();
+    gapDays = Math.round((todayMs - lastMs) / 86400000) - 1;
+    if (gapDays < 0) gapDays = 0;
   }
   const comebackToday = todayCompleted && gapDays >= 1;
   let weeklyComebacks = 0;
   for (let i = 0; i <= 6; i++) {
     const d = kstDateStr(Date.now() - 86400000 * i);
+    if (d < firstActiveDate) break;
     const prevD = kstDateStr(Date.now() - 86400000 * (i + 1));
-    if (byDate[d] === true && (byDate[prevD] === false || byDate[prevD] === undefined)) {
+    if (byDate[d] === true && prevD >= firstActiveDate && (byDate[prevD] === false || byDate[prevD] === undefined)) {
       weeklyComebacks++;
     }
   }
