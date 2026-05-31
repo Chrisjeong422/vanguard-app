@@ -74,16 +74,22 @@ export function calcStreak(records: ExecutionRecord[]): number {
   if (!records.length) return 0
   const daily: Record<string, boolean> = {}
   records.forEach(r => { if (r.done) daily[r.date] = true })
-  // KST 기준 날짜 계산
   const kstDateStr = (ms: number) => {
     const k = new Date(new Date(ms).toLocaleString("en-US", { timeZone: "Asia/Seoul" }))
     return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`
   }
+  const today = kstDateStr(Date.now())
+  const yesterday = kstDateStr(Date.now() - 86400000)
+  // 오늘도 어제도 성공 안 했으면 연속 끊김 = 0
+  if (!daily[today] && !daily[yesterday]) return 0
+  // 오늘부터(또는 어제부터) 연속으로 성공한 날만 센다
   let streak = 0
-  for (let i = 0; i < 365; i++) {
+  // 시작점: 오늘 성공했으면 오늘부터, 아니면 어제부터
+  const startOffset = daily[today] ? 0 : 1
+  for (let i = startOffset; i < 365; i++) {
     const ds = kstDateStr(Date.now() - 86400000 * i)
     if (daily[ds]) streak++
-    else if (i > 0) break
+    else break
   }
   return streak
 }

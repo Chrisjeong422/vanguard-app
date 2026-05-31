@@ -1786,8 +1786,8 @@ action 판단:
                     (b: any) => !b.is_completed && !b.skipped && b.end > currentTime
                   ) || dailySchedule.blocks.find((b: any) => !b.is_completed && !b.skipped);
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const completedCount = dailySchedule.blocks.filter((b: any) => b.is_completed).length;
-                  const totalCount = dailySchedule.blocks.length;
+                  const completedCount = dailySchedule.blocks.filter((b: any) => b.is_completed && !b.skipped).length;
+                  const totalCount = dailySchedule.blocks.filter((b: any) => !b.skipped).length;
                   const userState = calcUserState(records, hour);
 
                   let statusLine = "";
