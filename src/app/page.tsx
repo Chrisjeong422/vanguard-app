@@ -369,6 +369,7 @@ export default function VanguardHome() {
   const [currentBlockId, setCurrentBlockId] = useState<string | null>(null);
   const [completeLoading, setCompleteLoading] = useState(false);
   const [letterInput, setLetterInput] = useState("");
+  const [lastXpEarned, setLastXpEarned] = useState(0);
   const [onboardStep, setOnboardStep] = useState(0);
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
@@ -959,6 +960,7 @@ action 판단:
     localStorage.removeItem("vanguard_timer_mission");
     localStorage.removeItem("vanguard_timer_block");
     const xpEarned = finalSeconds >= 900 ? 25 : finalSeconds >= 180 ? 10 : 5;
+    setLastXpEarned(xpEarned);
     if (!isGuest && nickname) {
       await saveRecord({ nickname, date: today, task: currentMission, done: true, hour_of_day: hour, xp_earned: xpEarned });
       if (currentBlockId) { await toggleScheduleBlock(currentBlockId, "complete"); setCurrentBlockId(null); }
@@ -1916,6 +1918,7 @@ action 판단:
                             setCurrentMission(nextBlock.title);
                             if (!isGuest && nickname) {
                               await saveRecord({ nickname, date: today, task: nextBlock.title, done: true, hour_of_day: hour, xp_earned: 5 });
+                              setLastXpEarned(5);
                               await toggleScheduleBlock(nextBlock.id, "complete");
                               await loadUserData(nickname);
                             }
@@ -2102,8 +2105,8 @@ action 판단:
                 {/* 실행 점수 공유 카드 */}
                 <div className="bg-gradient-to-br from-[#4F46E5] to-[#7C3AED] rounded-3xl p-6 mb-4 text-white">
                   <div className="text-center mb-4">
-                    <div className="text-[0.75rem] opacity-70 mb-1">오늘의 실행 기록</div>
-                    <div className="text-[2.5rem] font-bold leading-none">+{records.filter(r => r.date === today && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0)}</div>
+                    <div className="text-[0.75rem] opacity-70 mb-1">이번 미션</div>
+                    <div className="text-[2.5rem] font-bold leading-none">+{lastXpEarned}</div>
                     <div className="text-[0.85rem] opacity-80 mt-1">XP 획득</div>
                   </div>
                   <div className="flex justify-center gap-6 mb-4">
@@ -2116,8 +2119,8 @@ action 판단:
                       <div className="text-[0.72rem] opacity-70">연속</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-[1.2rem] font-bold">{records.reduce((s, r) => s + (r.done ? (r.xp_earned ?? 10) : 0), 0)}</div>
-                      <div className="text-[0.72rem] opacity-70">총 XP</div>
+                      <div className="text-[1.2rem] font-bold">{records.filter(r => r.date === today && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0)}</div>
+                      <div className="text-[0.72rem] opacity-70">오늘 총 XP</div>
                     </div>
                   </div>
                   <div className="text-center text-[0.72rem] opacity-50 mb-3">VANGUARD · AI 실행 코치</div>
