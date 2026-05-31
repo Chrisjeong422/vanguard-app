@@ -685,15 +685,25 @@ fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderb
         const todayStr = kstDateStr();
         const todayDone = records.filter(r => r.date === todayStr && r.done).length;
         
-        // 오전 9시, 오후 2시, 저녁 7시에 체크
+        // 유저 상태 기반 개인화 알림
+        const uState = calcUserState(records, h);
+        const comeback = uState.weeklyComebacks;
         if ((h === 9 || h === 14 || h === 19) && todayDone === 0) {
-          new Notification("Vanguard", {
-            body: h === 9 ? "좋은 아침. 오늘 첫 미션을 시작하자." 
+          let body = "";
+          if (uState.gapDays >= 2) {
+            body = h === 9 ? `${uState.gapDays}일 쉬었다. 오늘 딱 3분이면 다시 시작이다.` 
+              : h === 14 ? `${uState.gapDays}일 멈춰있다. 지금 하나만 하면 흐름이 돌아온다.`
+              : `오늘도 놓치면 ${uState.gapDays + 1}일째다. 3분이라도 지금.`;
+          } else if (comeback >= 1) {
+            body = h === 9 ? `이번 주 ${comeback}번 다시 일어섰다. 오늘도 시작하자.`
+              : h === 14 ? "오후가 지나간다. 오늘 첫 행동을 지금."
+              : "저녁이다. 오늘 0개. 지금 3분이면 오늘을 살린다.";
+          } else {
+            body = h === 9 ? "좋은 아침. 오늘 첫 미션을 시작하자." 
               : h === 14 ? "오후가 지나고 있다. 아직 하나도 안 했다." 
-              : "저녁이다. 오늘 0개 완료. 3분이라도 시작해라.",
-            icon: "/icon-192x192.png",
-            tag: "vanguard-reminder",
-          });
+              : "저녁이다. 오늘 0개 완료. 3분이라도 시작해라.";
+          }
+          new Notification("Vanguard", { body, icon: "/icon-192x192.png", tag: "vanguard-reminder" });
         }
         
         // 스트릭 끊기 직전 경고 (밤 10시)
