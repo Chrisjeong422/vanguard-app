@@ -367,6 +367,8 @@ export default function VanguardHome() {
   const [onboardAiResult, setOnboardAiResult] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<{ nickname: string; xp: number }[]>([]);
   const [currentBlockId, setCurrentBlockId] = useState<string | null>(null);
+  const [completeLoading, setCompleteLoading] = useState(false);
+  const [letterInput, setLetterInput] = useState("");
   const [onboardStep, setOnboardStep] = useState(0);
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
@@ -947,6 +949,8 @@ action 판단:
   }
 
   async function handleComplete() {
+    if (completeLoading) return;
+    setCompleteLoading(true);
     // 타이머 즉시 정지 - 경과 시간 고정
     const finalSeconds = startTime ? Math.floor((Date.now() - startTime.getTime()) / 1000) : elapsedSeconds;
     setStartTime(null);
@@ -973,6 +977,7 @@ action 판단:
     trackEvent("mission_complete", { task: currentMission, hour, elapsed_seconds: elapsedSeconds });
     setMissionFeedback("");
     setHomeMode("done");
+    setCompleteLoading(false);
     
     // AI 피드백 비동기 생성 — 화면 전환은 바로, 피드백은 백그라운드
     setTimeout(async () => {
@@ -2032,9 +2037,9 @@ action 판단:
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <button onClick={handleComplete}
-                    className="bg-white text-[#050A12] font-black rounded-2xl py-4 text-[0.92rem] press-effect">
-                    완료
+                  <button onClick={handleComplete} disabled={completeLoading}
+                    className={`font-black rounded-2xl py-4 text-[0.92rem] press-effect ${completeLoading ? "bg-white/50 text-[#9CA3AF]" : "bg-white text-[#050A12]"}`}>
+                    {completeLoading ? "처리 중..." : "완료"}
                   </button>
                   <button onClick={() => setShowFailSelect(true)}
                     className="bg-white border border-[#E5E7EB] text-[#FCA5A5] font-bold rounded-2xl py-4 text-[0.92rem] press-effect">
@@ -2129,25 +2134,28 @@ action 판단:
                   </button>
                 </div>
 
-                {/* 내일의 편지 */}
+                {/* 내일의 나에게 - 유저가 직접 작성 */}
                 {!tomorrowLetter && (
-                  <button onClick={async () => {
-                    const prompt = `너는 행동 코치다. 유저가 오늘 미션을 완료했다. 내일의 유저한테 보내는 짧은 메시지를 써라. 2줄 이내. 첫줄은 오늘 해낸것 인정. 둘째줄은 내일도 이어가라는 단호한 말. streak: ${streak}일. 절대 이모지 쓰지마.`;
-                    try {
-                      const res = await fetch("/api/gemini", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({prompt}) });
-                      const data = await res.json();
-                      setTomorrowLetter(data.text || "");
-                      localStorage.setItem("vanguard_letter", data.text || "");
-                      localStorage.setItem("vanguard_letter_date", (() => { const k = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })); return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`; })());
-                    } catch {}
-                  }}
-                    className="w-full bg-white border border-[#E5E7EB] rounded-2xl py-3 text-[0.78rem] text-[#6B7280] press-effect mb-3">
-                    내일의 나한테 편지 쓰기
-                  </button>
+                  <div className="bg-white border border-[#E5E7EB] rounded-2xl p-4 mb-3 text-left">
+                    <div className="text-[0.75rem] text-[#9CA3AF] font-bold mb-2">내일의 나에게 한마디</div>
+                    <textarea value={letterInput} onChange={e => setLetterInput(e.target.value)}
+                      placeholder="내일의 나에게 남기고 싶은 말을 적어보세요"
+                      rows={2}
+                      className="w-full bg-[#F9FAFB] rounded-xl px-3 py-2 text-[0.82rem] text-[#1A1A2E] placeholder-[#9CA3AF] focus:outline-none resize-none" />
+                    <button disabled={!letterInput.trim()} onClick={() => {
+                      const kstD = (() => { const k = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })); return `${k.getFullYear()}-${String(k.getMonth()+1).padStart(2,"0")}-${String(k.getDate()).padStart(2,"0")}`; })();
+                      setTomorrowLetter(letterInput.trim());
+                      localStorage.setItem("vanguard_letter", letterInput.trim());
+                      localStorage.setItem("vanguard_letter_date", kstD);
+                    }}
+                      className={`w-full mt-2 rounded-xl py-2 text-[0.78rem] font-bold press-effect ${letterInput.trim() ? "bg-[#4F46E5] text-white" : "bg-[#E5E7EB] text-[#9CA3AF]"}`}>
+                      저장하기
+                    </button>
+                  </div>
                 )}
                 {tomorrowLetter && (
                   <div className="bg-white border border-[#E5E7EB] rounded-2xl p-4 mb-4 text-left">
-                    <div className="text-[0.75rem] text-[#9CA3AF] font-bold mb-2">내일의 나한테</div>
+                    <div className="text-[0.75rem] text-[#9CA3AF] font-bold mb-2">내일의 나에게</div>
                     <div className="text-[0.78rem] text-[#1A1A2E] leading-relaxed">{tomorrowLetter}</div>
                   </div>
                 )}
