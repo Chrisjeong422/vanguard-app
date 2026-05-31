@@ -155,9 +155,17 @@ export default function LandingPage() {
             <span className="mx-2">·</span>
             <a href="/terms" className="hover:text-[#4F46E5]">이용약관</a>
             <span className="mx-2">·</span>
+            <a href="/refund" className="hover:text-[#4F46E5]">환불정책</a>
+            <span className="mx-2">·</span>
             <a href="mailto:minjaej581@gmail.com" className="hover:text-[#4F46E5]">문의</a>
           </div>
-          <div className="text-[0.55rem] text-[#D1D5DB] mt-2">© 2026 Vanguard Studio</div>
+          <div className="text-[0.55rem] text-[#9CA3AF] leading-relaxed">
+            상호: 에스엠제이(SMJ) · 대표: 정민재<br />
+            사업자등록번호: 587-01-04330<br />
+            사업장: 서울특별시 용산구 녹사평대로 66, 205동 1102호(동빙고동, 용산푸르지오파크타운)<br />
+            고객센터: 010-8793-7522 · minjaej581@gmail.com
+          </div>
+          <div className="text-[0.55rem] text-[#D1D5DB] mt-2">© 2026 에스엠제이(SMJ). All rights reserved.</div>
         </div>
       </div>
     </div>
