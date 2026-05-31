@@ -2728,7 +2728,12 @@ action 판단:
                 {(() => {
                   const allFails = records.filter(r => !r.done);
                   const allDone = records.filter(r => r.done);
-                  const totalRate = records.length > 0 ? Math.round((allDone.length / records.length) * 100) : 0;
+                  // 날짜 기준 실행률: 활동한 날 중 성공한 날 비율
+                  const activeDates: Record<string, boolean> = {};
+                  records.forEach(r => { if (activeDates[r.date] === undefined) activeDates[r.date] = false; if (r.done) activeDates[r.date] = true; });
+                  const activeDateList = Object.keys(activeDates);
+                  const successDayCount = activeDateList.filter(d => activeDates[d]).length;
+                  const totalRate = activeDateList.length > 0 ? Math.round((successDayCount / activeDateList.length) * 100) : 0;
                   
                   // 요일별 분석
                   const dayNames = ["일","월","화","수","목","금","토"];
@@ -2754,13 +2759,25 @@ action 판단:
                   });
                   const topReason = Object.entries(failReasons).sort((a, b) => b[1] - a[1])[0];
                   
-                  // 연속 성공/실패 최고 기록
-                  let maxStreak = 0, curStreak = 0;
-                  const sortedRecs = [...records].sort((a, b) => a.date.localeCompare(b.date));
-                  sortedRecs.forEach(r => {
-                    if (r.done) { curStreak++; maxStreak = Math.max(maxStreak, curStreak); }
-                    else { curStreak = 0; }
+                  // 최고 연속 기록 - 날짜 기준 (하루에 1개라도 완료=그날 성공)
+                  const dailyDone: Record<string, boolean> = {};
+                  records.forEach(r => {
+                    if (dailyDone[r.date] === undefined) dailyDone[r.date] = false;
+                    if (r.done) dailyDone[r.date] = true;
                   });
+                  const successDates = Object.keys(dailyDone).filter(d => dailyDone[d]).sort();
+                  let maxStreak = 0;
+                  if (successDates.length > 0) {
+                    maxStreak = 1;
+                    let cur = 1;
+                    for (let i = 1; i < successDates.length; i++) {
+                      const prev = new Date(successDates[i-1] + "T00:00:00+09:00").getTime();
+                      const curr = new Date(successDates[i] + "T00:00:00+09:00").getTime();
+                      const diffDays = Math.round((curr - prev) / 86400000);
+                      if (diffDays === 1) { cur++; maxStreak = Math.max(maxStreak, cur); }
+                      else { cur = 1; }
+                    }
+                  }
 
                   return (
                     <div className="space-y-3">
