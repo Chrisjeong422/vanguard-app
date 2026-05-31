@@ -147,7 +147,7 @@ ${difficultyGuide}
 9. description에는 "왜 이걸 해야 하는지" 한 줄을 써라.
 
 JSON만 출력. 다른 텍스트 쓰지 마라.
-{"wake_time":"${String(Math.min(currentHour, 7)).padStart(2,"0")}:00","sleep_time":"23:00","strategy":"오늘의 전략 한 줄","blocks":[{"id":"b1","start":"${currentTime}","end":"${String(currentHour).padStart(2,"0")}:30","type":"task","title":"구체적 행동","description":"왜 해야 하는지","priority":"high","energy_required":"medium"}],"risk_slots":["위험시간"],"top_priority":"오늘 가장 중요한 1개"}`;
+{"wake_time":"기상시간 추정","sleep_time":"유저 취침시간 추정(집중시간이 저녁/밤이면 늦게, 아침형이면 일찍)","strategy":"오늘의 전략 한 줄","blocks":[{"id":"b1","start":"${currentTime}","end":"${String(currentHour).padStart(2,"0")}:30","type":"task","title":"구체적 행동","description":"왜 해야 하는지","priority":"high","energy_required":"medium"}],"risk_slots":["위험시간"],"top_priority":"오늘 가장 중요한 1개"}`;
 
   try {
     const geminiRes = await fetch(
