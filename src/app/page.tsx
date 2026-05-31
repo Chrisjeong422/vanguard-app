@@ -816,8 +816,11 @@ fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderb
 
   function handleStart() {
     if (mission.trim().length < 2) return;
+    const now = new Date();
     setCurrentMission(mission.trim());
-    setStartTime(new Date());
+    setStartTime(now);
+    localStorage.setItem("vanguard_timer_start", now.getTime().toString());
+    localStorage.setItem("vanguard_timer_mission", mission.trim());
     setRunningMessage("");
     setShowRunningMessage(false);
     setHomeMode("running");
@@ -940,6 +943,9 @@ action 판단:
       if (currentBlockId) { await toggleScheduleBlock(currentBlockId, "complete"); setCurrentBlockId(null); }
       await loadUserData(nickname);
     }
+    localStorage.removeItem("vanguard_timer_start");
+    localStorage.removeItem("vanguard_timer_mission");
+    localStorage.removeItem("vanguard_timer_block");
     setFailTime(null);
     // 내일 스케줄 미리 생성
     if (userPlan !== "free") {
@@ -986,6 +992,9 @@ action 판단:
   async function handleFail(reason: string) {
     setFailReason(reason);
     setShowFailSelect(false);
+    localStorage.removeItem("vanguard_timer_start");
+    localStorage.removeItem("vanguard_timer_mission");
+    localStorage.removeItem("vanguard_timer_block");
     if (!isGuest && nickname) {
       await saveRecord({ nickname, date: today, task: currentMission, done: false, fail_reason: reason, hour_of_day: hour });
       await loadUserData(nickname);
@@ -1224,6 +1233,27 @@ action 판단:
     setScheduleLoading(false);
   }
 
+  // 앱 로드 시 진행 중이던 타이머 복원
+  useEffect(() => {
+    const savedStart = localStorage.getItem("vanguard_timer_start");
+    const savedMission = localStorage.getItem("vanguard_timer_mission");
+    if (savedStart && savedMission && !startTime) {
+      const startMs = parseInt(savedStart);
+      // 6시간 이상 지난 타이머는 무효 (실수로 안 끈 경우)
+      if (Date.now() - startMs < 6 * 3600 * 1000) {
+        setStartTime(new Date(startMs));
+        setCurrentMission(savedMission);
+        setMission(savedMission);
+        const savedBlock = localStorage.getItem("vanguard_timer_block");
+        if (savedBlock) setCurrentBlockId(savedBlock);
+        setHomeMode("running");
+      } else {
+        localStorage.removeItem("vanguard_timer_start");
+        localStorage.removeItem("vanguard_timer_mission");
+        localStorage.removeItem("vanguard_timer_block");
+      }
+    }
+  }, []);
   useEffect(() => {
     if (!startTime) { setElapsed("0:00"); setElapsedSeconds(0); return; }
     const timer = setInterval(() => {
@@ -1850,7 +1880,11 @@ action 판단:
                             setMission(nextBlock.title);
                             setCurrentMission(nextBlock.title);
                             setCurrentBlockId(nextBlock.id);
-                            setStartTime(new Date());
+                            const nbNow = new Date();
+                            setStartTime(nbNow);
+                            localStorage.setItem("vanguard_timer_start", nbNow.getTime().toString());
+                            localStorage.setItem("vanguard_timer_mission", nextBlock.title);
+                            localStorage.setItem("vanguard_timer_block", nextBlock.id);
                             setRunningMessage("");
                             setShowRunningMessage(false);
                             setHomeMode("running");
