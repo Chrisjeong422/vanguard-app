@@ -947,15 +947,19 @@ action 판단:
   }
 
   async function handleComplete() {
-    const xpEarned = elapsedSeconds >= 900 ? 25 : elapsedSeconds >= 180 ? 10 : 5;
+    // 타이머 즉시 정지 - 경과 시간 고정
+    const finalSeconds = startTime ? Math.floor((Date.now() - startTime.getTime()) / 1000) : elapsedSeconds;
+    setStartTime(null);
+    setElapsedSeconds(finalSeconds);
+    localStorage.removeItem("vanguard_timer_start");
+    localStorage.removeItem("vanguard_timer_mission");
+    localStorage.removeItem("vanguard_timer_block");
+    const xpEarned = finalSeconds >= 900 ? 25 : finalSeconds >= 180 ? 10 : 5;
     if (!isGuest && nickname) {
       await saveRecord({ nickname, date: today, task: currentMission, done: true, hour_of_day: hour, xp_earned: xpEarned });
       if (currentBlockId) { await toggleScheduleBlock(currentBlockId, "complete"); setCurrentBlockId(null); }
       await loadUserData(nickname);
     }
-    localStorage.removeItem("vanguard_timer_start");
-    localStorage.removeItem("vanguard_timer_mission");
-    localStorage.removeItem("vanguard_timer_block");
     setFailTime(null);
     // 내일 스케줄 미리 생성
     if (userPlan !== "free") {
@@ -2781,10 +2785,14 @@ action 판단:
 
                   return (
                     <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-3 gap-2">
                         <div className="bg-[#F0FDF4] rounded-2xl p-3 text-center">
-                          <div className="text-[1.2rem] font-black text-[#4ADE80]">{totalRate}%</div>
-                          <div className="text-[0.75rem] text-[#6B7280]">전체 실행률</div>
+                          <div className="text-[1.2rem] font-black text-[#4ADE80]">{allDone.length}</div>
+                          <div className="text-[0.72rem] text-[#6B7280]">완료한 미션</div>
+                        </div>
+                        <div className="bg-[#FEF3F2] rounded-2xl p-3 text-center">
+                          <div className="text-[1.2rem] font-black text-[#F97316]">{(() => { const tm = kstDateStr().slice(0,7); const md: Record<string, boolean> = {}; records.forEach(r => { if (r.done && r.date.startsWith(tm)) md[r.date] = true; }); return Object.keys(md).length; })()}일</div>
+                          <div className="text-[0.72rem] text-[#6B7280]">이번 달 실행</div>
                         </div>
                         <div className="bg-[#EEF2FF] rounded-2xl p-3 text-center">
                           <div className="text-[1.2rem] font-black text-[#4F46E5]">{maxStreak}일</div>
