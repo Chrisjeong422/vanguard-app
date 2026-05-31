@@ -125,17 +125,6 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* 창업자 */}
-        <div className="py-12 border-t border-[#F3F4F6]">
-          <div className="text-[0.62rem] text-[#6B7280] font-bold tracking-widest uppercase mb-3">만든 사람</div>
-          <div className="text-[0.92rem] font-black text-[#1A1A2E] mb-2">23세, 1인 개발</div>
-          <div className="text-[0.78rem] text-[#9CA3AF] leading-relaxed">
-            저도 계획만 세우고 실행 못 하는 사람이었습니다.<br />
-            그래서 직접 만들었습니다.<br />
-            기획, 디자인, 개발, 배포 — 혼자서 전부.<br />
-            Vanguard는 제 문제에서 시작된 제품입니다.
-          </div>
-        </div>
 
         {/* CTA */}
         <div className="py-16 text-center border-t border-[#F3F4F6]">
