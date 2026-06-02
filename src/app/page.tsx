@@ -370,6 +370,7 @@ export default function VanguardHome() {
   const [completeLoading, setCompleteLoading] = useState(false);
   const [letterInput, setLetterInput] = useState("");
   const [lastXpEarned, setLastXpEarned] = useState(0);
+  const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
   const [onboardStep, setOnboardStep] = useState(0);
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
@@ -2366,11 +2367,17 @@ action 판단:
                         }`}>
                         {block.is_completed ? "✓" : ""}
                       </button>
-                      <div className="flex-1 min-w-0">
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpandedBlock(expandedBlock === block.id ? null : block.id)}>
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[0.8rem] text-[#9CA3AF] font-mono">{block.start}</span>
-                          <span className={`text-[0.78rem] font-bold truncate ${block.is_completed ? "line-through text-[#9CA3AF]" : "text-[#1A1A2E]"}`}>{block.title}</span>
+                          <span className="text-[0.8rem] text-[#9CA3AF] font-mono shrink-0">{block.start}</span>
+                          <span className={`text-[0.78rem] font-bold ${expandedBlock === block.id ? "" : "truncate"} ${block.is_completed ? "line-through text-[#9CA3AF]" : "text-[#1A1A2E]"}`}>{block.title}</span>
                         </div>
+                        {expandedBlock === block.id && block.description && (
+                          <div className="text-[0.72rem] text-[#6B7280] mt-1.5 leading-relaxed">{block.description}</div>
+                        )}
+                        {expandedBlock === block.id && block.end && (
+                          <div className="text-[0.68rem] text-[#9CA3AF] mt-1">{block.start} ~ {block.end}</div>
+                        )}
                       </div>
                       {!block.is_completed && !block.skipped && (
                         <div className="flex items-center gap-1 shrink-0">
