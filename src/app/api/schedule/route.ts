@@ -127,7 +127,12 @@ export async function POST(req: NextRequest) {
   const currentTime = `${String(currentHour).padStart(2,"0")}:${String(currentMin).padStart(2,"0")}`;
   const remainingHours = Math.max(1, 23 - currentHour);
   const timeContext = currentHour >= 20 ? "지금은 저녁 늦은 시간이다. 오늘 남은 시간에 할 수 있는 가벼운 미션 1~3개만 만들어라. 취침 준비도 포함해라." : currentHour >= 17 ? "지금은 저녁 시간이다. 오늘 남은 시간에 집중할 수 있는 미션 3~5개를 만들어라." : currentHour >= 12 ? "지금은 오후다. 오후~저녁 시간에 할 미션을 만들어라." : "아침부터 시작하는 하루 전체 스케줄을 만들어라.";
-  const prompt = `너는 세계 최고의 실행 코치다. 유저의 하루 스케줄을 JSON으로 만들어라.
+  const prompt = `너는 이 유저 한 명만을 전담하는 개인 실행 코치다. 다른 누구도 아닌 "이 사람"을 위한 오늘 스케줄을 만들어라.
+[가장 중요한 원칙]
+- 세수, 식사, 양치, 휴식, 모닝루틴 같은 "안 시켜도 하는 당연한 일"로 시간을 때우지 마라. 그건 스케줄이 아니다.
+- 스케줄의 중심은 이 사람의 목표/하고싶은것을 향한 "구체적인 실행 행동"이다.
+- 아래 이 사람의 정보를 깊이 읽고 이 사람만을 위한 맞춤 스케줄을 만들어라. 누구에게나 통하는 뻔한 스케줄은 실패다.
+- 하루의 흐름(아침/낮/저녁)은 고려하되 그 안을 목표 실행으로 채워라.
 
 현재 시간: ${currentTime}. ${timeContext}
 ${profileContext}
