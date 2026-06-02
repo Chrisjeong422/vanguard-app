@@ -40,6 +40,8 @@ function sanitizeNickname(nick: unknown): string | null {
 }
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
+import Anthropic from "@anthropic-ai/sdk";
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function GET(req: NextRequest) {
   // 입력 검증
@@ -150,28 +152,15 @@ JSON만 출력. 다른 텍스트 쓰지 마라.
 {"wake_time":"기상시간 추정","sleep_time":"유저 취침시간 추정(집중시간이 저녁/밤이면 늦게, 아침형이면 일찍)","strategy":"오늘의 전략 한 줄","blocks":[{"id":"b1","start":"${currentTime}","end":"${String(currentHour).padStart(2,"0")}:30","type":"task","title":"구체적 행동","description":"왜 해야 하는지","priority":"high","energy_required":"medium"}],"risk_slots":["위험시간"],"top_priority":"오늘 가장 중요한 1개"}`;
 
   try {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { maxOutputTokens: 1000, temperature: 0.7 },
-        }),
-      }
-    );
-
-    if (!geminiRes.ok) {
-      console.error("[Schedule] Gemini HTTP error:", geminiRes.status);
-      console.log("[Schedule] AI failed, using fallback");
-    }
-
-    const geminiData = await geminiRes.json();
-    console.log("[Schedule] finish:", geminiData?.candidates?.[0]?.finishReason);
-    console.log("[Schedule] tokens:", geminiData?.usageMetadata?.candidatesTokenCount);
-
-    const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const claudeMsg = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2000,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const rawText = claudeMsg.content
+      .filter((b: any) => b.type === "text")
+      .map((b: any) => (b as any).text)
+      .join("\n");
     if (!rawText) {
       console.error("[Schedule] Empty response");
       console.log("[Schedule] Empty response, using fallback");

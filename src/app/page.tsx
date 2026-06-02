@@ -897,7 +897,7 @@ action 판단:
 - 일정 변경/계획 다시 → regen_schedule
 - 그 외 → none (단 reply엔 항상 구체적 계획 제시)`;
 
-      const res = await fetch("/api/gemini", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
+      const res = await fetch("/api/claude-coach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt }) });
       const data = await res.json();
       let parsed: any = null;
       try {
@@ -996,7 +996,7 @@ action 판단:
 2줄: 이 미션의 결과물을 더 발전시킬 구체적 방법 1가지를 제안해라.
 3줄: 다음에 해야 할 구체적 행동 1가지를 제시해라.
 이모지 쓰지마. 단호하고 구체적으로.`;
-      const res = await fetch("/api/gemini", {
+      const res = await fetch("/api/claude-coach", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: feedbackPrompt }),
