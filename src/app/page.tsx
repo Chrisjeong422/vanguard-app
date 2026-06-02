@@ -371,6 +371,10 @@ export default function VanguardHome() {
   const [letterInput, setLetterInput] = useState("");
   const [lastXpEarned, setLastXpEarned] = useState(0);
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null);
+  const [calMonth, setCalMonth] = useState(() => { const k = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Seoul" })); return { year: k.getFullYear(), month: k.getMonth() }; });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDatePlan, setSelectedDatePlan] = useState<any>(null);
+  const [selectedDatePlanLoading, setSelectedDatePlanLoading] = useState(false);
   const [onboardStep, setOnboardStep] = useState(0);
   const [profileOccupation, setProfileOccupation] = useState("");
   const [profileFocusTime, setProfileFocusTime] = useState("");
@@ -2646,6 +2650,93 @@ action 판단:
               </div>
             )}
 
+            {/* 월간 달력 */}
+            <div className="bg-white border border-[#E5E7EB] rounded-3xl p-5 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <button onClick={() => setCalMonth(p => { const m = p.month - 1; return m < 0 ? { year: p.year - 1, month: 11 } : { year: p.year, month: m }; })}
+                  className="text-[#9CA3AF] hover:text-[#1A1A2E] text-[1rem] px-2">‹</button>
+                <div className="text-[0.85rem] font-bold text-[#1A1A2E]">{calMonth.year}년 {calMonth.month + 1}월</div>
+                <button onClick={() => setCalMonth(p => { const m = p.month + 1; return m > 11 ? { year: p.year + 1, month: 0 } : { year: p.year, month: m }; })}
+                  className="text-[#9CA3AF] hover:text-[#1A1A2E] text-[1rem] px-2">›</button>
+              </div>
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {["일","월","화","수","목","금","토"].map(d => (
+                  <div key={d} className="text-center text-[0.65rem] text-[#9CA3AF] font-bold py-1">{d}</div>
+                ))}
+              </div>
+              {(() => {
+                const firstDay = new Date(calMonth.year, calMonth.month, 1).getDay();
+                const daysInMonth = new Date(calMonth.year, calMonth.month + 1, 0).getDate();
+                const doneByDate: Record<string, boolean> = {};
+                records.forEach(r => { if (r.done) doneByDate[r.date] = true; });
+                const todayStr = kstDateStr();
+                const cells = [];
+                for (let i = 0; i < firstDay; i++) cells.push(<div key={`e${i}`} />);
+                for (let d = 1; d <= daysInMonth; d++) {
+                  const dateStr = `${calMonth.year}-${String(calMonth.month + 1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+                  const hasDone = doneByDate[dateStr];
+                  const isToday = dateStr === todayStr;
+                  const isSelected = dateStr === selectedDate;
+                  cells.push(
+                    <button key={d} onClick={async () => {
+                      setSelectedDate(dateStr);
+                      setSelectedDatePlanLoading(true);
+                      setSelectedDatePlan(null);
+                      try {
+                        const res = await fetch(`/api/schedule-by-date?nickname=${encodeURIComponent(nickname)}&date=${dateStr}`);
+                        const data = await res.json();
+                        setSelectedDatePlan(data.schedule);
+                      } catch {}
+                      setSelectedDatePlanLoading(false);
+                    }}
+                      className={`aspect-square rounded-lg flex items-center justify-center text-[0.72rem] relative ${
+                        isSelected ? "bg-[#4F46E5] text-white font-bold" :
+                        hasDone ? "bg-[#4ADE80]/20 text-[#1A1A2E] font-bold" :
+                        "text-[#6B7280]"
+                      } ${isToday && !isSelected ? "ring-1 ring-[#4F46E5]" : ""}`}>
+                      {d}
+                      {hasDone && !isSelected && <span className="absolute bottom-0.5 w-1 h-1 rounded-full bg-[#4ADE80]" />}
+                    </button>
+                  );
+                }
+                return <div className="grid grid-cols-7 gap-1">{cells}</div>;
+              })()}
+              {/* 선택한 날짜의 플랜 */}
+              {selectedDate && (
+                <div className="mt-4 pt-4 border-t border-[#F3F4F6]">
+                  <div className="text-[0.78rem] font-bold text-[#1A1A2E] mb-2">{selectedDate} 기록</div>
+                  {selectedDatePlanLoading ? (
+                    <div className="text-[0.75rem] text-[#9CA3AF] py-2">불러오는 중...</div>
+                  ) : (() => {
+                    const dayRecords = records.filter(r => r.date === selectedDate);
+                    const dayDone = dayRecords.filter(r => r.done);
+                    const dayFail = dayRecords.filter(r => !r.done);
+                    if (dayRecords.length === 0 && !selectedDatePlan) {
+                      return <div className="text-[0.75rem] text-[#9CA3AF] py-2">이 날은 기록이 없습니다.</div>;
+                    }
+                    return (
+                      <div className="space-y-1.5">
+                        {dayDone.map((r, i) => (
+                          <div key={`d${i}`} className="flex items-center gap-2 text-[0.76rem]">
+                            <span className="text-[#4ADE80]">✓</span>
+                            <span className="text-[#1A1A2E]">{r.task}</span>
+                          </div>
+                        ))}
+                        {dayFail.map((r, i) => (
+                          <div key={`f${i}`} className="flex items-center gap-2 text-[0.76rem]">
+                            <span className="text-[#FCA5A5]">✕</span>
+                            <span className="text-[#9CA3AF] line-through">{r.task}</span>
+                          </div>
+                        ))}
+                        {dayDone.length > 0 && (
+                          <div className="text-[0.7rem] text-[#9CA3AF] mt-2">완료 {dayDone.length}개{dayFail.length > 0 ? `, 실패 ${dayFail.length}개` : ""}</div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
             {/* 주간 실행률 그래프 */}
             <div className="bg-white border border-[#E5E7EB] rounded-3xl p-5 mb-4">
               <div className="text-[0.8rem] text-[#9CA3AF] font-bold tracking-widest uppercase mb-3">최근 7일 실행률</div>
