@@ -2137,8 +2137,11 @@ action 판단:
                   </button>
                 </div>
 
-                {/* 내일의 나에게 - 유저가 직접 작성 */}
-                {!tomorrowLetter && (
+                {/* 내일의 나에게 - 오늘 모든 미션 완료 시에만 (하루 마무리) */}
+                {!tomorrowLetter && (() => {
+                  const remaining = dailySchedule ? dailySchedule.blocks.filter((b: any) => !b.is_completed && !b.skipped).length : 0;
+                  return remaining === 0;
+                })() && (
                   <div className="bg-white border border-[#E5E7EB] rounded-2xl p-4 mb-3 text-left">
                     <div className="text-[0.75rem] text-[#9CA3AF] font-bold mb-2">내일의 나에게 한마디</div>
                     <textarea value={letterInput} onChange={e => setLetterInput(e.target.value)}
@@ -2156,7 +2159,10 @@ action 판단:
                     </button>
                   </div>
                 )}
-                {tomorrowLetter && (
+                {tomorrowLetter && (() => {
+                  const remaining = dailySchedule ? dailySchedule.blocks.filter((b: any) => !b.is_completed && !b.skipped).length : 0;
+                  return remaining === 0;
+                })() && (
                   <div className="bg-white border border-[#E5E7EB] rounded-2xl p-4 mb-4 text-left">
                     <div className="text-[0.75rem] text-[#9CA3AF] font-bold mb-2">내일의 나에게</div>
                     <div className="text-[0.78rem] text-[#1A1A2E] leading-relaxed">{tomorrowLetter}</div>
