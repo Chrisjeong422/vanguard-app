@@ -161,7 +161,7 @@ JSON만 출력. 다른 텍스트 쓰지 마라.
   try {
     const claudeMsg = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [{ role: "user", content: prompt }],
     });
     const rawText = claudeMsg.content
@@ -180,7 +180,10 @@ JSON만 출력. 다른 텍스트 쓰지 마라.
       scheduleData = JSON.parse(aiText);
     } catch {
       console.error("[Schedule] Parse fail, text:", aiText.slice(0, 300));
-      console.log("[Schedule] Parse failed, using fallback");
+      throw new Error("JSON parse failed: " + aiText.slice(0, 100));
+    }
+    if (!scheduleData || !scheduleData.blocks) {
+      throw new Error("No blocks in response");
     }
 
     const blocks = (scheduleData.blocks || []).map((block: Record<string, unknown>) => ({
