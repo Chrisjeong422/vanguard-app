@@ -224,14 +224,14 @@ JSON만 출력. 다른 텍스트 쓰지 마라.
     }
 
     return NextResponse.json({ schedule });
-  } catch (err) {
-    console.error("[Schedule] Error:", err);
+  } catch (err: any) {
+    console.error("[Schedule] Error:", err?.message || err, err?.stack);
     // fallback 스케줄 저장
     await supabaseAdmin.from("daily_schedules").delete().eq("nickname", nickname).eq("schedule_date", today);
     const { data: fbSchedule } = await supabaseAdmin.from("daily_schedules").insert({
       nickname, schedule_date: today, wake_time: "07:00", sleep_time: "23:00",
       blocks: fallbackBlocks,
-      generation_context: { strategy: "기본 스케줄입니다. 다시 생성을 눌러주세요.", risk_slots: [], top_priority: "오늘 가장 중요한 일 1개 시작하기" },
+      generation_context: { strategy: "DEBUG_ERROR: " + (err?.message || String(err)).slice(0, 200), risk_slots: [], top_priority: "오늘 가장 중요한 일 1개 시작하기" },
       total_blocks: fallbackBlocks.length, completed_blocks: 0, adherence_score: 0, status: "generated",
     }).select().single();
     if (fbSchedule) return NextResponse.json({ schedule: fbSchedule });
