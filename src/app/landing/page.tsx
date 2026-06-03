@@ -11,7 +11,7 @@ export default function LandingPage() {
 
         {/* 히어로 */}
         <div className="pt-20 pb-16 text-center">
-          <div className="text-[2.5rem] font-black leading-none mb-1" style={{letterSpacing: "0.1em"}}>히비고</div>
+          <div className="text-[2.5rem] font-black leading-none mb-1" style={{letterSpacing: "0.1em"}}>HIBIGO</div>
           <div className="text-[0.65rem] text-[#9CA3AF] mb-8" style={{letterSpacing: "0.35em", fontWeight: 700}}>Life OS</div>
           <div className="text-[1.3rem] font-black text-[#1A1A2E] leading-snug mb-4">
             계획은 AI가 세운다.<br />
@@ -20,7 +20,7 @@ export default function LandingPage() {
           </div>
           <div className="text-[0.85rem] text-[#6B7280] leading-relaxed mb-8">
             기존 앱은 계획을 기록합니다.<br />
-            히비고는 실패한 사람을 다시 실행하게 만듭니다.
+            HIBIGO는 실패한 사람을 다시 실행하게 만듭니다.
           </div>
           <button onClick={() => router.push("/login")}
             className="bg-white text-[#050A12] font-black rounded-3xl py-4 px-12 text-[1rem] press-effect"
@@ -74,12 +74,12 @@ export default function LandingPage() {
 
         {/* 차별화 비교표 */}
         <div className="py-12 border-t border-[#F3F4F6]">
-          <div className="text-[0.62rem] text-[#6B7280] font-bold tracking-widest uppercase mb-4">기존 앱 vs 히비고</div>
+          <div className="text-[0.62rem] text-[#6B7280] font-bold tracking-widest uppercase mb-4">기존 앱 vs HIBIGO</div>
           <div className="bg-white border border-[#E5E7EB] rounded-3xl overflow-hidden">
             <div className="grid grid-cols-3 text-[0.65rem] font-bold text-[#9CA3AF] border-b border-white/[0.04]">
               <div className="p-3"></div>
               <div className="p-3 text-center">기존 앱</div>
-              <div className="p-3 text-center text-[#1A1A2E]">히비고</div>
+              <div className="p-3 text-center text-[#1A1A2E]">HIBIGO</div>
             </div>
             {[
               { label: "역할", old: "기록/알림", now: "실행 개입" },

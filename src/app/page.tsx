@@ -711,12 +711,12 @@ fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderb
               : h === 14 ? "오후가 지나고 있다. 아직 하나도 안 했다." 
               : "저녁이다. 오늘 0개 완료. 3분이라도 시작해라.";
           }
-          new Notification("히비고", { body, icon: "/icon-192x192.png", tag: "vanguard-reminder" });
+          new Notification("HIBIGO", { body, icon: "/icon-192x192.png", tag: "vanguard-reminder" });
         }
         
         // 스트릭 끊기 직전 경고 (밤 10시)
         if (h === 22 && todayDone === 0 && streak > 0) {
-          new Notification("히비고", {
+          new Notification("HIBIGO", {
             body: `${streak}일 스트릭이 끊기려고 한다. 지금 3분만 하면 살릴 수 있다.`,
             icon: "/icon-192x192.png",
             tag: "vanguard-streak-warning",
@@ -874,7 +874,7 @@ fetch("/api/leaderboard").then(r => r.json()).then(d => setLeaderboard(d.leaderb
       const ctx = await getUserContext(nickname);
       const chatHistory = coachMessages.slice(-8).map(m => `${m.role === "user" ? "유저" : "코치"}: ${m.text}`).join("\n");
       // AI가 한 번에 판단: 답변 + 계획 변경 필요 여부 + 목표
-      const prompt = `너는 히비고 AI 실행 코치다. 유저를 다시 움직이게 만드는 게 너의 일이다.
+      const prompt = `너는 HIBIGO AI 실행 코치다. 유저를 다시 움직이게 만드는 게 너의 일이다.
 
 ${contextToPrompt(ctx)}
 
@@ -1316,7 +1316,7 @@ action 판단:
     <div className="min-h-screen bg-[#FAFAFA] text-[#1A1A2E] flex justify-center">
       {showSplash && (
         <div className="fixed inset-0 bg-[#4F46E5] flex flex-col items-center justify-center z-50">
-          <div className="text-[3.5rem] font-black text-white" style={{letterSpacing: "0.1em", animation: "fadeIn 0.8s ease-in"}}>히비고</div>
+          <div className="text-[3.5rem] font-black text-white" style={{letterSpacing: "0.1em", animation: "fadeIn 0.8s ease-in"}}>HIBIGO</div>
           <div className="text-[0.8rem] text-[#999999] mt-0" style={{letterSpacing: "0.35em", fontWeight: 700}}>Life OS</div>
           <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
         </div>
@@ -1723,7 +1723,7 @@ action 판단:
         {/* 헤더 */}
         <div className="pt-12 pb-4 border-b border-[#E5E7EB] mb-3">
           <div className="text-center mb-3">
-            <div className="text-[2rem] font-black leading-none" style={{letterSpacing: "0.1em"}}>히비고</div>
+            <div className="text-[2rem] font-black leading-none" style={{letterSpacing: "0.1em"}}>HIBIGO</div>
             <div className="text-[0.8rem] text-[#999999] mt-0" style={{letterSpacing: "0.35em", fontWeight: 700}}>Life OS</div>
           </div>
           <div className="flex items-center justify-between">
@@ -2128,13 +2128,13 @@ action 판단:
                       <div className="text-[0.72rem] opacity-70">오늘 총 XP</div>
                     </div>
                   </div>
-                  <div className="text-center text-[0.72rem] opacity-50 mb-3">히비고 · AI 실행 코치</div>
+                  <div className="text-center text-[0.72rem] opacity-50 mb-3">HIBIGO · AI 실행 코치</div>
                   <button onClick={() => {
                     const todayXP = records.filter(r => r.date === today && r.done).reduce((s, r) => s + (r.xp_earned ?? 10), 0);
                     const totalXP = records.reduce((s, r) => s + (r.done ? (r.xp_earned ?? 10) : 0), 0);
-                    const text = `오늘 +${todayXP}XP 획득! ${Math.floor(elapsedSeconds / 60)}분 집중, ${streak}일 연속 실행 중. 총 ${totalXP}XP. 히비고가 실행을 관리해주고 있다.`;
+                    const text = `오늘 +${todayXP}XP 획득! ${Math.floor(elapsedSeconds / 60)}분 집중, ${streak}일 연속 실행 중. 총 ${totalXP}XP. HIBIGO가 실행을 관리해주고 있다.`;
                     const url = "https://vanguard-five-ecru.vercel.app/landing";
-                    if (navigator.share) { navigator.share({ title: "히비고 실행 기록", text, url }).catch(() => {}); }
+                    if (navigator.share) { navigator.share({ title: "HIBIGO 실행 기록", text, url }).catch(() => {}); }
                     else { window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + " " + url)}`, "_blank"); }
                   }}
                     className="w-full bg-white/20 backdrop-blur text-white font-medium rounded-2xl py-3 text-[0.85rem] press-effect">
@@ -3316,9 +3316,9 @@ action 판단:
                           </div>
                           <div className="text-[0.85rem] text-[#6B7280] mb-3">이건 의지가 아니라 반복되는 패턴입니다.</div>
                           <button onClick={() => {
-                            const text = `나의 실패 패턴: ${timeLabel} ${avgHour}시에 "${topReasons[0]?.[0] || "집중력 부족"}" 때문에 무너짐. 히비고가 패턴을 잡아주고 있다.`;
+                            const text = `나의 실패 패턴: ${timeLabel} ${avgHour}시에 "${topReasons[0]?.[0] || "집중력 부족"}" 때문에 무너짐. HIBIGO가 패턴을 잡아주고 있다.`;
                             const url = "https://vanguard-five-ecru.vercel.app/landing";
-                            if (navigator.share) { navigator.share({ title: "히비고 실패 패턴", text, url }).catch(() => {}); }
+                            if (navigator.share) { navigator.share({ title: "HIBIGO 실패 패턴", text, url }).catch(() => {}); }
                             else { window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text + " " + url)}`, "_blank"); }
                           }}
                             className="w-full bg-[#F3F4F6] text-[#6B7280] font-medium rounded-2xl py-2.5 text-[0.82rem] press-effect">
@@ -3429,7 +3429,7 @@ action 판단:
                 if ("Notification" in window) {
                   const perm = await Notification.requestPermission();
                   if (perm === "granted") {
-                    new Notification("히비고", { body: "알림이 설정되었습니다. 매일 미션을 놓치지 않게 알려드리겠습니다.", icon: "/icon-192x192.png" });
+                    new Notification("HIBIGO", { body: "알림이 설정되었습니다. 매일 미션을 놓치지 않게 알려드리겠습니다.", icon: "/icon-192x192.png" });
                     alert("알림이 활성화되었습니다!");
                   } else {
                     alert("알림 권한을 허용해주세요. 브라우저 설정에서 변경할 수 있습니다.");

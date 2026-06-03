@@ -1,7 +1,7 @@
 {
   "id": "vanguard-life-os",
-  "name": "히비고 - AI 실행 코치",
-  "short_name": "히비고",
+  "name": "HIBIGO - AI Execution Coach",
+  "short_name": "HIBIGO",
   "description": "끝까지 실행하게 만드는 AI 코치. 계획은 AI가 세운다. 당신은 실행만 하면 된다.",
   "start_url": "/",
   "scope": "/",
